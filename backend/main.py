@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal, HAS_PGVECTOR
-from app.core.seed import seed_database
+import app.models
+from app.core.seed import seed_database, seed_users
 from app.routers import (
     auth_router,
     trainees_router,
@@ -41,6 +42,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_database(db)
+        seed_users(db)
         InterventionEngine.seed_catalogue(db)
         CareerProgressionService.seed_career_data(db)
         EmployerVerificationService.seed_employer_verifications(db)
@@ -72,6 +74,7 @@ app.add_middleware(
 
 # Health & Status Endpoint
 @app.get("/health", tags=["System"])
+@app.get("/api/health", tags=["System"])
 def health_check():
     return {
         "status": "healthy",

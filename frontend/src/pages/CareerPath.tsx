@@ -3,7 +3,7 @@ import {
   TrendingUp,
   Award,
   Clock,
-  DollarSign,
+  IndianRupee,
   ChevronRight,
   Sparkles,
   CheckCircle2,
@@ -159,13 +159,13 @@ export const CareerPathView: React.FC = () => {
 
   // Synthetic trainee list for selection
   const traineesList = [
-    { id: 'TRN-2024-001', name: 'Elena Rostova', pathway: 'employment' as CareerPathwayType, role: 'Junior Frontend Engineer', org: 'Apex Cloud Solutions' },
-    { id: 'TRN-2024-002', name: 'Marcus Vance', pathway: 'freelancing' as CareerPathwayType, role: 'Independent Data Visualizer', org: 'Self-Employed Freelance' },
-    { id: 'TRN-2024-003', name: 'Maya Lin', pathway: 'entrepreneurship' as CareerPathwayType, role: 'Founder & CEO', org: 'EcoCart E-Commerce' },
-    { id: 'TRN-2024-004', name: 'Carlos Rodriguez', pathway: 'apprenticeship' as CareerPathwayType, role: 'Solar Industrial Apprentice', org: 'SunPower Grid Texas' },
-    { id: 'TRN-2024-005', name: 'Aisha Patel', pathway: 'further_education' as CareerPathwayType, role: 'M.S. Health Informatics Fellow', org: 'University of Texas Medical' },
-    { id: 'TRN-2024-006', name: 'David Chen', pathway: 'self_employment' as CareerPathwayType, role: 'Principal Electrical Contractor', org: 'Chen Industrial Electrical LLC' },
-    { id: 'TRN-2024-007', name: 'Jordan Miller', pathway: 'unknown' as CareerPathwayType, role: 'Unverified / Disconnected', org: 'Unreachable Candidate' }
+    { id: 'TRN-2024-001', name: 'Priya Sharma', pathway: 'employment' as CareerPathwayType, role: 'Junior Frontend Engineer', org: 'Apex Cloud Technologies India Pvt. Ltd.' },
+    { id: 'TRN-2024-002', name: 'Rajesh Kumar', pathway: 'self_employment' as CareerPathwayType, role: 'Cloud Architect & Principal Consultant', org: 'Kumar Cloud Architecture LLP' },
+    { id: 'TRN-2024-003', name: 'Sneha Patel', pathway: 'freelancing' as CareerPathwayType, role: 'Senior Full-Stack Freelance Contractor', org: 'Independent Freelance (Top Rated)' },
+    { id: 'TRN-2024-004', name: 'Karthik Venkataraman', pathway: 'apprenticeship' as CareerPathwayType, role: 'Healthcare Cybersecurity Systems Apprentice', org: 'Vanguard Healthcare Networks India' },
+    { id: 'TRN-2024-005', name: 'Aditya Verma', pathway: 'entrepreneurship' as CareerPathwayType, role: 'Founder & CEO', org: 'OmniTrace Diagnostics Pvt. Ltd.' },
+    { id: 'TRN-2024-006', name: 'Ananya Iyer', pathway: 'further_education' as CareerPathwayType, role: 'M.Tech Research Fellow', org: 'IIT Delhi - School of AI' },
+    { id: 'TRN-2024-007', name: 'Rohan Sen', pathway: 'unknown' as CareerPathwayType, role: 'Cloud DevOps Trainee', org: 'Apex Cloud Technologies India Pvt. Ltd.' }
   ];
 
   const loadData = async (traineeId: string) => {
@@ -994,7 +994,7 @@ export const CareerPathView: React.FC = () => {
               required
               value={newEventPayload.title}
               onChange={(e) => setNewEventPayload({ ...newEventPayload, title: e.target.value })}
-              placeholder="e.g. Promoted to Senior Developer / Secured $50k Seed Angel / Journeyperson License"
+              placeholder="e.g. Promoted to Senior Developer / Secured ₹50 Lakhs Seed Grant / NAPS Completion Certificate"
               className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500"
             />
           </div>
@@ -1009,7 +1009,7 @@ export const CareerPathView: React.FC = () => {
                 required
                 value={newEventPayload.organization}
                 onChange={(e) => setNewEventPayload({ ...newEventPayload, organization: e.target.value })}
-                placeholder="Apex Cloud / Self / Austin Health"
+                placeholder="Apex Cloud India / Self / Vanguard Healthcare"
                 className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500"
               />
             </div>
@@ -1044,7 +1044,7 @@ export const CareerPathView: React.FC = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Salary Range (e.g. $85,000 / yr)"
+                  placeholder="Salary Range (e.g. ₹8,50,000 / yr)"
                   className="p-2 border border-slate-200 rounded-lg text-xs"
                   onChange={(e) => setDynamicMetrics({ ...dynamicMetrics, salary_range: e.target.value })}
                 />
@@ -1079,7 +1079,7 @@ export const CareerPathView: React.FC = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Income Range (e.g. $6,500 - $8,000 / mo)"
+                  placeholder="Income Range (e.g. ₹65,000 - ₹80,000 / mo)"
                   className="p-2 border border-slate-200 rounded-lg text-xs"
                   onChange={(e) => setDynamicMetrics({ ...dynamicMetrics, income_range: e.target.value })}
                 />
@@ -1108,7 +1108,7 @@ export const CareerPathView: React.FC = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Revenue Range (e.g. $180,000 ARR)"
+                  placeholder="Revenue Range (e.g. ₹18,00,000 ARR)"
                   className="p-2 border border-slate-200 rounded-lg text-xs"
                   onChange={(e) => setDynamicMetrics({ ...dynamicMetrics, revenue_range: e.target.value })}
                 />
@@ -1148,13 +1148,13 @@ export const CareerPathView: React.FC = () => {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <input
                   type="text"
-                  placeholder="Degree Programme (e.g. M.S. Bioinformatics)"
+                  placeholder="Degree Programme (e.g. M.Tech Biomedical AI)"
                   className="p-2 border border-slate-200 rounded-lg text-xs"
                   onChange={(e) => setDynamicMetrics({ ...dynamicMetrics, programme: e.target.value })}
                 />
                 <input
                   type="text"
-                  placeholder="Institution (e.g. UT Austin)"
+                  placeholder="Institution (e.g. IIT Delhi / IIIT Bangalore)"
                   className="p-2 border border-slate-200 rounded-lg text-xs"
                   onChange={(e) => setDynamicMetrics({ ...dynamicMetrics, institution: e.target.value })}
                 />

@@ -89,11 +89,12 @@ def get_skill_gaps_summary(db: Session = Depends(get_db)):
 def get_trainee_skill_gap(
     id: str,
     target_occupation_id: Optional[str] = Query(None, description="Optional target occupation override"),
+    target_job_id: Optional[str] = Query(None, description="Optional target job requisition override"),
     db: Session = Depends(get_db)
 ):
     """
     Returns the comprehensive Skill Gap Audit for an individual candidate,
-    including exact formula calculation breakdowns and detected reasons.
+    including exact formula calculation breakdowns, explainable gaps, and 4-way visual comparison.
     """
     trainee = db.query(Trainee).filter(Trainee.id == id).first()
     if not trainee:
@@ -104,6 +105,7 @@ def get_trainee_skill_gap(
             db=db,
             trainee_id=trainee.id,
             target_occupation_id=target_occupation_id,
+            target_job_id=target_job_id,
             save_record=True
         )
         return analysis
@@ -130,6 +132,7 @@ def analyze_skill_gap(
             db=db,
             trainee_id=payload.trainee_id,
             target_occupation_id=payload.target_occupation_id,
+            target_job_id=payload.target_job_id,
             target_employer=payload.target_employer,
             save_record=True
         )

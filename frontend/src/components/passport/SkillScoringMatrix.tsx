@@ -291,6 +291,62 @@ export const SkillScoringMatrix: React.FC<SkillScoringMatrixProps> = ({ skills, 
                 </div>
               </div>
 
+              {/* Multi-Source Evidence Fusion Breakdown */}
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    <Layers className="w-4 h-4 text-brand-600" />
+                    Multi-Source Evidence Breakdown
+                  </div>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                    selectedSkillForAudit.verification_status === 'verified'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    Status: {selectedSkillForAudit.verification_status || (selectedSkillForAudit.current_level > 0 ? 'Verified' : 'Detected')}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">Resume Evidence</div>
+                    <div className="text-xs font-bold text-slate-800 mt-0.5">
+                      {selectedSkillForAudit.sources_summary?.resume || (selectedSkillForAudit.sources_present?.includes('resume') ? 'Detected' : 'None')}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">Assessment</div>
+                    <div className="text-xs font-bold text-indigo-700 mt-0.5">
+                      {selectedSkillForAudit.sources_summary?.assessment || (selectedSkillForAudit.sources_present?.includes('assessment') ? 'Verified' : 'None')}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">Practical Project</div>
+                    <div className="text-xs font-bold text-brand-700 mt-0.5">
+                      {selectedSkillForAudit.sources_summary?.practical_project || (selectedSkillForAudit.sources_present?.includes('practical_project') ? 'Verified' : 'None')}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">Coach Evaluation</div>
+                    <div className="text-xs font-bold text-emerald-700 mt-0.5">
+                      {selectedSkillForAudit.sources_summary?.trainer_evaluation || selectedSkillForAudit.sources_summary?.coach_evaluation || (selectedSkillForAudit.sources_present?.includes('trainer_evaluation') ? 'Verified' : 'None')}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">Employer Feedback</div>
+                    <div className="text-xs font-bold text-sky-700 mt-0.5">
+                      {selectedSkillForAudit.sources_summary?.employer_feedback || (selectedSkillForAudit.sources_present?.includes('employer_feedback') ? 'Verified' : 'None')}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900 text-white">
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">Final Skill Profile</div>
+                    <div className="text-xs font-black text-brand-400 mt-0.5">
+                      {selectedSkillForAudit.sources_summary?.final_skill_profile || `${selectedSkillForAudit.current_level.toFixed(1)}/5`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Exact Transparent Explanation String */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-1.5">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-800 uppercase tracking-wider">

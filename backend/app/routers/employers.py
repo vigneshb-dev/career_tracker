@@ -89,7 +89,7 @@ def get_pending_candidates_for_employer(
             "status": t.status,
             "current_role": t.current_role or "Apprentice / Junior Specialist",
             "current_employer": t.current_employer or employer.name,
-            "placement_salary": t.placement_salary or "$78,000 / yr",
+            "placement_salary": t.placement_salary or "₹7,80,000 / yr",
             "evidence_level": getattr(t, "evidence_level", "self_reported") or "self_reported",
             "is_direct_match": bool(is_direct_match),
             "skills": [s.name for s in t.skills if s.name] if t.skills else ["React.js", "TypeScript", "SQL"]

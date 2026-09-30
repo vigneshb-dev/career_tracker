@@ -96,7 +96,7 @@ class TraineeService:
             email=trainee_in.email,
             phone=trainee_in.phone,
             avatar_url=trainee_in.avatar_url or "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-            location=trainee_in.location or "Austin, TX",
+            location=trainee_in.location or "Bengaluru, KA",
             bio=trainee_in.bio,
             program=trainee_in.program,
             cohort=trainee_in.cohort,

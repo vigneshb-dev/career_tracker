@@ -9,7 +9,7 @@ import {
   CheckCircle2,
   Tag,
   BookOpen,
-  DollarSign,
+  IndianRupee,
   ChevronRight,
   ShieldCheck,
   Zap,
@@ -307,7 +307,7 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
                         <div>
                           <span className="text-[10px] font-bold text-slate-400 block uppercase">Median Salary</span>
                           <span className="font-extrabold text-slate-900 text-sm flex items-center gap-0.5">
-                            <DollarSign className="w-3.5 h-3.5 text-emerald-600 -mr-0.5" />
+                            <IndianRupee className="w-3.5 h-3.5 text-emerald-600 -mr-0.5" />
                             {occ.median_salary}
                           </span>
                         </div>

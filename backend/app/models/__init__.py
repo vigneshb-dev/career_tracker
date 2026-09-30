@@ -1,4 +1,8 @@
 from app.models.entities import (
+    User,
+    TraineeProfile,
+    CoachProfile,
+    EmployerProfile,
     Trainee,
     Skill,
     TraineeSkill,
@@ -15,9 +19,14 @@ from app.models.entities import (
     TraineeSkillEvidence,
     Intervention,
     TraineeIntervention,
+    ResumeAnalysisRecord,
 )
 
 __all__ = [
+    "User",
+    "TraineeProfile",
+    "CoachProfile",
+    "EmployerProfile",
     "Trainee",
     "Skill",
     "TraineeSkill",
@@ -34,5 +43,6 @@ __all__ = [
     "TraineeSkillEvidence",
     "Intervention",
     "TraineeIntervention",
+    "ResumeAnalysisRecord",
 ]
 

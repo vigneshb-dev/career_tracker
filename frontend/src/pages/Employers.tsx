@@ -68,14 +68,14 @@ export const Employers: React.FC = () => {
   const [confirmedDept, setConfirmedDept] = useState('Engineering & Tech Operations');
   const [employmentType, setEmploymentType] = useState('Full-time');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [salaryRange, setSalaryRange] = useState('$84,000 / yr');
+  const [salaryRange, setSalaryRange] = useState('₹8,40,000 / yr');
   const [isStillEmployed, setIsStillEmployed] = useState(true);
   const [retentionMonths, setRetentionMonths] = useState(6);
 
   // Reviewer credentials
-  const [reviewerName, setReviewerName] = useState('Sarah Jenkins');
+  const [reviewerName, setReviewerName] = useState('Sunita Rao');
   const [reviewerRole, setReviewerRole] = useState('Engineering Director / VP People');
-  const [reviewerEmail, setReviewerEmail] = useState('s.jenkins@apexcloud.io');
+  const [reviewerEmail, setReviewerEmail] = useState('sunita.r@apexcloud.in');
 
   // Skill Ratings (0.0 to 5.0)
   const [skillRatings, setSkillRatings] = useState<Record<string, number>>({});
@@ -158,7 +158,7 @@ export const Employers: React.FC = () => {
   const handleOpenVerifyModal = (candidate: PendingVerificationCandidate) => {
     setSelectedCandidate(candidate);
     setConfirmedRole(candidate.current_role);
-    setSalaryRange(candidate.placement_salary || '$80,000 / yr');
+    setSalaryRange(candidate.placement_salary || '₹8,00,000 / yr');
     setStartDate('2024-06-01');
     setRetentionMonths(6);
     setIsStillEmployed(true);
@@ -1039,7 +1039,7 @@ export const Employers: React.FC = () => {
                       type="text"
                       value={salaryRange}
                       onChange={(e) => setSalaryRange(e.target.value)}
-                      placeholder="e.g. $84,000 / yr"
+                      placeholder="e.g. ₹8,40,000 / yr"
                       className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800"
                       required
                     />

@@ -22,7 +22,7 @@ import {
   BookOpen,
   Plus,
   Compass,
-  DollarSign,
+  IndianRupee,
   ShieldCheck,
   User,
   ExternalLink,
@@ -421,7 +421,7 @@ export const TraineeDetail: React.FC = () => {
               Reported Compensation Band
             </span>
             <span className="text-sm font-bold text-emerald-700 flex items-center gap-1.5 mt-0.5">
-              <DollarSign className="w-4 h-4 text-emerald-600" />
+              <IndianRupee className="w-4 h-4 text-emerald-600" />
               {trainee.placementSalary || trainee.placement_salary || 'Competitive Band'}
             </span>
           </div>
@@ -504,13 +504,13 @@ export const TraineeDetail: React.FC = () => {
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Provider</span>
                     <span className="font-bold text-slate-900 block mt-0.5">
-                      {trainee.training_details?.provider_name || 'Austin Tech Institute'}
+                      {trainee.training_details?.provider_name || 'Bengaluru Institute of Technology & Advanced Skills'}
                     </span>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Accreditation</span>
                     <span className="font-semibold text-slate-700 block mt-0.5">
-                      {trainee.training_details?.accreditation || 'State Workforce Commission'}
+                      {trainee.training_details?.accreditation || 'National Skill Development Corporation (NSDC)'}
                     </span>
                   </div>
                   <div>
@@ -814,7 +814,7 @@ export const TraineeDetail: React.FC = () => {
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                       <span className="text-[10px] font-bold text-slate-400 uppercase block">Target Compensation</span>
                       <span className="text-xs font-bold text-emerald-700 mt-0.5 block">
-                        {trainee.career_preference?.target_salary_min || '$80,000'} - {trainee.career_preference?.target_salary_max || '$100,000'}
+                        {trainee.career_preference?.target_salary_min || '₹8,00,000'} - {trainee.career_preference?.target_salary_max || '₹12,00,000'}
                       </span>
                     </div>
                   </div>
@@ -1084,7 +1084,7 @@ export const TraineeDetail: React.FC = () => {
                 required
                 value={outcomeForm.compensation_or_funding}
                 onChange={(e) => setOutcomeForm({ ...outcomeForm, compensation_or_funding: e.target.value })}
-                placeholder="e.g. $84,000 / yr or $65/hr"
+                placeholder="e.g. ₹8,40,000 / yr or ₹1,500/hr"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:border-brand-500"
               />
             </div>

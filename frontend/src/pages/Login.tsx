@@ -1,23 +1,75 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, ArrowRight, CheckCircle2, Lock, Mail } from 'lucide-react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import {
+  ShieldCheck,
+  ArrowRight,
+  CheckCircle2,
+  Lock,
+  Mail,
+  UserCheck,
+  AlertCircle,
+  GraduationCap,
+  Compass,
+  Building2,
+  ShieldAlert
+} from 'lucide-react';
 import { Button } from '../components/common/Button';
+import { useAuth } from '../context/AuthContext';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('director@skilltrace.gov');
-  const [password, setPassword] = useState('demo123456');
-  const [role, setRole] = useState<'admin' | 'coach' | 'employer'>('admin');
+  const location = useLocation();
+  const { login } = useAuth();
+
+  const [email, setEmail] = useState('admin@skilltrace.gov');
+  const [password, setPassword] = useState('Admin@123456');
+  const [activeRolePill, setActiveRolePill] = useState<'admin' | 'coach' | 'employer' | 'trainee'>('admin');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const from = (location.state as any)?.from?.pathname || '/dashboard';
+
+  const handleRolePillClick = (role: 'admin' | 'coach' | 'employer' | 'trainee') => {
+    setActiveRolePill(role);
+    setErrorMsg(null);
+    if (role === 'admin') {
+      setEmail('admin@skilltrace.gov');
+      setPassword('Admin@123456');
+    } else if (role === 'coach') {
+      setEmail('coach.sarah@skilltrace.org');
+      setPassword('Coach@123456');
+    } else if (role === 'employer') {
+      setEmail('recruiter@apexcloud.io');
+      setPassword('Employer@123456');
+    } else if (role === 'trainee') {
+      setEmail('priya.sharma@example.com');
+      setPassword('Trainee@123456');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
     setIsLoading(true);
-    setTimeout(() => {
-      localStorage.setItem('skilltrace_auth', JSON.stringify({ email, role, token: 'token-active' }));
+
+    try {
+      const res = await login(email.trim().toLowerCase(), password);
+      if (res.requires_verification) {
+        navigate(`/verify-otp?email=${encodeURIComponent(email)}`);
+        return;
+      }
+
+      // Navigate to destination or role-tailored view
+      if (res.user.role === 'TRAINEE' && res.user.trainee_id) {
+        navigate(`/trainees/${res.user.trainee_id}`);
+      } else {
+        navigate(from === '/login' ? '/dashboard' : from);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Invalid email or password.');
+    } finally {
       setIsLoading(false);
-      navigate('/dashboard');
-    }, 600);
+    }
   };
 
   return (
@@ -40,27 +92,27 @@ export const Login: React.FC = () => {
               Post-Training Trajectory & Workforce Intelligence
             </h2>
             <p className="mt-3 text-sm text-brand-100 leading-relaxed font-normal">
-              Continuous outcome tracking, competency verification, and semantic employer matching for public and private training ecosystems.
+              Continuous outcome tracking, multi-source competency verification, and semantic employer matching for public and private training ecosystems.
             </p>
 
             <div className="mt-8 space-y-3">
               <div className="flex items-center gap-3 text-xs text-white/90">
                 <CheckCircle2 className="w-4 h-4 text-brand-300 shrink-0" />
-                <span>30/60/90-Day Longitudinal Retention Audits</span>
+                <span>Multi-Role RBAC: Trainee, Coach, Employer, Admin</span>
               </div>
               <div className="flex items-center gap-3 text-xs text-white/90">
                 <CheckCircle2 className="w-4 h-4 text-brand-300 shrink-0" />
-                <span>Automated Skill Gap & Remediation Maps</span>
+                <span>Self-Service Trainee Passports & Resume Ingestion</span>
               </div>
               <div className="flex items-center gap-3 text-xs text-white/90">
                 <CheckCircle2 className="w-4 h-4 text-brand-300 shrink-0" />
-                <span>pgvector Semantic Talent Search Ready</span>
+                <span>JWT Authentication & Redis-Backed Session Security</span>
               </div>
             </div>
           </div>
 
           <div className="relative z-10 pt-8 border-t border-white/15 text-[11px] text-brand-200">
-            Enterprise Prototype • Built with React, FastAPI & PostgreSQL
+            Enterprise Security • FastAPI, PostgreSQL & JWT RBAC
           </div>
 
           {/* Background Ambient Glow */}
@@ -71,36 +123,54 @@ export const Login: React.FC = () => {
         <div className="md:col-span-7 p-8 sm:p-10 flex flex-col justify-center">
           <div className="mb-6">
             <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Welcome Back</h3>
-            <p className="text-sm text-slate-500 mt-1">Sign in to access the workforce management console</p>
+            <p className="text-sm text-slate-500 mt-1">Sign in with your role credentials to access your console</p>
           </div>
 
-          {/* Role Pill Switcher */}
-          <div className="flex p-1 bg-slate-100 rounded-xl mb-6">
-            {(['admin', 'coach', 'employer'] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => {
-                  setRole(r);
-                  if (r === 'admin') setEmail('director@skilltrace.gov');
-                  if (r === 'coach') setEmail('coach.sarah@skilltrace.org');
-                  if (r === 'employer') setEmail('recruiter@apexcloud.io');
-                }}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all capitalize ${
-                  role === r
-                    ? 'bg-white text-brand-600 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {r === 'admin' ? 'Director' : r === 'coach' ? 'Career Coach' : 'Employer'}
-              </button>
-            ))}
+          {/* Quick-fill Role Selector Pills */}
+          <div className="mb-6">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+              <span>Quick Demo Role Switcher</span>
+              <span className="text-[10px] text-brand-600 font-semibold">1-Click Auto Fill</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-xl">
+              {[
+                { id: 'admin', label: 'Admin', icon: ShieldAlert },
+                { id: 'coach', label: 'Coach', icon: Compass },
+                { id: 'employer', label: 'Employer', icon: Building2 },
+                { id: 'trainee', label: 'Trainee', icon: GraduationCap },
+              ].map((pill) => {
+                const Icon = pill.icon;
+                const isActive = activeRolePill === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={() => handleRolePillClick(pill.id as any)}
+                    className={`py-1.5 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      isActive
+                        ? 'bg-white text-brand-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{pill.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
+          {errorMsg && (
+            <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Work Email
+                Work / Account Email
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -135,26 +205,34 @@ export const Login: React.FC = () => {
                 <input type="checkbox" defaultChecked className="rounded text-brand-600 focus:ring-brand-500" />
                 <span>Keep me signed in</span>
               </label>
-              <span className="text-brand-600 font-bold hover:underline cursor-pointer">
+              <Link to="/forgot-password" className="text-brand-600 font-bold hover:underline">
                 Forgot password?
-              </span>
+              </Link>
             </div>
 
             <Button
               type="submit"
               variant="primary"
               isLoading={isLoading}
-              className="w-full py-3 mt-2 text-sm font-bold"
+              className="w-full py-3 mt-2 text-sm font-bold bg-brand-500 hover:bg-brand-600 text-white justify-center shadow-md shadow-brand-500/20"
               icon={<ArrowRight className="w-4 h-4" />}
             >
               Sign In to Console
             </Button>
           </form>
 
-          <div className="mt-6 p-3 rounded-xl bg-brand-50/60 border border-brand-100 text-xs text-slate-600 flex items-center justify-between">
-            <span>Demo Mode Active</span>
-            <span className="font-bold text-brand-700">Pre-authenticated</span>
+          {/* Self-service registration banner */}
+          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+            <span className="text-xs text-slate-500">Need a new account? </span>
+            <Link
+              to="/signup"
+              className="text-xs font-extrabold text-brand-600 hover:text-brand-700 hover:underline inline-flex items-center gap-1"
+            >
+              Self-Register as Trainee, Coach or Employer
+              <ArrowRight className="w-3 h-3" />
+            </Link>
           </div>
+
         </div>
 
       </div>

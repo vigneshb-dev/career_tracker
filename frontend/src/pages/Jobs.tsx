@@ -4,7 +4,7 @@ import {
   Briefcase,
   MapPin,
   Building2,
-  DollarSign,
+  IndianRupee,
   Search,
   Sparkles,
   Cpu,
@@ -309,7 +309,7 @@ export const Jobs: React.FC = () => {
                     {job.location}
                   </span>
                   <span className="flex items-center gap-1.5 text-emerald-700 font-extrabold">
-                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                    <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
                     {job.salaryRange || job.salary_range}
                   </span>
                 </div>

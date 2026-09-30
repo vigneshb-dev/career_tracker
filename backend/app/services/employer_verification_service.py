@@ -282,22 +282,22 @@ class EmployerVerificationService:
         logger.info("Seeding realistic Employer Feedback and Outcome Verifications...")
 
         seed_data = [
-            # 1. Elena Rostova - Apex Cloud Solutions (Multi-Source Verified)
+            # 1. Priya Sharma - Apex Cloud Technologies India (Multi-Source Verified)
             EmployerFeedbackVerification(
                 id="EVF-2024-001",
-                employer_id="EMP-001",
-                employer_name="Apex Cloud Solutions",
-                reviewer_name="Sarah Jenkins",
+                employer_id="EMP-01",
+                employer_name="Apex Cloud Technologies India Pvt. Ltd.",
+                reviewer_name="Sunita Rao",
                 reviewer_role="Director of Frontend Engineering",
-                reviewer_email="s.jenkins@apexcloud.io",
+                reviewer_email="s.rao@apexcloud.co.in",
                 trainee_id="TRN-2024-001",
-                trainee_name="Elena Rostova",
+                trainee_name="Priya Sharma",
                 verification_status="confirmed",
                 confirmed_role="Junior Frontend Engineer",
                 confirmed_department="Enterprise Cloud UI",
                 employment_type="Full-time",
                 confirmed_start_date="2024-06-01",
-                salary_range="$84,000 / yr",
+                salary_range="₹8,40,000 / yr",
                 is_still_employed=True,
                 retention_months=6,
                 skill_ratings={
@@ -316,83 +316,83 @@ class EmployerVerificationService:
                     "Cross-Functional Stakeholder Presentations"
                 ],
                 training_relevance_rating=4.9,
-                training_relevance_notes="Elena transitioned into our enterprise frontend codebase with zero hand-holding. Exceptionally well prepared in modern React and TypeScript architecture.",
+                training_relevance_notes="Priya transitioned into our enterprise frontend codebase with zero hand-holding. Exceptionally well prepared in modern React and TypeScript architecture.",
                 curriculum_recommendations="Incorporate 2 weeks of Docker and automated continuous integration so candidates are familiar with cloud build pipelines on day one.",
                 would_hire_from_provider_again=True,
                 evidence_level="multi_source_verified",
-                verified_artifacts=["offer_letter_signed.pdf", "twc_wage_corroboration.pdf"],
+                verified_artifacts=["offer_letter_signed.pdf", "epfo_wage_corroboration.pdf"],
                 multi_source_corroboration={
-                    "sources": ["Employer Verification Portal", "TWC Wage Registry Corroboration", "Capstone Defense Grade"],
+                    "sources": ["Employer Verification Portal", "EPFO Wage Registry Corroboration", "Capstone Defense Grade"],
                     "confidence_score": 0.98,
                     "audit_timestamp": "2024-07-22T10:00:00"
                 },
                 submission_date="2024-07-22"
             ),
-            # 2. Carlos Rodriguez - SunPower Grid Texas (Evidence-Backed)
+            # 2. Karthik Venkataraman - Vanguard Healthcare Networks India (Evidence-Backed)
             EmployerFeedbackVerification(
                 id="EVF-2024-002",
-                employer_id="EMP-004",
-                employer_name="SunPower Grid Texas",
-                reviewer_name="Markus Sterling",
-                reviewer_role="Master Electrician & Apprenticeship Supervisor",
-                reviewer_email="m.sterling@sunpowergrid.com",
+                employer_id="EMP-04",
+                employer_name="Vanguard Healthcare Networks India",
+                reviewer_name="Dr. Mohanarangam Pillai",
+                reviewer_role="Chief Information Security Officer & Apprenticeship Supervisor",
+                reviewer_email="m.pillai@vanguardhealth.co.in",
                 trainee_id="TRN-2024-004",
-                trainee_name="Carlos Rodriguez",
+                trainee_name="Karthik Venkataraman",
                 verification_status="confirmed",
-                confirmed_role="Solar Industrial Apprentice",
-                confirmed_department="Grid Infrastructure",
+                confirmed_role="Healthcare Cybersecurity Systems Apprentice",
+                confirmed_department="Hospital Infrastructure Security",
                 employment_type="Apprenticeship",
-                confirmed_start_date="2024-05-15",
-                salary_range="$32.00 / hr ($66,560 annualized)",
+                confirmed_start_date="2024-08-01",
+                salary_range="₹4,80,000 / yr",
                 is_still_employed=True,
                 retention_months=8,
                 skill_ratings={
-                    "Electrical Safety / OSHA 30": 5.0,
-                    "Photovoltaic Inverter Wiring": 4.7,
-                    "Circuit Diagnostics": 4.3,
-                    "Blueprint Reading": 4.5
+                    "Network & Cloud Security": 4.8,
+                    "DISHA / NABH Compliance": 5.0,
+                    "Incident Response": 4.5,
+                    "System Hardening": 4.6
                 },
-                average_skill_score=4.63,
+                average_skill_score=4.72,
                 missing_technical_skills=[
-                    "Medium-Voltage Transformer Coupling"
+                    "Automated Vulnerability Scanning (Nessus/Qualys)"
                 ],
                 missing_soft_skills=[
-                    "Field Service Tablet Documentation"
+                    "Clinical Staff Incident Briefing"
                 ],
                 training_relevance_rating=4.8,
-                training_relevance_notes="Solid fundamental safety knowledge and practical hands-on proficiency with commercial solar array junction boxes.",
-                curriculum_recommendations="Add more practice hours with high-capacity battery storage systems (Tesla Megapack / Enphase).",
+                training_relevance_notes="Solid fundamental security hygiene, network perimeter isolation, and practical hands-on proficiency defending hospital IoT telemetry.",
+                curriculum_recommendations="Add more practice hours with medical device zero-trust micro-segmentation.",
                 would_hire_from_provider_again=True,
                 evidence_level="evidence_backed",
-                verified_artifacts=["apprenticeship_agreement_usdol.pdf", "osha_30_card_scan.pdf"],
+                verified_artifacts=["naps_apprenticeship_contract.pdf", "naps_portal_verification.pdf"],
                 multi_source_corroboration={
-                    "sources": ["Employer Verification Portal", "USDOL Registered Apprenticeship Log"],
+                    "sources": ["Employer Verification Portal", "NAPS / MSDE Registered Apprenticeship Log"],
                     "confidence_score": 0.94,
                     "audit_timestamp": "2024-08-10T14:30:00"
                 },
                 submission_date="2024-08-10"
             ),
-            # 3. Aisha Patel - HealthCare Central (Employer-Confirmed)
+            # 3. Ananya Iyer - Meridian MedTech India (Employer-Confirmed)
             EmployerFeedbackVerification(
                 id="EVF-2024-003",
-                employer_id="EMP-005",
-                employer_name="Austin Regional Clinic & Medical Center",
-                reviewer_name="Dr. Patricia Vance",
+                employer_id="EMP-02",
+                employer_name="Meridian MedTech India Pvt. Ltd.",
+                reviewer_name="Dr. Vikram Reddy",
                 reviewer_role="Chief Medical Information Officer",
-                reviewer_email="pvance@austinregionalclinic.org",
-                trainee_id="TRN-2024-005",
-                trainee_name="Aisha Patel",
+                reviewer_email="v.reddy@meridianmedtech.co.in",
+                trainee_id="TRN-2024-006",
+                trainee_name="Ananya Iyer",
                 verification_status="confirmed",
-                confirmed_role="M.S. Health Informatics Research Fellow",
-                confirmed_department="Clinical Informatics",
+                confirmed_role="Health Informatics Research Fellow",
+                confirmed_department="Clinical NLP & Bio-Informatics",
                 employment_type="Fellowship",
-                confirmed_start_date="2024-08-01",
-                salary_range="$52,000 Academic Stipend + Tuition",
+                confirmed_start_date="2024-08-25",
+                salary_range="₹6,00,000 / yr (₹50,000 / mo Fellowship Stipend)",
                 is_still_employed=True,
                 retention_months=4,
                 skill_ratings={
                     "EHR Data Extraction": 4.6,
-                    "HIPAA Compliance": 5.0,
+                    "DISHA & DPDP Act Compliance": 5.0,
                     "SQL / Healthcare Queries": 4.4,
                     "Clinical Terminologies (SNOMED/ICD)": 4.2
                 },
@@ -404,7 +404,7 @@ class EmployerVerificationService:
                     "Interdisciplinary Physician Communication"
                 ],
                 training_relevance_rating=4.7,
-                training_relevance_notes="Aisha demonstrates impeccable data governance and security compliance. A standout research fellow.",
+                training_relevance_notes="Ananya demonstrates impeccable data governance and security compliance. A standout research fellow.",
                 curriculum_recommendations="Recommend adding practical Fast Healthcare Interoperability Resources (FHIR) API sandbox labs.",
                 would_hire_from_provider_again=True,
                 evidence_level="employer_confirmed",

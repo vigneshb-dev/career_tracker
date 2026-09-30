@@ -61,7 +61,7 @@ class TraineeBase(BaseModel):
     email: str
     phone: Optional[str] = None
     avatar_url: Optional[str] = None
-    location: Optional[str] = "Austin, TX"
+    location: Optional[str] = "Bengaluru, KA"
     bio: Optional[str] = None
     program: str
     cohort: str
@@ -468,6 +468,7 @@ class SkillGapRead(BaseModel):
 class SkillGapAnalyzeRequest(BaseModel):
     trainee_id: str
     target_occupation_id: Optional[str] = None
+    target_job_id: Optional[str] = None
     target_employer: Optional[str] = None
 
 # CareerPath Schemas
@@ -497,13 +498,72 @@ class DashboardMetricsRead(BaseModel):
     statusDistribution: List[Any] = []
 
 # Auth Schemas
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    role: str # TRAINEE | COACH | EMPLOYER
+    phone: Optional[str] = None
+    
+    # Trainee-specific fields
+    program: Optional[str] = "Full Stack Cloud & AI Engineering"
+    cohort: Optional[str] = "2024-Q3"
+    location: Optional[str] = "Bengaluru, KA"
+    headline: Optional[str] = None
+    bio: Optional[str] = None
+    education: Optional[str] = "B.Tech / B.E. in Computer Science"
+    
+    # Coach-specific fields
+    title: Optional[str] = "Workforce Career Coach"
+    organization: Optional[str] = "National Skill Development Ecosystem"
+    specialization: Optional[str] = "Software & Cloud Systems"
+    
+    # Employer-specific fields
+    company_name: Optional[str] = None
+    designation: Optional[str] = "Talent Acquisition Partner"
+    employer_id: Optional[str] = None
+
 class LoginRequest(BaseModel):
     email: str
     password: str
 
+class VerifyOtpRequest(BaseModel):
+    email: str
+    otp: str
+
+class ResendOtpRequest(BaseModel):
+    email: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+class UserProfileResponse(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    role: str
+    phone: Optional[str] = None
+    is_active: bool = True
+    is_verified: bool = False
+    profile_id: Optional[str] = None
+    trainee_id: Optional[str] = None
+    employer_id: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
+
+    class Config:
+        from_attributes = True
+
 class LoginResponse(BaseModel):
     token: str
-    user: Any
+    token_type: str = "Bearer"
+    user: UserProfileResponse
+    requires_verification: bool = False
+    demo_otp: Optional[str] = None
 
 
 # Intervention Schemas
@@ -714,7 +774,7 @@ class EmployerVerificationCreate(BaseModel):
     confirmed_department: Optional[str] = "Engineering"
     employment_type: str = "Full-time"
     confirmed_start_date: str
-    salary_range: Optional[str] = "$80,000 - $90,000"
+    salary_range: Optional[str] = "₹7,50,000 - ₹9,50,000"
     is_still_employed: bool = True
     retention_months: int = 6
     

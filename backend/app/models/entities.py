@@ -5,15 +5,85 @@ from app.core.config import settings
 
 vector_type = get_vector_type(settings.VECTOR_DIMENSION)
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String(50), primary_key=True, index=True)
+    email = Column(String(150), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    role = Column(String(50), nullable=False, default="TRAINEE", index=True) # TRAINEE, COACH, EMPLOYER, ADMIN
+    full_name = Column(String(150), nullable=False)
+    phone = Column(String(50), nullable=True)
+    is_active = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
+    created_at = Column(String(50), nullable=True)
+
+    trainee_profile = relationship("TraineeProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    coach_profile = relationship("CoachProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    employer_profile = relationship("EmployerProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+
+
+class TraineeProfile(Base):
+    __tablename__ = "trainee_profiles"
+
+    id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(String(50), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id", ondelete="SET NULL"), nullable=True, index=True)
+    headline = Column(String(200), nullable=True)
+    bio = Column(Text, nullable=True)
+    resume_url = Column(String(255), nullable=True)
+    resume_filename = Column(String(255), nullable=True)
+    resume_text = Column(Text, nullable=True)
+    resume_parsed_skills = Column(JSON, default=list)
+    education = Column(String(200), nullable=True)
+    experience_years = Column(Float, default=0.0)
+    assigned_coach_id = Column(String(50), nullable=True, index=True)
+
+    user = relationship("User", back_populates="trainee_profile")
+    trainee = relationship("Trainee", backref="profile_record")
+
+
+class CoachProfile(Base):
+    __tablename__ = "coach_profiles"
+
+    id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(String(50), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    full_name = Column(String(150), nullable=False)
+    title = Column(String(150), default="Career & Workforce Coach")
+    organization = Column(String(150), default="National Skill Development Ecosystem")
+    specialization = Column(String(200), nullable=True)
+    bio = Column(Text, nullable=True)
+    phone = Column(String(50), nullable=True)
+    assigned_trainee_ids = Column(JSON, default=list)
+
+    user = relationship("User", back_populates="coach_profile")
+
+
+class EmployerProfile(Base):
+    __tablename__ = "employer_profiles"
+
+    id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(String(50), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    employer_id = Column(String(50), ForeignKey("employers.id", ondelete="SET NULL"), nullable=True, index=True)
+    company_name = Column(String(150), nullable=False)
+    designation = Column(String(100), default="Talent Acquisition Partner")
+    contact_phone = Column(String(50), nullable=True)
+    authorized_candidate_ids = Column(JSON, default=list)
+
+    user = relationship("User", back_populates="employer_profile")
+    employer = relationship("Employer", backref="representative_profiles")
+
+
 class Trainee(Base):
     __tablename__ = "trainees"
 
     id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(String(50), nullable=True, index=True)
     full_name = Column(String(150), nullable=False, index=True)
     email = Column(String(150), unique=True, nullable=False, index=True)
     phone = Column(String(50), nullable=True)
     avatar_url = Column(String(255), nullable=True)
-    location = Column(String(100), default="Austin, TX")
+    location = Column(String(100), default="Bengaluru, Karnataka")
     bio = Column(Text, nullable=True)
 
     # Training programme & Course/Provider
@@ -452,4 +522,39 @@ class EmployerFeedbackVerification(Base):
 
     trainee = relationship("Trainee", backref="employer_verifications")
     employer = relationship("Employer", backref="verifications")
+
+
+# ========================================================
+# Real-Time AI Resume Semantic Analysis & Competency Record
+# ========================================================
+
+class ResumeAnalysisRecord(Base):
+    __tablename__ = "resume_analyses"
+
+    id = Column(String(50), primary_key=True, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id"), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)
+    file_url = Column(String(255), nullable=True)
+    file_type = Column(String(20), default="pdf")
+    raw_text = Column(Text, nullable=True)
+
+    # NLP Extracted Entities
+    extracted_metadata = Column(JSON, default=dict) # education, certifications, projects, work_experience, job_titles, years_of_experience, domains
+    skills_profile = Column(JSON, default=list) # detected skills with canonical_id, canonical_name, category, domain, evidence_snippet, estimated_proficiency, confidence
+
+    # System Completeness Indicator (explicitly system-generated indicator)
+    completeness_score = Column(Float, default=0.0) # 0 to 100
+    completeness_breakdown = Column(JSON, default=dict)
+
+    # Real-Time Matching & Gaps
+    job_matches = Column(JSON, default=list)
+    skill_gaps = Column(JSON, default=list)
+    recommendations = Column(JSON, default=list)
+
+    # Vector embedding of parsed resume text
+    embedding = Column(vector_type, nullable=True)
+
+    analyzed_at = Column(String(50), nullable=False)
+
+    trainee = relationship("Trainee", backref="resume_analyses")
 

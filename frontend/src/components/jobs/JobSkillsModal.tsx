@@ -7,7 +7,7 @@ import {
   CheckCircle2,
   Building2,
   MapPin,
-  DollarSign,
+  IndianRupee,
   Cpu,
   Loader2,
   Sparkles
@@ -96,7 +96,7 @@ export const JobSkillsModal: React.FC<JobSkillsModalProps> = ({ job, isOpen, onC
             </span>
           </div>
           <div className="flex items-center gap-2 font-bold text-slate-800">
-            <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+            <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
             {job.salaryRange || job.salary_range}
           </div>
         </div>

@@ -1,6 +1,10 @@
 import logging
 from sqlalchemy.orm import Session
 from app.models.entities import (
+    User,
+    TraineeProfile,
+    CoachProfile,
+    EmployerProfile,
     Trainee,
     Skill,
     TraineeSkill,
@@ -16,6 +20,7 @@ from app.models.entities import (
     JobExtractedSkill,
     TraineeSkillEvidence,
 )
+from app.core.security import get_password_hash
 from app.core.ontology_data import (
     COURSES_DATA,
     COMPETENCIES_DATA,
@@ -104,10 +109,16 @@ def seed_competency_ontology(db: Session, force_reseed: bool = False):
 
 def seed_jobs_dataset(db: Session, force_reseed: bool = False):
     """Seeds 35 synthetic job postings with AI skill extraction, normalization, and occupation mappings."""
-    current_job_count = db.query(Job).count()
-    if not force_reseed and current_job_count >= 30:
-        logger.info(f"Jobs dataset already seeded ({current_job_count} jobs). Skipping.")
-        return
+    if force_reseed:
+        logger.info("Force reseed enabled for jobs dataset. Clearing existing jobs...")
+        db.query(JobExtractedSkill).delete()
+        db.query(Job).delete()
+        db.commit()
+    else:
+        current_job_count = db.query(Job).count()
+        if current_job_count >= 30:
+            logger.info(f"Jobs dataset already seeded ({current_job_count} jobs). Skipping.")
+            return
 
     logger.info("Seeding 35 AI-analyzed synthetic job descriptions across 7 domains...")
     for j_data in SYNTHETIC_JOBS_DATA:
@@ -126,6 +137,7 @@ def seed_database(db: Session, force_reseed: bool = False):
 
     if force_reseed:
         logger.info("Force reseed enabled. Clearing old seed records...")
+        db.query(TraineeSkillEvidence).delete()
         db.query(TraineeSkill).delete()
         db.query(Trainee).delete()
         db.query(Employer).delete()
@@ -134,8 +146,9 @@ def seed_database(db: Session, force_reseed: bool = False):
         db.query(CareerPath).delete()
         db.commit()
     elif db.query(Trainee).first():
-        logger.info("Trainee records already exist. Verifying skill evidence...")
+        logger.info("Trainee records already exist. Verifying skill evidence and users...")
         seed_trainee_skill_evidence(db)
+        seed_users(db, force_reseed)
         return
 
 
@@ -146,59 +159,59 @@ def seed_database(db: Session, force_reseed: bool = False):
     employers_data = [
         Employer(
             id="EMP-01",
-            name="Apex Cloud Solutions",
+            name="Apex Cloud Technologies India Pvt. Ltd.",
             industry="Enterprise Software & SaaS",
-            location="Austin, TX",
-            contact_person="Sarah Jenkins (VP of Talent)",
-            contact_email="sarah.j@apexcloud.io",
-            contact_phone="+1 (512) 555-0144",
+            location="Bengaluru, KA",
+            contact_person="Sunita Rao (VP of Talent)",
+            contact_email="sunita.rao@apexcloud.co.in",
+            contact_phone="+91 80 4123 0144",
             active_openings=5,
             hired_trainees_count=38,
             retention_rate=94.7,
             tier="Strategic Partner",
-            website_url="https://apexcloud.example.com",
+            website_url="https://apexcloud.example.in",
         ),
         Employer(
             id="EMP-02",
-            name="Meridian Health Tech",
-            industry="Healthcare Technology",
-            location="Chicago, IL",
-            contact_person="David Kalu (Engineering Manager)",
-            contact_email="d.kalu@meridianhealth.tech",
-            contact_phone="+1 (312) 555-0189",
+            name="Meridian MedTech India Pvt. Ltd.",
+            industry="Healthcare Technology & AI",
+            location="Hyderabad, TS",
+            contact_person="Vikram Reddy (Engineering Manager)",
+            contact_email="v.reddy@meridianmedtech.co.in",
+            contact_phone="+91 40 4567 0189",
             active_openings=4,
             hired_trainees_count=22,
             retention_rate=90.9,
             tier="Strategic Partner",
-            website_url="https://meridianhealth.example.com",
+            website_url="https://meridianmedtech.example.in",
         ),
         Employer(
             id="EMP-03",
-            name="OmniTrade FinTech",
+            name="OmniTrade FinTech Solutions India",
             industry="Financial Technology",
-            location="New York, NY",
-            contact_person="Rachel Sterling (Head of Recruiting)",
-            contact_email="r.sterling@omnitrade.com",
-            contact_phone="+1 (212) 555-0177",
+            location="Mumbai, MH",
+            contact_person="Pooja Singhania (Head of Recruiting)",
+            contact_email="p.singhania@omnitrade.co.in",
+            contact_phone="+91 22 2890 0177",
             active_openings=2,
             hired_trainees_count=17,
             retention_rate=88.2,
             tier="Standard",
-            website_url="https://omnitrade.example.com",
+            website_url="https://omnitrade.example.in",
         ),
         Employer(
             id="EMP-04",
-            name="Vanguard Health Systems",
+            name="Vanguard Healthcare Networks India",
             industry="Hospital & Healthcare Networks",
-            location="Boston, MA",
-            contact_person="Dr. Michael Chen (Operations Director)",
-            contact_email="mchen@vanguardhealth.org",
-            contact_phone="+1 (617) 555-0129",
+            location="Chennai, TN",
+            contact_person="Dr. Mohanarangam Pillai (Operations Director)",
+            contact_email="mpillai@vanguardhealth.co.in",
+            contact_phone="+91 44 2450 0129",
             active_openings=6,
             hired_trainees_count=45,
             retention_rate=96.0,
             tier="Strategic Partner",
-            website_url="https://vanguardhealth.example.com",
+            website_url="https://vanguardhealth.example.in",
         ),
     ]
     db.add_all(employers_data)
@@ -210,12 +223,12 @@ def seed_database(db: Session, force_reseed: bool = False):
         # --- 1. EMPLOYMENT ---
         Trainee(
             id="TRN-2024-001",
-            full_name="Elena Rostova",
-            email="elena.rostova@example.com",
-            phone="+1 (555) 234-8901",
+            full_name="Priya Sharma",
+            email="priya.sharma@example.in",
+            phone="+91 98450 23489",
             avatar_url="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
-            location="Austin, TX",
-            bio="Passionate software engineer transitioning from hospitality management to front-end enterprise engineering. Strong advocate for accessible design systems and type-safe architectures.",
+            location="Bengaluru, KA",
+            bio="Passionate software engineer transitioning from hospitality management to front-end enterprise engineering. Strong advocate for accessible design systems, responsive micro-frontends, and type-safe architectures.",
             program="Full-Stack Software Engineering",
             cohort="Cohort 2024-B",
             status="placed",
@@ -223,23 +236,23 @@ def seed_database(db: Session, force_reseed: bool = False):
             enrollment_date="2024-01-15",
             graduation_date="2024-06-30",
             training_details={
-                "provider_name": "Austin Tech Institute of Technology",
+                "provider_name": "Bengaluru Institute of Technology & Advanced Skills",
                 "course_title": "Full-Stack Enterprise React & Cloud Web Services",
-                "accreditation": "Accredited State Workforce Commission (TWC)",
-                "instructor_name": "Marcus Aurelius, Lead Instructor",
-                "modality": "Hybrid (Austin Campus + Online Synchronous)",
+                "accreditation": "Accredited by National Skill Development Corporation (NSDC)",
+                "instructor_name": "K. R. Narayanan, Lead Technical Instructor",
+                "modality": "Hybrid (Bengaluru Electronic City Campus + Online Synchronous)",
                 "attendance_rate": "98.4%",
                 "hours_completed": 720,
             },
             current_role="Junior Frontend Engineer",
-            current_employer="Apex Cloud Solutions",
+            current_employer="Apex Cloud Technologies India Pvt. Ltd.",
             placement_date="2024-07-22",
-            placement_salary="$84,000 / yr",
+            placement_salary="₹8,40,000 / yr",
             overall_score=94,
             match_score=96,
             last_follow_up="2024-08-25",
             next_follow_up="2024-11-20",
-            notes="Exemplary performance during 90-day internship. Transitioned to permanent salaried position with full medical & 401(k) benefits.",
+            notes="Exemplary performance during 90-day probationary internship. Transitioned to permanent salaried position with full medical & EPF benefits.",
             certifications=[
                 {
                     "id": "CRT-001",
@@ -268,7 +281,7 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "score": 96,
                     "max_score": 100,
                     "grade": "A+",
-                    "evaluator": "Marcus Aurelius",
+                    "evaluator": "K. R. Narayanan",
                     "feedback": "Outstanding component architecture and test coverage (92% unit test branches). React query caching implemented cleanly."
                 },
                 {
@@ -278,16 +291,16 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "score": 92,
                     "max_score": 100,
                     "grade": "A",
-                    "evaluator": "Dr. Sarah Stone",
+                    "evaluator": "Dr. S. Meenakshi",
                     "feedback": "Deep grasp of generics, union discrimination, and asynchronous promise pipelines."
                 }
             ],
             career_preference={
                 "target_roles": ["Frontend Engineer", "UI Systems Engineer", "Full-Stack Web Architect"],
                 "preferred_workplace": "Hybrid",
-                "target_salary_min": "$80,000",
-                "target_salary_max": "$95,000",
-                "preferred_locations": ["Austin, TX", "Dallas, TX", "Remote USA"],
+                "target_salary_min": "₹8,00,000",
+                "target_salary_max": "₹12,00,000",
+                "preferred_locations": ["Bengaluru, KA", "Hyderabad, TS", "Chennai, TN", "Remote India"],
                 "target_industries": ["Enterprise SaaS", "FinTech", "HealthTech"]
             },
             current_pathway={
@@ -301,25 +314,25 @@ def seed_database(db: Session, force_reseed: bool = False):
                 {
                     "id": "OUT-001",
                     "outcome_type": "employment",
-                    "organization_or_venture": "Apex Cloud Solutions",
+                    "organization_or_venture": "Apex Cloud Technologies India Pvt. Ltd.",
                     "role_or_course": "Junior Frontend Engineer",
-                    "compensation_or_funding": "$84,000 / yr",
+                    "compensation_or_funding": "₹8,40,000 / yr",
                     "start_date": "2024-07-22",
                     "is_current": True,
                     "verification_status": "verified",
-                    "verification_notes": "Official employment contract and W-2 payroll confirmation on file."
+                    "verification_notes": "Official appointment letter and EPFO electronic challan wage confirmation on file."
                 },
                 {
                     "id": "OUT-002",
                     "outcome_type": "employment",
-                    "organization_or_venture": "Apex Cloud Solutions",
-                    "role_or_course": "Engineering Apprentice / Intern",
-                    "compensation_or_funding": "$28.00 / hr",
+                    "organization_or_venture": "Apex Cloud Technologies India Pvt. Ltd.",
+                    "role_or_course": "Engineering Apprentice / Trainee",
+                    "compensation_or_funding": "₹25,000 / mo",
                     "start_date": "2024-06-01",
                     "end_date": "2024-07-20",
                     "is_current": False,
                     "verification_status": "verified",
-                    "verification_notes": "10-week summer tech apprenticeship successfully completed."
+                    "verification_notes": "10-week summer tech internship & NAPS apprenticeship successfully completed."
                 }
             ],
             follow_up_history=[
@@ -327,31 +340,31 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "id": "AUD-001",
                     "checkpoint_type": "30-Day Post-Placement Audit",
                     "date": "2024-08-25",
-                    "counselor_name": "Marcus Brody",
+                    "counselor_name": "Raghavan Nair",
                     "status": "completed",
                     "retention_confirmed": True,
                     "wage_progressed": False,
-                    "counselor_notes": "Met with Elena and VP of Talent Sarah Jenkins. Candidate has shipped 4 production UI PRs. Highly satisfied."
+                    "counselor_notes": "Met with Priya and VP of Talent Sunita Rao. Candidate has shipped 4 production UI PRs. Highly satisfied."
                 },
                 {
                     "id": "AUD-002",
                     "checkpoint_type": "60-Day Check-in",
                     "date": "2024-09-28",
-                    "counselor_name": "Marcus Brody",
+                    "counselor_name": "Raghavan Nair",
                     "status": "completed",
                     "retention_confirmed": True,
                     "wage_progressed": False,
-                    "counselor_notes": "All indicators positive. Elena is mentoring incoming interns."
+                    "counselor_notes": "All indicators positive. Priya is mentoring incoming interns."
                 },
                 {
                     "id": "AUD-003",
                     "checkpoint_type": "90-Day Retention Audit",
                     "date": "2024-11-20",
-                    "counselor_name": "Marcus Brody",
+                    "counselor_name": "Raghavan Nair",
                     "status": "scheduled",
                     "retention_confirmed": False,
                     "wage_progressed": False,
-                    "counselor_notes": "Scheduled 90-day WIOA performance benchmark audit."
+                    "counselor_notes": "Scheduled 90-day retention and performance benchmark audit."
                 }
             ],
             consent_status={
@@ -370,12 +383,12 @@ def seed_database(db: Session, force_reseed: bool = False):
         # --- 2. SELF-EMPLOYMENT ---
         Trainee(
             id="TRN-2024-002",
-            full_name="Marcus Vance",
-            email="marcus.vance@example.com",
-            phone="+1 (555) 872-1134",
+            full_name="Rajesh Kumar",
+            email="rajesh.kumar@example.in",
+            phone="+91 98201 87211",
             avatar_url="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-            location="Chicago, IL",
-            bio="Self-employed cloud infrastructure architect & DevOps consultant. Specializing in Docker containerization, PostgreSQL pgvector deployments, and CI/CD pipelines for Midwestern logistics startups.",
+            location="Hyderabad, TS",
+            bio="Self-employed cloud infrastructure architect & DevOps consultant. Specializing in Docker containerization, PostgreSQL pgvector deployments, and CI/CD pipelines for high-growth tech firms across HITEC City.",
             program="Backend & Cloud DevOps",
             cohort="Cohort 2024-B",
             status="placed",
@@ -383,23 +396,23 @@ def seed_database(db: Session, force_reseed: bool = False):
             enrollment_date="2024-02-01",
             graduation_date="2024-07-15",
             training_details={
-                "provider_name": "Midwest Cloud Academy",
+                "provider_name": "IIIT Bangalore Data Academy",
                 "course_title": "Enterprise Cloud Architecture & Distributed Systems",
-                "accreditation": "Illinois Board of Higher Education (IBHE)",
-                "instructor_name": "Evelyn Reed, Principal Cloud Architect",
+                "accreditation": "Telangana State Council of Higher Education (TSCHE) Endorsed",
+                "instructor_name": "Venkatesh Prasad, Principal Cloud Architect",
                 "modality": "Online Synchronous & Virtual Labs",
                 "attendance_rate": "97.1%",
                 "hours_completed": 680,
             },
             current_role="Principal Consultant & Owner",
-            current_employer="Vance Cloud Architecture LLC",
+            current_employer="Kumar Cloud Architecture LLP",
             placement_date="2024-08-01",
-            placement_salary="$95,000 / yr (Projected)",
+            placement_salary="₹14,50,000 / yr (Projected Retainers)",
             overall_score=88,
             match_score=82,
             last_follow_up="2024-09-12",
             next_follow_up="2024-11-01",
-            notes="Formed registered LLC in Illinois. Secured 3 recurring retainer agreements with regional logistics firms.",
+            notes="Formed registered LLP with MCA India. Secured 3 recurring retainer agreements with regional logistics & SaaS firms.",
             certifications=[
                 {
                     "id": "CRT-003",
@@ -407,7 +420,7 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "issuing_organization": "Cloud Native Computing Foundation (CNCF)",
                     "issue_date": "2024-07-02",
                     "expiry_date": "2027-07-02",
-                    "credential_id": "CKA-77821-IL",
+                    "credential_id": "CKA-77821-IN",
                     "status": "Active"
                 }
             ],
@@ -419,16 +432,16 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "score": 90,
                     "max_score": 100,
                     "grade": "A",
-                    "evaluator": "Evelyn Reed",
+                    "evaluator": "Venkatesh Prasad",
                     "feedback": "Demonstrated master-level disaster recovery scripts and zero downtime migrations."
                 }
             ],
             career_preference={
                 "target_roles": ["Cloud Consultant", "DevOps Engineer", "Site Reliability Architect"],
                 "preferred_workplace": "Remote",
-                "target_salary_min": "$90,000",
-                "target_salary_max": "$120,000",
-                "preferred_locations": ["Chicago, IL", "Remote USA"],
+                "target_salary_min": "₹12,00,000",
+                "target_salary_max": "₹18,00,000",
+                "preferred_locations": ["Hyderabad, TS", "Bengaluru, KA", "Remote India"],
                 "target_industries": ["Logistics", "Cloud Infrastructure", "FinTech"]
             },
             current_pathway={
@@ -442,13 +455,13 @@ def seed_database(db: Session, force_reseed: bool = False):
                 {
                     "id": "OUT-003",
                     "outcome_type": "self_employment",
-                    "organization_or_venture": "Vance Cloud Architecture LLC",
+                    "organization_or_venture": "Kumar Cloud Architecture LLP",
                     "role_or_course": "Principal Cloud Infrastructure Consultant",
-                    "compensation_or_funding": "$95,000 / yr (Retainers)",
+                    "compensation_or_funding": "₹14,50,000 / yr (Retainers)",
                     "start_date": "2024-08-01",
                     "is_current": True,
                     "verification_status": "verified",
-                    "verification_notes": "Illinois Secretary of State LLC Certificate of Good Standing and client service contracts verified."
+                    "verification_notes": "Ministry of Corporate Affairs (MCA) Certificate of Incorporation and client GST invoices verified."
                 }
             ],
             follow_up_history=[
@@ -456,11 +469,11 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "id": "AUD-004",
                     "checkpoint_type": "30-Day Self-Employment Audit",
                     "date": "2024-09-12",
-                    "counselor_name": "Sarah Sterling",
+                    "counselor_name": "Meera Iyer",
                     "status": "completed",
                     "retention_confirmed": True,
                     "wage_progressed": True,
-                    "counselor_notes": "Audited business bank statements and invoices. Trainee billing exceeds $8,000 monthly."
+                    "counselor_notes": "Audited business current account bank statements and GST filings. Trainee billing exceeds ₹1,20,000 monthly."
                 }
             ],
             consent_status={
@@ -479,12 +492,12 @@ def seed_database(db: Session, force_reseed: bool = False):
         # --- 3. FREELANCING ---
         Trainee(
             id="TRN-2024-003",
-            full_name="Sophia Martinez",
-            email="sophia.martinez@example.com",
-            phone="+1 (555) 319-8742",
+            full_name="Sneha Patel",
+            email="sneha.patel@example.in",
+            phone="+91 97123 31987",
             avatar_url="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-            location="Denver, CO",
-            bio="Full-stack freelance developer and digital contractor. Delivering rapid MVP builds, API integrations, and frontend dashboards for high-growth YC-backed startups across North America.",
+            location="Pune, MH",
+            bio="Full-stack freelance developer and digital contractor. Delivering rapid MVP builds, API integrations, and frontend dashboards for high-growth tech startups across India and international clients.",
             program="Full-Stack Software Engineering",
             cohort="Cohort 2024-A",
             status="placed",
@@ -492,18 +505,18 @@ def seed_database(db: Session, force_reseed: bool = False):
             enrollment_date="2023-10-01",
             graduation_date="2024-03-31",
             training_details={
-                "provider_name": "Rocky Mountain Code Academy",
+                "provider_name": "Western India Tech Academy, Pune",
                 "course_title": "Agile Web Engineering & Freelance Professional Practice",
-                "accreditation": "Colorado Department of Higher Education (DHE)",
-                "instructor_name": "Liam Connor",
+                "accreditation": "Endorsed by Maharashtra State Skill Development Society (MSSDS)",
+                "instructor_name": "Anand Deshmukh",
                 "modality": "Hybrid",
                 "attendance_rate": "99.1%",
                 "hours_completed": 700,
             },
             current_role="Senior Full-Stack Freelance Contractor",
-            current_employer="Independent Freelance (Upwork Top Rated / Direct Clients)",
+            current_employer="Independent Freelance Contractor (Upwork Top Rated / Direct Clients)",
             placement_date="2024-04-15",
-            placement_salary="$68.00 / hr ($85,000+ annualized)",
+            placement_salary="₹1,800 / hr (₹12,50,000+ annualized)",
             overall_score=95,
             match_score=93,
             last_follow_up="2024-08-10",
@@ -527,16 +540,16 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "score": 97,
                     "max_score": 100,
                     "grade": "A+",
-                    "evaluator": "Liam Connor",
+                    "evaluator": "Anand Deshmukh",
                     "feedback": "Flawless bidirectional event handling with Redis Pub/Sub backend."
                 }
             ],
             career_preference={
                 "target_roles": ["Freelance Web Engineer", "Contract Frontend Developer", "Technical MVP Builder"],
                 "preferred_workplace": "Remote",
-                "target_salary_min": "$60/hr",
-                "target_salary_max": "$90/hr",
-                "preferred_locations": ["Remote Worldwide"],
+                "target_salary_min": "₹1,500/hr",
+                "target_salary_max": "₹2,500/hr",
+                "preferred_locations": ["Pune, MH", "Mumbai, MH", "Remote India"],
                 "target_industries": ["Tech Startups", "E-Commerce", "Digital Media"]
             },
             current_pathway={
@@ -552,11 +565,11 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "outcome_type": "freelancing",
                     "organization_or_venture": "Independent Contractor / Upwork Pro Platform",
                     "role_or_course": "Full-Stack React/FastAPI Specialist",
-                    "compensation_or_funding": "$68.00 / hr average billable",
+                    "compensation_or_funding": "₹1,800 / hr average billable",
                     "start_date": "2024-04-15",
                     "is_current": True,
                     "verification_status": "verified",
-                    "verification_notes": "Audited platform earnings ledger: $42,500 collected in first 5 months."
+                    "verification_notes": "Audited platform earnings ledger: ₹6,50,000 collected in first 5 months."
                 }
             ],
             follow_up_history=[
@@ -564,11 +577,11 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "id": "AUD-005",
                     "checkpoint_type": "90-Day Freelance Revenue Verification",
                     "date": "2024-08-10",
-                    "counselor_name": "Marcus Brody",
+                    "counselor_name": "Raghavan Nair",
                     "status": "completed",
                     "retention_confirmed": True,
                     "wage_progressed": True,
-                    "counselor_notes": "Candidate average monthly net billings exceed $7,200. Fully self-sustaining freelancing career."
+                    "counselor_notes": "Candidate average monthly net billings exceed ₹1,10,000. Fully self-sustaining freelancing career."
                 }
             ],
             consent_status={
@@ -586,12 +599,12 @@ def seed_database(db: Session, force_reseed: bool = False):
         # --- 4. APPRENTICESHIP ---
         Trainee(
             id="TRN-2024-004",
-            full_name="Devon Harper",
-            email="devon.harper@example.com",
-            phone="+1 (555) 912-3401",
+            full_name="Karthik Venkataraman",
+            email="karthik.v@example.in",
+            phone="+91 94441 91234",
             avatar_url="https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80",
-            location="Boston, MA",
-            bio="Registered state apprentice in hospital infrastructure cybersecurity. Transitioned from IT helpdesk to defending mission-critical clinical IoT and electronic medical records systems.",
+            location="Chennai, TN",
+            bio="Registered apprentice in hospital infrastructure cybersecurity. Transitioned from IT support to defending mission-critical clinical IoT and electronic hospital information management systems.",
             program="Cybersecurity & Infrastructure",
             cohort="Cohort 2024-B",
             status="placed",
@@ -599,23 +612,23 @@ def seed_database(db: Session, force_reseed: bool = False):
             enrollment_date="2024-02-01",
             graduation_date="2024-07-15",
             training_details={
-                "provider_name": "Commonwealth Cybersecurity Training Center",
+                "provider_name": "National Skill Training Institute (NSTI) Chennai",
                 "course_title": "Healthcare Cyber Defense & Threat Intelligence",
-                "accreditation": "U.S. Department of Labor (USDOL) Registered Apprenticeship Program",
-                "instructor_name": "Col. James Sterling (Ret.)",
-                "modality": "On-site Lab & Clinical Rotation",
+                "accreditation": "National Apprenticeship Promotion Scheme (NAPS) / MSDE",
+                "instructor_name": "Cdr. R. Krishnan (Retd.)",
+                "modality": "On-site Lab & Hospital Clinical Rotation",
                 "attendance_rate": "96.5%",
                 "hours_completed": 750,
             },
             current_role="Healthcare Cybersecurity Systems Apprentice",
-            current_employer="Vanguard Health Systems",
+            current_employer="Vanguard Healthcare Networks India",
             placement_date="2024-08-01",
-            placement_salary="$32.50 / hr ($67,600 / yr + Tuition Support)",
+            placement_salary="₹4,80,000 / yr + Skill Allowance",
             overall_score=84,
             match_score=87,
             last_follow_up="2024-09-01",
             next_follow_up="2024-11-01",
-            notes="Formal 2-year USDOL registered apprenticeship agreement signed. Progression schedule includes 3 wage step increases.",
+            notes="Formal 2-year NAPS / MSDE registered apprenticeship contract signed. Progression schedule includes 3 wage step increases.",
             certifications=[
                 {
                     "id": "CRT-005",
@@ -635,16 +648,16 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "score": 86,
                     "max_score": 100,
                     "grade": "B+",
-                    "evaluator": "Col. James Sterling",
+                    "evaluator": "Cdr. R. Krishnan",
                     "feedback": "Strong packet analysis skills. Remediated simulated ransomware exploit within 14 minutes."
                 }
             ],
             career_preference={
                 "target_roles": ["Cybersecurity Analyst", "SOC Analyst", "Healthcare Privacy Systems Officer"],
                 "preferred_workplace": "On-site",
-                "target_salary_min": "$65,000",
-                "target_salary_max": "$85,000",
-                "preferred_locations": ["Boston, MA", "Providence, RI"],
+                "target_salary_min": "₹4,50,000",
+                "target_salary_max": "₹7,50,000",
+                "preferred_locations": ["Chennai, TN", "Coimbatore, TN", "Bengaluru, KA"],
                 "target_industries": ["Healthcare", "Government", "Defense Infrastructure"]
             },
             current_pathway={
@@ -658,21 +671,21 @@ def seed_database(db: Session, force_reseed: bool = False):
                 {
                     "id": "OUT-005",
                     "outcome_type": "apprenticeship",
-                    "organization_or_venture": "Vanguard Health Systems",
+                    "organization_or_venture": "Vanguard Healthcare Networks India",
                     "role_or_course": "Cybersecurity Operations Apprentice",
-                    "compensation_or_funding": "$32.50 / hr",
+                    "compensation_or_funding": "₹40,000 / mo",
                     "start_date": "2024-08-01",
                     "is_current": True,
                     "verification_status": "verified",
-                    "verification_notes": "USDOL Apprenticeship Registration Document RAPIDS #81920 on file."
+                    "verification_notes": "NAPS / MSDE Apprenticeship Registration Contract Portal ID #NAPS-81920 on file."
                 }
             ],
             follow_up_history=[
                 {
                     "id": "AUD-006",
-                    "checkpoint_type": "30-Day USDOL Apprenticeship Audit",
+                    "checkpoint_type": "30-Day NAPS Apprenticeship Audit",
                     "date": "2024-09-01",
-                    "counselor_name": "Marcus Brody",
+                    "counselor_name": "Raghavan Nair",
                     "status": "completed",
                     "retention_confirmed": True,
                     "wage_progressed": False,
@@ -688,18 +701,18 @@ def seed_database(db: Session, force_reseed: bool = False):
                 "consent_date": "2024-02-01",
                 "expiry_date": "2026-02-01",
                 "version": "v2.1",
-                "notes": "Consented to USDOL and state apprentice wage reporting."
+                "notes": "Consented to NAPS portal and state apprentice wage reporting."
             }
         ),
 
         # --- 5. ENTREPRENEURSHIP ---
         Trainee(
             id="TRN-2024-005",
-            full_name="Tariq Al-Jamil",
-            email="tariq.aljamil@example.com",
-            phone="+1 (555) 782-4419",
+            full_name="Aditya Verma",
+            email="aditya.verma@example.in",
+            phone="+91 98102 78244",
             avatar_url="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
-            location="San Jose, CA",
+            location="Mumbai, MH",
             bio="Technology entrepreneur and founder of OmniTrace Diagnostics, an AI-assisted oncology workflow tool. Formed startup team out of workforce accelerator capstone.",
             program="Data Intelligence & AI Integration",
             cohort="Cohort 2024-A",
@@ -708,23 +721,23 @@ def seed_database(db: Session, force_reseed: bool = False):
             enrollment_date="2023-10-10",
             graduation_date="2024-04-12",
             training_details={
-                "provider_name": "Silicon Valley Data Institute",
+                "provider_name": "Mumbai Institute of Artificial Intelligence & Data Science",
                 "course_title": "Applied AI Engineering & Venture Commercialization",
-                "accreditation": "California Bureau for Private Postsecondary Education (BPPE)",
-                "instructor_name": "Dr. Aris Thorne",
+                "accreditation": "Skill India / NSDC Approved Curriculum",
+                "instructor_name": "Dr. Arvind Swaminathan",
                 "modality": "Hybrid",
                 "attendance_rate": "98.9%",
                 "hours_completed": 720,
             },
             current_role="Founder & Chief Executive Officer",
-            current_employer="OmniTrace Diagnostics Inc. (Delaware C-Corp)",
+            current_employer="OmniTrace Diagnostics Pvt. Ltd. (DPIIT Recognized Startup)",
             placement_date="2024-05-01",
-            placement_salary="$250,000 Pre-Seed Grant + $75,000 Founder Draw",
+            placement_salary="₹50 Lakhs Seed Grant + ₹10 Lakhs Founder Draw",
             overall_score=97,
             match_score=95,
             last_follow_up="2024-08-01",
             next_follow_up="2024-11-01",
-            notes="Incorporated Delaware C-Corp. Accepted into regional tech incubator with $250,000 grant and venture syndicate backing.",
+            notes="Incorporated Private Limited Company under MCA. DPIIT Recognized Startup with ₹50 Lakhs grant funding and angel syndicate backing.",
             certifications=[
                 {
                     "id": "CRT-006",
@@ -743,16 +756,16 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "score": 99,
                     "max_score": 100,
                     "grade": "A+",
-                    "evaluator": "Dr. Aris Thorne",
+                    "evaluator": "Dr. Arvind Swaminathan",
                     "feedback": "Venture-grade clinical prototype. Exceeded accuracy benchmarks of published commercial models."
                 }
             ],
             career_preference={
                 "target_roles": ["Venture Founder", "Chief Technology Officer", "AI Research Scientist"],
                 "preferred_workplace": "Flexible",
-                "target_salary_min": "$80,000",
-                "target_salary_max": "$150,000",
-                "preferred_locations": ["San Jose, CA", "San Francisco, CA", "Remote"],
+                "target_salary_min": "₹10,00,000",
+                "target_salary_max": "₹25,00,000",
+                "preferred_locations": ["Mumbai, MH", "Pune, MH", "Bengaluru, KA"],
                 "target_industries": ["AI / Machine Learning", "Healthcare Tech", "Venture Capital"]
             },
             current_pathway={
@@ -766,13 +779,13 @@ def seed_database(db: Session, force_reseed: bool = False):
                 {
                     "id": "OUT-006",
                     "outcome_type": "entrepreneurship",
-                    "organization_or_venture": "OmniTrace Diagnostics Inc.",
+                    "organization_or_venture": "OmniTrace Diagnostics Pvt. Ltd.",
                     "role_or_course": "Founder & CEO",
-                    "compensation_or_funding": "$250,000 Pre-Seed Grant Funding",
+                    "compensation_or_funding": "₹50 Lakhs Seed Grant Funding",
                     "start_date": "2024-05-01",
                     "is_current": True,
                     "verification_status": "verified",
-                    "verification_notes": "Delaware Certificate of Incorporation, IRS EIN letter, and incubator SAFE investment instrument on file."
+                    "verification_notes": "MCA Certificate of Incorporation (CIN), PAN/TAN card, DPIIT Startup Certificate, and incubator grant agreement on file."
                 }
             ],
             follow_up_history=[
@@ -780,7 +793,7 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "id": "AUD-007",
                     "checkpoint_type": "90-Day Entrepreneurship Audit",
                     "date": "2024-08-01",
-                    "counselor_name": "Sarah Sterling",
+                    "counselor_name": "Meera Iyer",
                     "status": "completed",
                     "retention_confirmed": True,
                     "wage_progressed": True,
@@ -803,12 +816,12 @@ def seed_database(db: Session, force_reseed: bool = False):
         # --- 6. FURTHER EDUCATION ---
         Trainee(
             id="TRN-2024-006",
-            full_name="Aisha Al-Mansoor",
-            email="aisha.m@example.com",
-            phone="+1 (555) 439-0192",
+            full_name="Ananya Iyer",
+            email="ananya.iyer@example.in",
+            phone="+91 98403 43901",
             avatar_url="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
-            location="Boston, MA",
-            bio="Data intelligence graduate continuing into advanced graduate research. Awarded fully-funded fellowship to pursue Master of Science in Data Science with healthcare predictive analytics concentration.",
+            location="New Delhi, DL",
+            bio="Data intelligence graduate continuing into advanced graduate research. Awarded fully-funded fellowship to pursue Master of Technology (M.Tech) in AI & Data Science with healthcare predictive analytics concentration.",
             program="Data Intelligence & AI Integration",
             cohort="Cohort 2024-A",
             status="placed",
@@ -816,23 +829,23 @@ def seed_database(db: Session, force_reseed: bool = False):
             enrollment_date="2023-10-10",
             graduation_date="2024-04-12",
             training_details={
-                "provider_name": "Northeast Data Academy",
+                "provider_name": "Delhi AI & Deep Learning Academy",
                 "course_title": "Applied Statistical Learning & Neural Network Topologies",
-                "accreditation": "Massachusetts Department of Higher Education (MDHE)",
-                "instructor_name": "Prof. David Vance",
+                "accreditation": "Endorsed by AICTE & Delhi Skill and Entrepreneurship University (DSEU)",
+                "instructor_name": "Prof. Rajesh Sengupta",
                 "modality": "On-Campus & Computer Science Labs",
                 "attendance_rate": "99.4%",
                 "hours_completed": 720,
             },
-            current_role="Graduate Research Fellow (M.Sc. Candidate)",
-            current_employer="Northeastern University Khoury College of Computer Sciences",
+            current_role="Graduate Research Fellow (M.Tech Candidate)",
+            current_employer="IIT Delhi School of Artificial Intelligence",
             placement_date="2024-08-25",
-            placement_salary="100% Tuition Waiver + $34,000 / yr Annualized Research Stipend",
+            placement_salary="100% Tuition Waiver + ₹50,000 / mo MoE Research Fellowship",
             overall_score=98,
             match_score=97,
             last_follow_up="2024-09-15",
             next_follow_up="2024-12-01",
-            notes="Secured competitive merit research fellowship in clinical NLP. Articulated 12 workforce bootcamp credits into Master's degree curriculum.",
+            notes="Secured competitive merit research fellowship in clinical NLP. Articulated workforce bootcamp credits into postgraduate research curriculum.",
             certifications=[
                 {
                     "id": "CRT-007",
@@ -851,16 +864,16 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "score": 98,
                     "max_score": 100,
                     "grade": "A+",
-                    "evaluator": "Prof. David Vance",
+                    "evaluator": "Prof. Rajesh Sengupta",
                     "feedback": "Exemplary semantic vector search architecture utilizing pgvector for PubMed medical abstract classification."
                 }
             ],
             career_preference={
                 "target_roles": ["Data Scientist", "Biomedical AI Researcher", "Machine Learning Systems Scientist"],
                 "preferred_workplace": "Hybrid",
-                "target_salary_min": "$100,000",
-                "target_salary_max": "$140,000",
-                "preferred_locations": ["Boston, MA", "Cambridge, MA"],
+                "target_salary_min": "₹12,00,000",
+                "target_salary_max": "₹20,00,000",
+                "preferred_locations": ["New Delhi, DL", "Bengaluru, KA", "Hyderabad, TS"],
                 "target_industries": ["Academic Research", "Pharmaceuticals", "Healthcare AI"]
             },
             current_pathway={
@@ -868,19 +881,19 @@ def seed_database(db: Session, force_reseed: bool = False):
                 "title": "Cloud Data & AI Systems Engineer",
                 "current_stage": "Graduate Research & Advanced Specialization",
                 "progress_percent": 65,
-                "next_milestone": "Master of Science Graduation & Industry Placement (Target: 2026)"
+                "next_milestone": "Master of Technology Graduation & Industry Placement (Target: 2026)"
             },
             outcome_history=[
                 {
                     "id": "OUT-007",
                     "outcome_type": "further_education",
-                    "organization_or_venture": "Northeastern University",
-                    "role_or_course": "M.Sc. in Data Science & Biomedical Informatics",
-                    "compensation_or_funding": "Full Tuition Fellowship + $34,000 Graduate Stipend",
+                    "organization_or_venture": "IIT Delhi",
+                    "role_or_course": "M.Tech in Artificial Intelligence & Data Science",
+                    "compensation_or_funding": "Full Tuition Fellowship + ₹50,000 / mo Fellowship Stipend",
                     "start_date": "2024-08-25",
                     "is_current": True,
                     "verification_status": "verified",
-                    "verification_notes": "Official university letter of matriculation, bursar statement, and graduate assistantship award verified."
+                    "verification_notes": "Official university letter of admission, fee waiver certificate, and Ministry of Education JRF fellowship award letter verified."
                 }
             ],
             follow_up_history=[
@@ -888,11 +901,11 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "id": "AUD-008",
                     "checkpoint_type": "Fall Semester Higher Education Audit",
                     "date": "2024-09-15",
-                    "counselor_name": "Sarah Sterling",
+                    "counselor_name": "Meera Iyer",
                     "status": "completed",
                     "retention_confirmed": True,
                     "wage_progressed": True,
-                    "counselor_notes": "Enrolled in 12 graduate credit hours. Research stipend active and paid bi-weekly."
+                    "counselor_notes": "Enrolled in postgraduate research course. Fellowship stipend active and credited monthly."
                 }
             ],
             consent_status={
@@ -914,30 +927,30 @@ def seed_database(db: Session, force_reseed: bool = False):
 
     # Trainee Skills relationships
     skills_map = [
-        # Elena
+        # Priya
         TraineeSkill(trainee_id="TRN-2024-001", skill_id="sk-1", name="React.js", level="expert", verified=True, score=96),
         TraineeSkill(trainee_id="TRN-2024-001", skill_id="sk-2", name="TypeScript", level="advanced", verified=True, score=92),
         TraineeSkill(trainee_id="TRN-2024-001", skill_id="sk-17", name="Technical Communication", level="advanced", verified=True, score=94),
         
-        # Marcus
+        # Rajesh
         TraineeSkill(trainee_id="TRN-2024-002", skill_id="sk-6", name="Python / FastAPI", level="expert", verified=True, score=95),
         TraineeSkill(trainee_id="TRN-2024-002", skill_id="sk-8", name="PostgreSQL & pgvector", level="advanced", verified=True, score=88),
         TraineeSkill(trainee_id="TRN-2024-002", skill_id="sk-9", name="Docker & Containerization", level="expert", verified=True, score=94),
 
-        # Sophia
+        # Sneha
         TraineeSkill(trainee_id="TRN-2024-003", skill_id="sk-1", name="React.js", level="expert", verified=True, score=98),
         TraineeSkill(trainee_id="TRN-2024-003", skill_id="sk-2", name="TypeScript", level="advanced", verified=True, score=94),
         TraineeSkill(trainee_id="TRN-2024-003", skill_id="sk-6", name="Python / FastAPI", level="advanced", verified=True, score=90),
 
-        # Devon
+        # Karthik
         TraineeSkill(trainee_id="TRN-2024-004", skill_id="sk-14", name="Network & Cloud Security", level="advanced", verified=True, score=88),
         TraineeSkill(trainee_id="TRN-2024-004", skill_id="sk-9", name="Docker & Containerization", level="intermediate", verified=True, score=78),
 
-        # Tariq
+        # Aditya
         TraineeSkill(trainee_id="TRN-2024-005", skill_id="sk-6", name="Python / FastAPI", level="expert", verified=True, score=98),
         TraineeSkill(trainee_id="TRN-2024-005", skill_id="sk-8", name="PostgreSQL & pgvector", level="expert", verified=True, score=96),
 
-        # Aisha
+        # Ananya
         TraineeSkill(trainee_id="TRN-2024-006", skill_id="sk-6", name="Python / FastAPI", level="expert", verified=True, score=99),
         TraineeSkill(trainee_id="TRN-2024-006", skill_id="sk-8", name="PostgreSQL & pgvector", level="expert", verified=True, score=97),
     ]
@@ -949,26 +962,26 @@ def seed_database(db: Session, force_reseed: bool = False):
         FollowUp(
             id="FLW-001",
             trainee_id="TRN-2024-001",
-            trainee_name="Elena Rostova",
-            trainee_role="Junior Frontend Engineer @ Apex",
+            trainee_name="Priya Sharma",
+            trainee_role="Junior Frontend Engineer @ Apex Cloud",
             type="90-Day Retention Audit",
             due_date="2024-11-20",
             status="pending",
             priority="Medium",
-            assigned_counselor="Marcus Brody",
+            assigned_counselor="Raghavan Nair",
             notes="Assess 90-day retention and manager feedback on technical ramp-up.",
         ),
         FollowUp(
             id="FLW-002",
             trainee_id="TRN-2024-004",
-            trainee_name="Devon Harper",
+            trainee_name="Karthik Venkataraman",
             trainee_role="Cybersecurity Systems Apprentice @ Vanguard",
-            type="60-Day Apprenticeship Audit",
+            type="60-Day NAPS Apprenticeship Audit",
             due_date="2024-11-01",
             status="pending",
             priority="High",
-            assigned_counselor="Marcus Brody",
-            notes="USDOL milestone verification check with Hospital SOC supervisor.",
+            assigned_counselor="Raghavan Nair",
+            notes="NAPS milestone verification check with Hospital SOC supervisor.",
         ),
     ]
     db.add_all(followups_data)
@@ -979,14 +992,14 @@ def seed_database(db: Session, force_reseed: bool = False):
         SkillGap(
             id="GAP-001",
             trainee_id="TRN-2024-002",
-            trainee_name="Marcus Vance",
+            trainee_name="Rajesh Kumar",
             target_job_title="Backend API Specialist",
-            target_employer="Meridian Health Tech",
+            target_employer="Meridian MedTech India Pvt. Ltd.",
             gap_score=18,
             match_score=82,
             missing_skills=[
                 {"skill": "PostgreSQL & pgvector indexing", "importance": "Critical", "suggestedModule": "Advanced SQL & Embedding Search"},
-                {"skill": "HIPAA Compliance", "importance": "Recommended", "suggestedModule": "Healthcare Data Privacy Fundamentals"},
+                {"skill": "DISHA / DPDP Compliance", "importance": "Recommended", "suggestedModule": "Healthcare Data Privacy & DISHA Fundamentals"},
             ],
             acquired_skills=["Python / FastAPI", "Docker & Containerization", "REST APIs"],
             recommendation="Complete a 1-week micro-credential in vector indexing and relational schema isolation.",
@@ -1009,14 +1022,14 @@ def seed_database(db: Session, force_reseed: bool = False):
                     "stage": "Entry / Apprentice",
                     "role": "Junior Software Engineer",
                     "typicalTimeframe": "0 - 18 months",
-                    "expectedSalary": "$75,000 - $90,000",
+                    "expectedSalary": "₹4,50,000 - ₹8,00,000",
                     "competencies": ["React & TypeScript components", "FastAPI CRUD endpoints", "Unit testing & Git branching"]
                 },
                 {
                     "stage": "Mid-Level",
                     "role": "Software Engineer II",
                     "typicalTimeframe": "18 - 36 months",
-                    "expectedSalary": "$95,000 - $125,000",
+                    "expectedSalary": "₹10,00,000 - ₹18,00,000",
                     "competencies": ["Microservice architecture", "Database query optimization", "CI/CD pipeline management"]
                 },
             ],
@@ -1026,7 +1039,8 @@ def seed_database(db: Session, force_reseed: bool = False):
     db.commit()
 
     logger.info("Complete Trainee Outcome Passport database seeding successfully completed.")
-    seed_trainee_skill_evidence(db)
+    seed_trainee_skill_evidence(db, force_reseed=force_reseed)
+    seed_users(db, force_reseed=force_reseed)
 
 
 def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
@@ -1077,7 +1091,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
 
     # Pre-defined realistic evidence items
     evidence_fixtures = [
-        # Elena Rostova (TRN-2024-001) - React & Web Architecture
+        # Priya Sharma (TRN-2024-001) - React & Web Architecture
         {
             "trainee_id": "TRN-2024-001",
             "skill_id": "sk-1",
@@ -1086,9 +1100,9 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.8,
             "confidence": 0.95,
             "assessment_date": "2024-08-10",
-            "reviewer_source": "Senior Tech Assessor David Lin",
+            "reviewer_source": "Senior Tech Assessor Deepak Sharma",
             "notes": "Built production-ready healthcare patient portal with custom hooks, memoization, and responsive CSS grid.",
-            "artifact_url": "github.com/erostova/healthcare-portal-react"
+            "artifact_url": "github.com/priyasharma/healthcare-portal-react"
         },
         {
             "trainee_id": "TRN-2024-001",
@@ -1109,7 +1123,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.9,
             "confidence": 0.90,
             "assessment_date": "2024-08-15",
-            "reviewer_source": "Lead Instructor Sarah Jenkins",
+            "reviewer_source": "Lead Instructor Ananya Mukherjee",
             "notes": "Exemplary code structure, component reusability, and mentoring peers in state management."
         },
         {
@@ -1131,11 +1145,11 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.8,
             "confidence": 0.93,
             "assessment_date": "2024-09-12",
-            "reviewer_source": "Engineering Manager Alex Mercer (Apex Cloud Solutions)",
-            "notes": "Elena independently delivered 4 responsive dashboard widgets ahead of sprint schedule."
+            "reviewer_source": "Engineering Manager Arun Kumar (Apex Cloud Technologies India)",
+            "notes": "Priya independently delivered 4 responsive dashboard widgets ahead of sprint schedule."
         },
 
-        # Elena - TypeScript
+        # Priya - TypeScript
         {
             "trainee_id": "TRN-2024-001",
             "skill_id": "sk-2",
@@ -1144,7 +1158,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.5,
             "confidence": 0.94,
             "assessment_date": "2024-08-05",
-            "reviewer_source": "Senior Tech Assessor David Lin",
+            "reviewer_source": "Senior Tech Assessor Deepak Sharma",
             "notes": "Enforced strict type guards, Discriminated Unions, and generic API response mappers."
         },
         {
@@ -1166,11 +1180,11 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.6,
             "confidence": 0.88,
             "assessment_date": "2024-08-12",
-            "reviewer_source": "Lead Instructor Sarah Jenkins",
+            "reviewer_source": "Lead Instructor Ananya Mukherjee",
             "notes": "Eliminated all implicit any types and structured clean interfaces across team repo."
         },
 
-        # Elena - Technical Communication
+        # Priya - Technical Communication
         {
             "trainee_id": "TRN-2024-001",
             "skill_id": "sk-comm-01",
@@ -1191,7 +1205,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.7,
             "confidence": 0.90,
             "assessment_date": "2024-08-20",
-            "reviewer_source": "Lead Instructor Sarah Jenkins",
+            "reviewer_source": "Lead Instructor Ananya Mukherjee",
             "notes": "Delivered high-clarity technical architecture presentation during Demo Day."
         },
         {
@@ -1202,11 +1216,11 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.6,
             "confidence": 0.91,
             "assessment_date": "2024-09-15",
-            "reviewer_source": "Engineering Manager Alex Mercer",
+            "reviewer_source": "Engineering Manager Arun Kumar",
             "notes": "Seamless collaboration and concise documentation during product sprint planning."
         },
 
-        # Elena - Teamwork
+        # Priya - Teamwork
         {
             "trainee_id": "TRN-2024-001",
             "skill_id": "sk-team-01",
@@ -1226,11 +1240,11 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.6,
             "confidence": 0.89,
             "assessment_date": "2024-08-18",
-            "reviewer_source": "Lead Instructor Sarah Jenkins",
+            "reviewer_source": "Lead Instructor Ananya Mukherjee",
             "notes": "Natural team mediator; fostered supportive pairing environment."
         },
 
-        # Elena - Problem Solving
+        # Priya - Problem Solving
         {
             "trainee_id": "TRN-2024-001",
             "skill_id": "sk-prob-01",
@@ -1250,11 +1264,11 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.7,
             "confidence": 0.94,
             "assessment_date": "2024-08-10",
-            "reviewer_source": "Senior Assessor David Lin",
+            "reviewer_source": "Senior Assessor Deepak Sharma",
             "notes": "Designed resilient error boundaries and client-side offline retry fallbacks."
         },
 
-        # Elena - Adaptability
+        # Priya - Adaptability
         {
             "trainee_id": "TRN-2024-001",
             "skill_id": "sk-adapt-01",
@@ -1274,11 +1288,11 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.5,
             "confidence": 0.92,
             "assessment_date": "2024-09-15",
-            "reviewer_source": "Engineering Manager Alex Mercer",
+            "reviewer_source": "Engineering Manager Arun Kumar",
             "notes": "Quickly learned Apex proprietary component design system without friction."
         },
 
-        # Elena - Time Management
+        # Priya - Time Management
         {
             "trainee_id": "TRN-2024-001",
             "skill_id": "sk-time-01",
@@ -1298,7 +1312,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.5,
             "confidence": 0.88,
             "assessment_date": "2024-08-20",
-            "reviewer_source": "Instructor Sarah Jenkins",
+            "reviewer_source": "Instructor Ananya Mukherjee",
             "notes": "100% on-time milestone delivery across entire 16-week cohort."
         },
         {
@@ -1309,11 +1323,11 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 2.4,
             "confidence": 0.90,
             "assessment_date": "2024-08-25",
-            "reviewer_source": "Engineering Manager Alex Mercer (Apex Cloud Solutions)",
+            "reviewer_source": "Engineering Manager Arun Kumar (Apex Cloud Technologies India)",
             "notes": "Encountered persistent friction with multi-container compose networking and volume permissions in staging deployment."
         },
 
-        # Marcus Vance (TRN-2024-002) - Python / FastAPI Backend
+        # Rajesh Kumar (TRN-2024-002) - Python / FastAPI Backend
         {
             "trainee_id": "TRN-2024-002",
             "skill_id": "sk-6",
@@ -1322,9 +1336,9 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.8,
             "confidence": 0.96,
             "assessment_date": "2024-08-15",
-            "reviewer_source": "Principal Engineer Karen Ross",
+            "reviewer_source": "Principal Engineer Suresh Balaji",
             "notes": "Designed asynchronous microservice with dependency injection, JWT auth, and pydantic v2 schemas.",
-            "artifact_url": "github.com/mvance/fastapi-microservice-core"
+            "artifact_url": "github.com/rkumar/fastapi-microservice-core"
         },
         {
             "trainee_id": "TRN-2024-002",
@@ -1345,7 +1359,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.9,
             "confidence": 0.91,
             "assessment_date": "2024-08-18",
-            "reviewer_source": "Lead Instructor Sarah Jenkins",
+            "reviewer_source": "Lead Instructor Ananya Mukherjee",
             "notes": "Exceptional backend craftsmanship; authored reference boilerplate for cohort."
         },
         {
@@ -1356,7 +1370,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.5,
             "confidence": 0.94,
             "assessment_date": "2024-08-14",
-            "reviewer_source": "Principal Engineer Karen Ross",
+            "reviewer_source": "Principal Engineer Suresh Balaji",
             "notes": "Implemented HNSW vector indexing and relational schema normalization."
         },
         {
@@ -1400,7 +1414,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.2,
             "confidence": 0.88,
             "assessment_date": "2024-08-16",
-            "reviewer_source": "Lead Instructor Sarah Jenkins",
+            "reviewer_source": "Lead Instructor Ananya Mukherjee",
             "notes": "Wrote comprehensive OpenAPI / Swagger documentation and README guides."
         },
         {
@@ -1415,7 +1429,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "notes": "Level 4 response on technical decision matrix consensus building."
         },
 
-        # Sophia Patel (TRN-2024-003) - Frontend Design Systems
+        # Sneha Patel (TRN-2024-003) - Frontend Design Systems
         {
             "trainee_id": "TRN-2024-003",
             "skill_id": "sk-1",
@@ -1424,7 +1438,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.9,
             "confidence": 0.97,
             "assessment_date": "2024-08-12",
-            "reviewer_source": "Design Systems Lead Marcus Brody",
+            "reviewer_source": "Design Systems Lead Raghavan Nair",
             "notes": "Engineered accessible headless UI component library with WCAG AAA conformance."
         },
         {
@@ -1435,7 +1449,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.8,
             "confidence": 0.92,
             "assessment_date": "2024-08-19",
-            "reviewer_source": "Lead Instructor Sarah Jenkins",
+            "reviewer_source": "Lead Instructor Ananya Mukherjee",
             "notes": "Top visual designer in cohort; exceptional attention to layout craft."
         },
         {
@@ -1450,7 +1464,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "notes": "Demonstrated expert communication bridging UI/UX wireframes and frontend code."
         },
 
-        # Devon Harper (TRN-2024-004) - Cloud & Cybersecurity
+        # Karthik Venkataraman (TRN-2024-004) - Cloud & Cybersecurity
         {
             "trainee_id": "TRN-2024-004",
             "skill_id": "sk-14",
@@ -1470,7 +1484,7 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
             "score": 4.4,
             "confidence": 0.92,
             "assessment_date": "2024-08-10",
-            "reviewer_source": "Security Analyst Frank Miller",
+            "reviewer_source": "Security Analyst Farhan Qureshi",
             "notes": "Deployed zero-trust network perimeter with automated audit logging."
         },
         {
@@ -1509,4 +1523,181 @@ def seed_trainee_skill_evidence(db: Session, force_reseed: bool = False):
         SkillScoringEngine.sync_trainee_skill_scores(db, trn.id)
 
     logger.info("Successfully seeded trainee skill evidence records and synced 0-5 proficiency profiles.")
+
+
+def seed_users(db: Session, force_reseed: bool = False):
+    """
+    Seeds protected multi-role accounts with secure bcrypt password hashing:
+    - ADMIN: admin@skilltrace.gov / Admin@123456
+    - COACH: coach.sarah@skilltrace.org / Coach@123456 (Sarah Jenkins)
+    - COACH: coach.arun@skilltrace.org / Coach@123456 (Arun Kumar)
+    - EMPLOYER: recruiter@apexcloud.io / Employer@123456 (Sunita Rao, Apex Cloud Technologies)
+    - TRAINEE: priya.sharma@example.com / Trainee@123456 (Priya Sharma, TRN-2024-001)
+    - TRAINEE: rajesh.kumar@example.com / Trainee@123456 (Rajesh Kumar, TRN-2024-002)
+    """
+    if force_reseed:
+        db.query(TraineeProfile).delete()
+        db.query(CoachProfile).delete()
+        db.query(EmployerProfile).delete()
+        db.query(User).delete()
+        db.commit()
+    elif db.query(User).first():
+        logger.info("Users already seeded. Skipping.")
+        return
+
+    logger.info("Seeding protected multi-role users (Admin, Coach, Employer, Trainee)...")
+
+    # 1. Platform Admin (Provisioned account)
+    admin_user = User(
+        id="USR-ADMIN-001",
+        email="admin@skilltrace.gov",
+        hashed_password=get_password_hash("Admin@123456"),
+        role="ADMIN",
+        full_name="Director Rajeshwar Rao",
+        phone="+91 80 2345 6789",
+        is_active=True,
+        is_verified=True,
+        created_at="2024-01-01T09:00:00"
+    )
+    db.add(admin_user)
+
+    # 2. Coaches
+    coach_1 = User(
+        id="USR-COACH-001",
+        email="coach.sarah@skilltrace.org",
+        hashed_password=get_password_hash("Coach@123456"),
+        role="COACH",
+        full_name="Sarah Jenkins",
+        phone="+91 98450 11223",
+        is_active=True,
+        is_verified=True,
+        created_at="2024-01-15T10:00:00"
+    )
+    db.add(coach_1)
+    db.flush()
+    db.add(CoachProfile(
+        id="CP-001",
+        user_id=coach_1.id,
+        full_name="Sarah Jenkins",
+        title="Lead Cloud & AI Workforce Coach",
+        organization="National Skill Development Ecosystem",
+        specialization="Cloud Infrastructure, Python Microservices & Full-Stack",
+        phone="+91 98450 11223",
+        assigned_trainee_ids=["TRN-2024-001", "TRN-2024-002", "TRN-2024-003"]
+    ))
+
+    coach_2 = User(
+        id="USR-COACH-002",
+        email="coach.arun@skilltrace.org",
+        hashed_password=get_password_hash("Coach@123456"),
+        role="COACH",
+        full_name="Arun Kumar",
+        phone="+91 98450 44556",
+        is_active=True,
+        is_verified=True,
+        created_at="2024-01-20T10:00:00"
+    )
+    db.add(coach_2)
+    db.flush()
+    db.add(CoachProfile(
+        id="CP-002",
+        user_id=coach_2.id,
+        full_name="Arun Kumar",
+        title="Healthcare & Data Systems Coach",
+        organization="National Skill Development Ecosystem",
+        specialization="Healthcare Informatics & Analytics",
+        phone="+91 98450 44556",
+        assigned_trainee_ids=["TRN-2024-004", "TRN-2024-005", "TRN-2024-006"]
+    ))
+
+    # 3. Employer
+    employer_user = User(
+        id="USR-EMP-001",
+        email="recruiter@apexcloud.io",
+        hashed_password=get_password_hash("Employer@123456"),
+        role="EMPLOYER",
+        full_name="Sunita Rao",
+        phone="+91 80 4123 0144",
+        is_active=True,
+        is_verified=True,
+        created_at="2024-02-01T08:30:00"
+    )
+    db.add(employer_user)
+    db.flush()
+    db.add(EmployerProfile(
+        id="EP-001",
+        user_id=employer_user.id,
+        employer_id="EMP-01",
+        company_name="Apex Cloud Technologies India Pvt. Ltd.",
+        designation="VP of Talent & Apprenticeship Programs",
+        contact_phone="+91 80 4123 0144",
+        authorized_candidate_ids=["TRN-2024-001", "TRN-2024-004"]
+    ))
+
+    # 4. Trainees
+    t1_user = User(
+        id="USR-TRN-001",
+        email="priya.sharma@example.com",
+        hashed_password=get_password_hash("Trainee@123456"),
+        role="TRAINEE",
+        full_name="Priya Sharma",
+        phone="+91 98450 23489",
+        is_active=True,
+        is_verified=True,
+        created_at="2024-01-15T09:00:00"
+    )
+    db.add(t1_user)
+    db.flush()
+    db.add(TraineeProfile(
+        id="TP-001",
+        user_id=t1_user.id,
+        trainee_id="TRN-2024-001",
+        headline="Full Stack Cloud & AI Engineer Trainee",
+        bio="Passionate developer specializing in React, Python, and cloud microservices.",
+        education="B.Tech in Computer Science & Engineering",
+        experience_years=0.5,
+        assigned_coach_id="USR-COACH-001",
+        resume_filename="Priya_Sharma_Resume.pdf",
+        resume_url="/uploads/resumes/Priya_Sharma_Resume.pdf",
+        resume_parsed_skills=["React.js", "Python", "TypeScript", "PostgreSQL", "Docker"]
+    ))
+
+    # Link trainee record to user_id
+    t1_record = db.query(Trainee).filter(Trainee.id == "TRN-2024-001").first()
+    if t1_record:
+        t1_record.user_id = t1_user.id
+
+    t2_user = User(
+        id="USR-TRN-002",
+        email="rajesh.kumar@example.com",
+        hashed_password=get_password_hash("Trainee@123456"),
+        role="TRAINEE",
+        full_name="Rajesh Kumar",
+        phone="+91 98201 87211",
+        is_active=True,
+        is_verified=True,
+        created_at="2024-02-01T09:00:00"
+    )
+    db.add(t2_user)
+    db.flush()
+    db.add(TraineeProfile(
+        id="TP-002",
+        user_id=t2_user.id,
+        trainee_id="TRN-2024-002",
+        headline="Cloud Solutions Architecture Apprentice",
+        bio="Designing scalable multi-cloud infrastructure and DevOps delivery pipelines.",
+        education="B.Tech in Information Technology",
+        experience_years=1.0,
+        assigned_coach_id="USR-COACH-001",
+        resume_filename="Rajesh_Kumar_Resume.pdf",
+        resume_url="/uploads/resumes/Rajesh_Kumar_Resume.pdf",
+        resume_parsed_skills=["AWS Architecture", "Docker", "Kubernetes", "Terraform", "CI/CD"]
+    ))
+    t2_record = db.query(Trainee).filter(Trainee.id == "TRN-2024-002").first()
+    if t2_record:
+        t2_record.user_id = t2_user.id
+
+    db.commit()
+    logger.info("Successfully seeded multi-role users and role profiles.")
+
 

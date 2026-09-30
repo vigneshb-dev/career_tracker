@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
-  DollarSign,
+  IndianRupee,
   Users,
   Award,
   Download,
@@ -116,7 +116,7 @@ export const Analytics: React.FC = () => {
     { id: 'all', label: 'All 10 Dimensions', icon: <BarChart3 className="w-3.5 h-3.5" /> },
     { id: 'employment_rate', label: '1. Employment Rate', icon: <TrendingUp className="w-3.5 h-3.5" /> },
     { id: 'retention', label: '2. Retention', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
-    { id: 'wage_progression', label: '3. Wage Progression', icon: <DollarSign className="w-3.5 h-3.5" /> },
+    { id: 'wage_progression', label: '3. Wage Progression', icon: <IndianRupee className="w-3.5 h-3.5" /> },
     { id: 'skill_improvement', label: '4. Skill Improvement', icon: <Award className="w-3.5 h-3.5" /> },
     { id: 'skill_gaps', label: '5. Skill Gaps', icon: <AlertTriangle className="w-3.5 h-3.5" /> },
     { id: 'training_providers', label: '6. Training Providers', icon: <Building2 className="w-3.5 h-3.5" /> },
@@ -195,7 +195,7 @@ export const Analytics: React.FC = () => {
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-card">
           <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase">
             <span>Wage Increase</span>
-            <DollarSign className="w-4 h-4 text-emerald-600" />
+            <IndianRupee className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
             +{summary_kpis.average_wage_increase_pct}%
@@ -433,10 +433,10 @@ export const Analytics: React.FC = () => {
                       stroke="#94a3b8"
                       fontSize={11}
                       tickLine={false}
-                      tickFormatter={(val) => `$${val / 1000}k`}
+                      tickFormatter={(val) => `₹${(val / 100000).toFixed(1)}L`}
                     />
                     <Tooltip
-                      formatter={(val: any) => [`$${Number(val).toLocaleString()}`, 'Average Salary']}
+                      formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, 'Average Salary']}
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
                     />
                     <Bar dataKey="avg_wage" name="Average Salary" fill={COLORS.purple} radius={[6, 6, 0, 0]} />
@@ -461,10 +461,10 @@ export const Analytics: React.FC = () => {
                       stroke="#94a3b8"
                       fontSize={11}
                       tickLine={false}
-                      tickFormatter={(val) => `$${val / 1000}k`}
+                      tickFormatter={(val) => `₹${(val / 100000).toFixed(1)}L`}
                     />
                     <Tooltip
-                      formatter={(val: any) => [`$${Number(val).toLocaleString()}`, 'Annual Compensation']}
+                      formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, 'Annual Compensation']}
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
                     />
                     <Legend wrapperStyle={{ fontSize: '11px' }} />

@@ -30,7 +30,7 @@ INTERVENTIONS_CATALOGUE_DATA: List[Dict[str, Any]] = [
         "min_proficiency": 1.5,
         "target_proficiency": 4.0,
         "estimated_effort": "16 Clock Hours",
-        "provider_or_platform": "Austin Tech Institute of Technology",
+        "provider_or_platform": "Bengaluru Institute of Technology & Advanced Skills",
         "description": "Comprehensive asynchronous Python engineering module covering typing with Pydantic v2, FastAPI dependency injection, asyncpg database pooling, and structured logging.",
         "why_it_matters": "Enterprise backend roles require autonomous proficiency in concurrent request handling and strict type contracts to prevent runtime data corruption.",
         "prerequisites": ["Basic Python Syntax", "HTTP Methods"],
@@ -336,7 +336,7 @@ INTERVENTIONS_CATALOGUE_DATA: List[Dict[str, Any]] = [
         "min_proficiency": 2.0,
         "target_proficiency": 4.5,
         "estimated_effort": "8 Weeks (320 Hours)",
-        "provider_or_platform": "USDOL Registered Tech Apprenticeship Partner",
+        "provider_or_platform": "NAPS / MSDE Registered Tech Apprenticeship Partner",
         "description": "Immersive on-the-job apprenticeship rotation embedded in an agile engineering squad. Focuses on shipping pull requests, participating in daily standups, and resolving staging deployment bottlenecks.",
         "why_it_matters": "The gold standard for workforce placement: provides verified on-the-job clock hours and supervisor appraisals that convert to full-time employment.",
         "prerequisites": ["Core coursework completion", "Signed apprenticeship agreement"],
@@ -346,7 +346,7 @@ INTERVENTIONS_CATALOGUE_DATA: List[Dict[str, Any]] = [
             "Earn positive supervisor 60-day retention evaluation"
         ],
         "reassessment_rubric": {
-            "criteria": ["Employer retention confirmation", "USDOL milestone completion form"],
+            "criteria": ["Employer retention confirmation", "NAPS milestone completion form"],
             "max_score": 5.0
         },
         "market_demand_alignment": 99

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Search,
   Bell,
@@ -10,9 +10,14 @@ import {
   User,
   Settings,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  FileText,
+  Compass,
+  Building2,
+  UserPlus
 } from 'lucide-react';
 import { Button } from '../common/Button';
+import { useAuth } from '../../context/AuthContext';
 
 interface TopNavProps {
   onOpenMobileMenu: () => void;
@@ -24,6 +29,9 @@ export const TopNav: React.FC<TopNavProps> = ({
   onOpenAddTraineeModal,
 }) => {
   const navigate = useNavigate();
+  const { user, role, logout } = useAuth();
+  const userRole = (role || 'ADMIN').toUpperCase();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -55,37 +63,52 @@ export const TopNav: React.FC<TopNavProps> = ({
   const notifications = [
     {
       id: 1,
-      title: 'Devon Harper requires at-risk follow-up',
+      title: 'Karthik Venkataraman requires at-risk follow-up',
       time: '15m ago',
       type: 'warning',
       unread: true,
     },
     {
       id: 2,
-      title: 'Elena Rostova 90-day verification verified',
-      time: '2h ago',
+      title: 'Priya Sharma graduated - Outcome verified',
+      time: '1h ago',
       type: 'success',
       unread: true,
     },
     {
       id: 3,
-      title: 'New employer partnership: Vanguard Health',
-      time: '1d ago',
-      type: 'info',
+      title: 'Vanguard Healthcare Networks India verified 3 trainees',
+      time: '3h ago',
+      type: 'success',
       unread: false,
     },
   ];
 
+  const getInitials = (name?: string) => {
+    if (!name) return 'ST';
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+  };
+
+  const handleSignOut = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
-    <header className="sticky top-0 z-20 h-20 bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 lg:px-8 flex items-center justify-between gap-4">
-      {/* Left: Mobile Toggle & Search */}
-      <div className="flex items-center gap-3 flex-1 max-w-xl">
+    <header className="h-20 bg-white border-b border-slate-100 px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-20 shadow-sm font-sans">
+      {/* Left: Mobile Menu Trigger & Global Search */}
+      <div className="flex items-center gap-4 flex-1 max-w-xl">
         <button
           onClick={onOpenMobileMenu}
-          className="lg:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors"
-          aria-label="Open mobile menu"
+          className="lg:hidden p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+          aria-label="Open navigation menu"
         >
-          <Menu className="w-6 h-6" />
+          <Menu className="w-5 h-5" />
         </button>
 
         <form onSubmit={handleSearchSubmit} className="relative w-full">
@@ -94,7 +117,7 @@ export const TopNav: React.FC<TopNavProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search trainees, skill clusters, employer partners... (Press Enter)"
+            placeholder="Search competencies, trainees, employers... (Press Enter)"
             className="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition-all placeholder:text-slate-400 font-medium"
           />
         </form>
@@ -102,21 +125,56 @@ export const TopNav: React.FC<TopNavProps> = ({
 
       {/* Right: Actions, Notifications & Profile */}
       <div className="flex items-center gap-3">
-        {/* Quick Action */}
-        <Button
-          onClick={onOpenAddTraineeModal}
-          size="sm"
-          className="hidden sm:inline-flex bg-brand-500 hover:bg-brand-600 text-white"
-          icon={<Plus className="w-4 h-4" />}
-        >
-          Add Trainee
-        </Button>
+        {/* Role-Specific Quick Actions */}
+        {userRole === 'ADMIN' && (
+          <Button
+            onClick={onOpenAddTraineeModal}
+            size="sm"
+            className="hidden sm:inline-flex bg-brand-500 hover:bg-brand-600 text-white font-bold"
+            icon={<Plus className="w-4 h-4" />}
+          >
+            Provision Trainee
+          </Button>
+        )}
+
+        {userRole === 'TRAINEE' && (
+          <Button
+            onClick={() => navigate('/my-resume')}
+            size="sm"
+            className="hidden sm:inline-flex bg-brand-500 hover:bg-brand-600 text-white font-bold"
+            icon={<FileText className="w-4 h-4" />}
+          >
+            My Resume
+          </Button>
+        )}
+
+        {userRole === 'COACH' && (
+          <Button
+            onClick={() => navigate('/skills')}
+            size="sm"
+            className="hidden sm:inline-flex bg-brand-500 hover:bg-brand-600 text-white font-bold"
+            icon={<Compass className="w-4 h-4" />}
+          >
+            Evaluate Skills
+          </Button>
+        )}
+
+        {userRole === 'EMPLOYER' && (
+          <Button
+            onClick={() => navigate('/employers')}
+            size="sm"
+            className="hidden sm:inline-flex bg-brand-500 hover:bg-brand-600 text-white font-bold"
+            icon={<Building2 className="w-4 h-4" />}
+          >
+            Verify Candidates
+          </Button>
+        )}
 
         {/* Notifications Dropdown */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
-            className="relative p-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+            className="relative p-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             aria-label="View notifications"
           >
             <Bell className="w-5 h-5" />
@@ -159,7 +217,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                     navigate('/follow-ups');
                     setNotificationsOpen(false);
                   }}
-                  className="text-xs font-bold text-brand-600 hover:text-brand-700"
+                  className="text-xs font-bold text-brand-600 hover:text-brand-700 cursor-pointer"
                 >
                   View All Operational Tasks
                 </button>
@@ -172,53 +230,73 @@ export const TopNav: React.FC<TopNavProps> = ({
         <div className="relative" ref={profileRef}>
           <button
             onClick={() => setProfileOpen(!profileOpen)}
-            className="flex items-center gap-2 p-1.5 hover:bg-slate-100 rounded-xl transition-colors"
+            className="flex items-center gap-2.5 p-1.5 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full bg-brand-600 text-white font-bold text-xs flex items-center justify-center shadow-sm">
-              DR
+            <div className="w-8 h-8 rounded-full bg-brand-600 text-white font-extrabold text-xs flex items-center justify-center shadow-sm">
+              {getInitials(user?.full_name)}
             </div>
             <div className="hidden md:flex flex-col text-left">
-              <span className="text-xs font-bold text-slate-800 leading-tight">Director Reynolds</span>
-              <span className="text-[10px] font-medium text-slate-400">Admin</span>
+              <span className="text-xs font-bold text-slate-800 leading-tight">
+                {user?.full_name || 'Workforce User'}
+              </span>
+              <span className="text-[10px] font-extrabold text-brand-600 uppercase">
+                {userRole}
+              </span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden md:block" />
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+            <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
               <div className="px-4 py-2.5 border-b border-slate-100">
-                <p className="text-xs font-bold text-slate-900">Director Reynolds</p>
-                <p className="text-[11px] text-slate-500 truncate">reynolds@workforce.gov</p>
+                <p className="text-xs font-bold text-slate-900">{user?.full_name}</p>
+                <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+                <span className="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-extrabold bg-brand-50 text-brand-700 uppercase border border-brand-200">
+                  Role: {userRole}
+                </span>
               </div>
               <div className="py-1">
-                <button
-                  onClick={() => {
-                    navigate('/analytics');
-                    setProfileOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                >
-                  <User className="w-4 h-4 text-slate-400" />
-                  Account & Organization
-                </button>
-                <button
-                  onClick={() => {
-                    navigate('/dashboard');
-                    setProfileOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                >
-                  <Settings className="w-4 h-4 text-slate-400" />
-                  Platform Settings
-                </button>
+                {userRole === 'TRAINEE' && user?.trainee_id && (
+                  <button
+                    onClick={() => {
+                      navigate(`/trainees/${user.trainee_id}`);
+                      setProfileOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  >
+                    <User className="w-4 h-4 text-slate-400" />
+                    My Outcome Passport
+                  </button>
+                )}
+                {userRole === 'TRAINEE' && (
+                  <button
+                    onClick={() => {
+                      navigate('/my-resume');
+                      setProfileOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4 text-slate-400" />
+                    Manage Resume
+                  </button>
+                )}
+                {userRole === 'ADMIN' && (
+                  <button
+                    onClick={() => {
+                      navigate('/analytics');
+                      setProfileOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  >
+                    <Settings className="w-4 h-4 text-slate-400" />
+                    Platform Intelligence
+                  </button>
+                )}
               </div>
               <div className="border-t border-slate-100 pt-1">
                 <button
-                  onClick={() => {
-                    localStorage.removeItem('skilltrace_auth');
-                    navigate('/login');
-                  }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 cursor-pointer"
                 >
                   <LogOut className="w-4 h-4 text-rose-500" />
                   Sign Out

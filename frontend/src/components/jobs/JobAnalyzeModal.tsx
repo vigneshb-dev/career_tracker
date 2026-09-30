@@ -4,7 +4,7 @@ import {
   Sparkles,
   Cpu,
   CheckCircle2,
-  DollarSign,
+  IndianRupee,
   MapPin,
   Briefcase,
   GraduationCap,
@@ -32,48 +32,48 @@ const PRESET_DESCRIPTIONS = [
   {
     label: 'Python / Cloud Backend',
     title: 'Senior Backend Engineer',
-    employer: 'CloudScale Infrastructure',
-    location: 'Austin, TX (Hybrid)',
-    text: `CloudScale Infrastructure is seeking a Senior Backend Engineer to develop high-throughput distributed microservices.
+    employer: 'CloudScale Infrastructure India',
+    location: 'Bengaluru, KA (Hybrid)',
+    text: `CloudScale Infrastructure India is seeking a Senior Backend Engineer to develop high-throughput distributed microservices.
 Requirements:
 - 4+ years of professional backend engineering experience.
-- Bachelor's degree in Computer Science or Software Engineering.
+- Bachelor's degree (B.Tech / B.E.) in Computer Science or Software Engineering.
 - Deep expertise in Python, FastAPI, Docker, and PostgreSQL.
 - Strong knowledge of microservices architecture, REST APIs, and database query optimization.
 - Hands-on familiarity with Linux and Git version control.
 - Excellent technical communication, cross-functional collaboration, and critical problem solving.
-Compensation: $120,000 - $145,000 / yr with full benefits.`
+Compensation: ₹18,00,000 - ₹24,00,000 / yr with full health insurance & PF benefits.`
   },
   {
     label: 'Healthcare / EHR Clinical',
     title: 'Clinical Medical Assistant',
-    employer: 'Austin Regional Health',
-    location: 'Austin, TX (On-site)',
-    text: `Austin Regional Health is hiring a full-time Clinical Medical Assistant for our ambulatory family care clinic.
+    employer: 'Apollo Health & Diagnostics',
+    location: 'Hyderabad, TS (On-site)',
+    text: `Apollo Health & Diagnostics is hiring a full-time Clinical Medical Assistant for our ambulatory family care clinic.
 Key Responsibilities:
 - Record patient vitals, phlebotomy, and assist physicians during outpatient examinations.
-- Document clinical encounters in Epic EHR and verify electronic patient records.
+- Document clinical encounters in EHR and verify electronic patient records.
 - Conduct patient intake and administer medications under clinical protocol supervision.
 Qualifications:
-- 1-3 years of outpatient clinical medical assistant experience.
-- Certified Medical Assistant (CCMA or CMA) credential and current BLS/CPR certification.
-- Proficient with Digital Multimeter diagnostic tools, medical records systems, and HIPAA compliance.
+- 1-3 years of outpatient clinical medical assistant experience with B.Sc Nursing, GNM, or DMLT.
+- Current BLS/CPR certification and DISHA / DPDP compliance understanding.
+- Proficient with Digital Multimeter diagnostic tools, medical records systems, and clinical triage.
 - Empathic patient communication and bedside de-escalation skills.
-Compensation: $22.00 - $26.50 / hr.`
+Compensation: ₹3,60,000 - ₹4,80,000 / yr.`
   },
   {
     label: 'Electrician / Industrial',
-    title: 'Journeyman Industrial Electrician',
-    employer: 'Titan Advanced Power',
-    location: 'Dallas, TX (On-site)',
-    text: `Titan Advanced Power has an opening for a licensed Journeyman Industrial Electrician to install and maintain commercial switchgear and 480V three-phase systems.
+    title: 'Industrial Electrical Technician',
+    employer: 'Tata Clean Energy & Power',
+    location: 'Chennai, TN (On-site)',
+    text: `Tata Clean Energy & Power has an opening for a certified Industrial Electrical Technician to install and maintain commercial switchgear and 415V three-phase systems.
 Requirements:
-- Valid Journeyman Electrician License with 4+ years of hands-on industrial electrical experience.
+- ITI Electrical or Diploma in Electrical Engineering with 4+ years of hands-on industrial electrical experience.
 - Expert blueprint reading, electrical conduit bending, and transformer wiring.
-- Strict compliance with NEC 2023, OSHA 30 standards, and NFPA 70E electrical safety.
+- Strict compliance with Central Electricity Authority (CEA) safety regulations and DGFASLI standards.
 - Proficient using Digital Multimeters, megohmmeters, and hydraulic conduit benders.
 - Jobsite safety, Lockout/Tagout (LOTO) protocols, and critical problem solving.
-Pay Rate: $34.00 - $42.00 / hr.`
+Pay Rate: ₹4,20,000 - ₹5,80,000 / yr.`
   }
 ];
 
@@ -233,7 +233,7 @@ export const JobAnalyzeModal: React.FC<JobAnalyzeModalProps> = ({ isOpen, onClos
               <label className="text-xs font-bold text-slate-600 block mb-1">Location (Optional)</label>
               <input
                 type="text"
-                placeholder="e.g. Seattle, WA (Hybrid)"
+                placeholder="e.g. Bengaluru, KA (Hybrid)"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -346,7 +346,7 @@ export const JobAnalyzeModal: React.FC<JobAnalyzeModalProps> = ({ isOpen, onClos
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                   <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold mb-1">
-                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                    <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
                     Salary Detected
                   </div>
                   <div className="text-xs font-extrabold text-slate-800">

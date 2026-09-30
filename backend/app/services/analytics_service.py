@@ -59,7 +59,7 @@ class AnalyticsService:
                 "evidence_level": getattr(t, "evidence_level", "self_reported") or "self_reported",
                 "overall_score": t.overall_score or 80,
                 "match_score": t.match_score or 75,
-                "location": t.location or "Austin, TX",
+                "location": t.location or "Bengaluru, KA",
                 "placement_salary": t.placement_salary,
                 "current_role": t.current_role,
                 "current_employer": t.current_employer
@@ -131,27 +131,27 @@ class AnalyticsService:
         # Dimension 3: Wage Progression
         # -------------------------------------------------------------
         wage_progression_df = pd.DataFrame([
-            {"stage": "Pre-Training Baseline", "avg_wage": 38400, "label": "Intake Baseline"},
-            {"stage": "First Outcome Placement", "avg_wage": 72500, "label": "Graduation Hire ($+34.1k)"},
-            {"stage": "6-Month Retention", "avg_wage": 78200, "label": "Probationary Increase ($+39.8k)"},
-            {"stage": "1-Year Progression", "avg_wage": 88600, "label": "Annualized Promotion ($+50.2k)"},
-            {"stage": "2-Year Senior Tier", "avg_wage": 104200, "label": "Mid/Senior Benchmark ($+65.8k)"}
+            {"stage": "Pre-Training Baseline", "avg_wage": 320000, "label": "Intake Baseline"},
+            {"stage": "First Outcome Placement", "avg_wage": 720000, "label": "Graduation Hire (+₹4.0L)"},
+            {"stage": "6-Month Retention", "avg_wage": 820000, "label": "Probationary Increase (+₹5.0L)"},
+            {"stage": "1-Year Progression", "avg_wage": 960000, "label": "Annualized Promotion (+₹6.4L)"},
+            {"stage": "2-Year Senior Tier", "avg_wage": 1250000, "label": "Mid/Senior Benchmark (+₹9.3L)"}
         ])
 
         wage_by_pathway_df = pd.DataFrame([
-            {"pathway": "Salaried Employment", "starting_wage": 84000, "one_year_wage": 94500, "pct_gain": 12.5},
-            {"pathway": "Registered Apprenticeship", "starting_wage": 58240, "one_year_wage": 74880, "pct_gain": 28.6},
-            {"pathway": "Self-Employment & LLC", "starting_wage": 68000, "one_year_wage": 86000, "pct_gain": 26.5},
-            {"pathway": "Independent Freelancing", "starting_wage": 62400, "one_year_wage": 81600, "pct_gain": 30.8},
-            {"pathway": "Venture Entrepreneurship", "starting_wage": 45000, "one_year_wage": 115000, "pct_gain": 155.5},
-            {"pathway": "Further Education/Research", "starting_wage": 52000, "one_year_wage": 68000, "pct_gain": 30.8}
+            {"pathway": "Salaried Employment", "starting_wage": 840000, "one_year_wage": 980000, "pct_gain": 16.7},
+            {"pathway": "Registered Apprenticeship", "starting_wage": 480000, "one_year_wage": 620000, "pct_gain": 29.2},
+            {"pathway": "Self-Employment & LLC", "starting_wage": 720000, "one_year_wage": 950000, "pct_gain": 31.9},
+            {"pathway": "Independent Freelancing", "starting_wage": 650000, "one_year_wage": 880000, "pct_gain": 35.4},
+            {"pathway": "Venture Entrepreneurship", "starting_wage": 500000, "one_year_wage": 1400000, "pct_gain": 180.0},
+            {"pathway": "Further Education/Research", "starting_wage": 550000, "one_year_wage": 720000, "pct_gain": 30.9}
         ])
 
         wage_metrics = {
-            "average_pre_training_wage": "$38,400",
-            "average_placement_wage": "$72,500",
-            "average_one_year_wage": "$88,600",
-            "wage_gain_percentage": 130.7,
+            "average_pre_training_wage": "₹3,20,000",
+            "average_placement_wage": "₹7,20,000",
+            "average_one_year_wage": "₹9,60,000",
+            "wage_gain_percentage": 125.0,
             "progression_milestones": wage_progression_df.to_dict(orient="records"),
             "pathway_wage_comparison": wage_by_pathway_df.to_dict(orient="records")
         }
@@ -164,8 +164,8 @@ class AnalyticsService:
             {"skill": "TypeScript Architecture", "intake_score": 0.8, "graduation_score": 3.5, "on_the_job_score": 4.3, "net_delta": 3.5},
             {"skill": "Python / FastAPI", "intake_score": 1.2, "graduation_score": 4.0, "on_the_job_score": 4.6, "net_delta": 3.4},
             {"skill": "SQL & Data Pipelines", "intake_score": 1.5, "graduation_score": 3.9, "on_the_job_score": 4.4, "net_delta": 2.9},
-            {"skill": "Electrical Safety & OSHA", "intake_score": 0.5, "graduation_score": 4.4, "on_the_job_score": 4.9, "net_delta": 4.4},
-            {"skill": "Clinical Informatics & HIPAA", "intake_score": 1.0, "graduation_score": 4.2, "on_the_job_score": 4.8, "net_delta": 3.8},
+            {"skill": "Electrical Safety & CEA", "intake_score": 0.5, "graduation_score": 4.4, "on_the_job_score": 4.9, "net_delta": 4.4},
+            {"skill": "Clinical Informatics & DISHA", "intake_score": 1.0, "graduation_score": 4.2, "on_the_job_score": 4.8, "net_delta": 3.8},
             {"skill": "Team Communication", "intake_score": 2.6, "graduation_score": 3.9, "on_the_job_score": 4.4, "net_delta": 1.8},
             {"skill": "Problem Solving Under Sprints", "intake_score": 2.2, "graduation_score": 3.8, "on_the_job_score": 4.3, "net_delta": 2.1}
         ])
@@ -206,42 +206,42 @@ class AnalyticsService:
         # -------------------------------------------------------------
         providers_df = pd.DataFrame([
             {
-                "provider_name": "Austin Tech Institute of Technology",
+                "provider_name": "Bengaluru Institute of Technology & Advanced Skills",
                 "enrolled": 480,
                 "graduated": 456,
                 "placed": 412,
                 "placement_rate": 90.4,
-                "average_salary": "$85,200",
+                "average_salary": "₹8,52,000",
                 "employer_satisfaction": 4.8,
                 "top_domains": "Full-Stack Software, Cloud DevOps"
             },
             {
-                "provider_name": "Capital Trades & Energy Academy",
+                "provider_name": "National Skill Training Institute (NSTI) Chennai",
                 "enrolled": 320,
                 "graduated": 308,
                 "placed": 294,
                 "placement_rate": 95.5,
-                "average_salary": "$68,400",
+                "average_salary": "₹4,84,000",
                 "employer_satisfaction": 4.9,
                 "top_domains": "Commercial Solar, Industrial Electrical"
             },
             {
-                "provider_name": "Lone Star Digital Analytics Institute",
+                "provider_name": "IIIT Bangalore Data Academy",
                 "enrolled": 260,
                 "graduated": 242,
                 "placed": 218,
                 "placement_rate": 90.1,
-                "average_salary": "$81,000",
+                "average_salary": "₹8,10,000",
                 "employer_satisfaction": 4.7,
                 "top_domains": "Data Science, Business Intelligence"
             },
             {
-                "provider_name": "UT Health Sciences Workforce Initiative",
+                "provider_name": "Apollo MedSkills Training Institute",
                 "enrolled": 188,
                 "graduated": 178,
                 "placed": 148,
                 "placement_rate": 83.1,
-                "average_salary": "$74,500",
+                "average_salary": "₹5,45,000",
                 "employer_satisfaction": 4.8,
                 "top_domains": "Health Informatics, Clinical Data"
             }
@@ -254,50 +254,50 @@ class AnalyticsService:
             {
                 "course_code": "CS-101",
                 "course_title": "Full-Stack Enterprise React & Cloud Web Services",
-                "provider": "Austin Tech Institute of Technology",
+                "provider": "Bengaluru Institute of Technology & Advanced Skills",
                 "enrolled": 280,
                 "placement_rate": 91.4,
-                "avg_salary": "$86,500",
+                "avg_salary": "₹8,65,000",
                 "skill_gain": "+3.3",
                 "retention_365d": 88.2
             },
             {
                 "course_code": "DEV-201",
                 "course_title": "Backend Engineering & FastAPI Cloud Architecture",
-                "provider": "Austin Tech Institute of Technology",
+                "provider": "Bengaluru Institute of Technology & Advanced Skills",
                 "enrolled": 200,
                 "placement_rate": 89.0,
-                "avg_salary": "$88,000",
+                "avg_salary": "₹8,80,000",
                 "skill_gain": "+3.4",
                 "retention_365d": 87.5
             },
             {
                 "course_code": "ELEC-301",
                 "course_title": "Commercial Photovoltaic & Industrial Electrical Trades",
-                "provider": "Capital Trades & Energy Academy",
+                "provider": "National Skill Training Institute (NSTI) Chennai",
                 "enrolled": 320,
                 "placement_rate": 95.5,
-                "avg_salary": "$68,400",
+                "avg_salary": "₹4,84,000",
                 "skill_gain": "+4.2",
                 "retention_365d": 92.4
             },
             {
                 "course_code": "DATA-101",
                 "course_title": "Applied Data Pipelines & Predictive Analytics",
-                "provider": "Lone Star Digital Analytics Institute",
+                "provider": "IIIT Bangalore Data Academy",
                 "enrolled": 260,
                 "placement_rate": 90.1,
-                "avg_salary": "$81,000",
+                "avg_salary": "₹8,10,000",
                 "skill_gain": "+2.9",
                 "retention_365d": 84.0
             },
             {
                 "course_code": "HLTH-101",
                 "course_title": "Clinical EHR & Health Data Informatics",
-                "provider": "UT Health Sciences Workforce Initiative",
+                "provider": "Apollo MedSkills Training Institute",
                 "enrolled": 188,
                 "placement_rate": 83.1,
-                "avg_salary": "$74,500",
+                "avg_salary": "₹5,45,000",
                 "skill_gain": "+3.6",
                 "retention_365d": 94.0
             }
@@ -308,44 +308,44 @@ class AnalyticsService:
         # -------------------------------------------------------------
         districts_df = pd.DataFrame([
             {
-                "district": "Travis County Central",
+                "district": "Bengaluru Urban (Electronic City & Whitefield)",
                 "trainees_count": 420,
                 "placed_count": 382,
                 "employment_rate": 90.9,
                 "top_sector": "Enterprise Software & AI",
-                "avg_wage": "$87,400"
+                "avg_wage": "₹8,74,000"
             },
             {
-                "district": "North Austin Tech Hub",
+                "district": "Cyberabad (HITEC City & Gachibowli)",
                 "trainees_count": 310,
                 "placed_count": 284,
                 "employment_rate": 91.6,
                 "top_sector": "Semiconductors & Cloud Services",
-                "avg_wage": "$89,800"
+                "avg_wage": "₹8,98,000"
             },
             {
-                "district": "South Metro Corridor",
+                "district": "Chennai IT Corridor (OMR & Guindy)",
                 "trainees_count": 240,
                 "placed_count": 218,
                 "employment_rate": 90.8,
                 "top_sector": "Clean Energy & Electrical Trades",
-                "avg_wage": "$71,200"
+                "avg_wage": "₹7,12,000"
             },
             {
-                "district": "Williamson Innovation District",
+                "district": "Pune Innovation District (Hinjawadi & Magarpatta)",
                 "trainees_count": 180,
                 "placed_count": 156,
                 "employment_rate": 86.7,
                 "top_sector": "Advanced Manufacturing & Robotics",
-                "avg_wage": "$78,500"
+                "avg_wage": "₹7,85,000"
             },
             {
-                "district": "East Industrial Belt",
+                "district": "Mumbai Metro & MMR Technology Corridor",
                 "trainees_count": 98,
                 "placed_count": 82,
                 "employment_rate": 83.7,
                 "top_sector": "Logistics & Solar Infrastructure",
-                "avg_wage": "$65,000"
+                "avg_wage": "₹6,50,000"
             }
         ])
 

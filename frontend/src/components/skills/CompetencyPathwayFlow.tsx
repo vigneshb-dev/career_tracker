@@ -7,7 +7,7 @@ import {
   ChevronRight,
   ArrowRight,
   TrendingUp,
-  DollarSign,
+  IndianRupee,
   CheckCircle2,
   Sparkles,
   Info,
@@ -482,7 +482,7 @@ export const CompetencyPathwayFlow: React.FC<CompetencyPathwayFlowProps> = ({
                           isSelected ? 'text-white' : 'text-slate-900'
                         }`}
                       >
-                        <DollarSign className="w-3.5 h-3.5 text-emerald-500 -mr-0.5" />
+                        <IndianRupee className="w-3.5 h-3.5 text-emerald-500 -mr-0.5" />
                         {occ.median_salary}
                       </span>
                       <span

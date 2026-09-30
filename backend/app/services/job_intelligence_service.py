@@ -281,29 +281,31 @@ class JobIntelligenceService:
 
         # 2. Education extraction
         edu_match = re.search(
-            r'(\b(?:bachelor\'?s?|master\'?s?|ph\.?d\.?|associate\'?s?)\s+(?:degree\s+)?(?:in\s+)?[^\.\n;]+|\b(?:high\s+school\s+diploma|ged)[^\.\n;]*|\b(?:ccma|cma|journeyman|master\s+electrician|cka|aws|bls|cpr|nims|lean\s+six\s+sigma)\b[^\.\n;]*)',
+            r'(\b(?:b\.?tech|b\.?e\b|m\.?tech|mca\b|bca\b|iti\b|diploma\b|bachelor\'?s?|master\'?s?|ph\.?d\.?|associate\'?s?)\s+(?:degree\s+)?(?:in\s+)?[^\.\n;]+|\b(?:higher\s+secondary|10\+2|high\s+school\s+diploma|ged)[^\.\n;]*|\b(?:ccma|cma|journeyman|master\s+electrician|cka|aws|bls|cpr|nims|lean\s+six\s+sigma)\b[^\.\n;]*)',
             text,
             re.IGNORECASE
         )
         education = edu_match.group(1).strip() if edu_match else None
 
-        # 3. Salary extraction
+        # 3. Salary extraction (Supports INR ₹, Rs, LPA, as well as international formats)
         sal_match = re.search(
-            r'(\$\s*\d{2,3}(?:,\d{3})+(?:\.\d{2})?(?:\s*(?:[\-–]|to)\s*\$?\s*\d{2,3}(?:,\d{3})+(?:\.\d{2})?)?(?:\s*(?:\/\s*(?:yr|year)|\bper\s+year\b|\bannually\b))?'
+            r'([₹₨]|rs\.?|inr)?\s*\d{1,3}(?:,\d{2,3})*(?:\.\d+)?\s*(?:[\-–]|to)\s*([₹₨]|rs\.?|inr)?\s*\d{1,3}(?:,\d{2,3})*(?:\.\d+)?\s*(?:lpa|\/\s*(?:yr|year|annum)|\bper\s+year\b|\bannually\b|\bper\s+month\b|\/\s*mo)?'
+            r'|([₹₨]|rs\.?|inr)\s*\d{1,3}(?:,\d{2,3})*(?:\.\d+)?\s*(?:lpa|\/\s*(?:yr|year|annum)|\bper\s+year\b|\bannually\b|\bper\s+month\b|\/\s*mo)?'
+            r'|(\$\s*\d{2,3}(?:,\d{3})+(?:\.\d{2})?(?:\s*(?:[\-–]|to)\s*\$?\s*\d{2,3}(?:,\d{3})+(?:\.\d{2})?)?(?:\s*(?:\/\s*(?:yr|year)|\bper\s+year\b|\bannually\b))?'
             r'|\$\s*\d{1,3}(?:\.\d{2})?\s*(?:[\-–]|to)\s*\$?\s*\d{1,3}(?:\.\d{2})?\s*(?:\/\s*(?:hr|hour)|\bper\s+hour\b)'
             r'|\$\s*\d{2,3}\s*[kK](?:\s*(?:[\-–]|to)\s*\$?\s*\d{2,3}\s*[kK])?(?:\s*(?:\/\s*(?:yr|year)|\bper\s+year\b|\bannually\b))?'
             r'|\$\s*\d{2,3}(?:,\d{3})+(?:\.\d{2})?)',
             text,
             re.IGNORECASE
         )
-        salary = sal_match.group(1).strip() if sal_match else None
+        salary = sal_match.group(0).strip() if sal_match else None
 
         # 4. Location extraction
         loc_label = re.search(r'(?:location|workplace|based in)\s*:\s*([^\n\.;]+)', text, re.IGNORECASE)
         if loc_label:
             location = loc_label.group(1).strip()
         else:
-            city_match = re.search(r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2},\s*[A-Z]{2}\b(?:\s*\((?:hybrid|remote|on[\-\s]*site)\))?)', text)
+            city_match = re.search(r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2},\s*[A-Z][a-zA-Z]+(?:\s*\((?:hybrid|remote|on[\-\s]*site)\))?)', text)
             location = city_match.group(1).strip() if city_match else None
         
         if not location and "remote" in text.lower():
@@ -472,7 +474,7 @@ class JobIntelligenceService:
         """
         # 1. Extract requirements
         reqs = cls.extract_requirements_from_text(text)
-        detected_location = location or reqs["location"] or "Austin, TX (Hybrid)"
+        detected_location = location or reqs["location"] or "Bengaluru, KA (Hybrid)"
         detected_salary = reqs["salary"] or "Competitive Market Rate"
 
         # 2. Extract Skills (Hard, Soft, Tools)
@@ -560,7 +562,7 @@ class JobIntelligenceService:
                 location=job_data.get("location") or analysis["location"],
                 employment_type=job_data.get("employment_type", "Full-time"),
                 workplace_type=job_data.get("workplace_type", "Hybrid"),
-                salary_range=job_data.get("salary_range") or analysis["salary"] or "$80,000 - $95,000",
+                salary_range=job_data.get("salary_range") or analysis["salary"] or "₹7,50,000 - ₹9,50,000",
                 required_skills=req_skills_list,
                 openings_count=job_data.get("openings_count", 1),
                 applicants_count=job_data.get("applicants_count", 0),
@@ -585,6 +587,9 @@ class JobIntelligenceService:
             db.add(job)
         else:
             job.title = job_data.get("title") or job.title
+            job.employer_name = job_data.get("employer_name") or analysis["employer_name"]
+            job.location = job_data.get("location") or analysis["location"]
+            job.salary_range = job_data.get("salary_range") or analysis["salary"] or "₹7,50,000 - ₹9,50,000"
             job.description = job_data["description"]
             job.domain = job_data.get("domain") or analysis["domain"]
             job.mapped_occupation_id = mapped_occ.get("id")

@@ -10,8 +10,10 @@ import {
   CareerTimelineData, PathwaySummaryData, CareerTimelineEventItem, LongitudinalFollowUpItem,
   CreateCareerEventPayload, CompleteLongitudinalFollowUpPayload,
   EmployerFeedbackVerification, EmployerVerificationCreatePayload, EvidenceHierarchySummary,
-  PendingVerificationCandidate, ComprehensiveAnalyticsData
+  PendingVerificationCandidate, ComprehensiveAnalyticsData,
+  ResumeAnalysisResult, ResumeInfoResponse, UnifiedSkillProfile
 } from '../types';
+import { AuthUser, AuthResponse, SignupPayload } from '../types/auth';
 
 
 import { 
@@ -19,7 +21,12 @@ import {
   mockSkillGaps, mockCareerPaths, mockFollowUps 
 } from './mockData';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+export function getAuthHeader(): Record<string, string> {
+  const token = localStorage.getItem('skilltrace_auth_token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
 
 // In-memory cache for dynamic mutations during frontend session
 let localTrainees: Trainee[] = [...mockTrainees];
@@ -38,6 +45,7 @@ async function fetchWithFallback<T>(endpoint: string, fallbackData: T, options?:
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeader(),
         ...(options?.headers || {}),
       },
     });
@@ -53,16 +61,197 @@ async function fetchWithFallback<T>(endpoint: string, fallbackData: T, options?:
 }
 
 export const api = {
-  // Authentication
-  async login(email: string, _password: string): Promise<{ token: string; user: { name: string; email: string; role: string } }> {
-    return {
-      token: 'jwt-skilltrace-session-token',
-      user: {
-        name: email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Administrator',
-        email,
-        role: 'Workforce Director'
-      }
-    };
+  // Authentication & RBAC API
+  async signup(payload: SignupPayload): Promise<AuthResponse> {
+    const res = await fetch(`${BASE_URL}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to sign up.' }));
+      throw new Error(err.detail || 'Failed to sign up.');
+    }
+    return await res.json();
+  },
+
+  async login(email: string, password: string): Promise<AuthResponse> {
+    const res = await fetch(`${BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Invalid credentials.' }));
+      throw new Error(err.detail || 'Invalid email or password.');
+    }
+    return await res.json();
+  },
+
+  async verifyOtp(email: string, otp: string): Promise<AuthResponse> {
+    const res = await fetch(`${BASE_URL}/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Verification failed.' }));
+      throw new Error(err.detail || 'Invalid or expired OTP code.');
+    }
+    return await res.json();
+  },
+
+  async resendOtp(email: string): Promise<{ message: string; demo_otp?: string }> {
+    const res = await fetch(`${BASE_URL}/auth/resend-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to resend OTP.' }));
+      throw new Error(err.detail || 'Failed to resend OTP.');
+    }
+    return await res.json();
+  },
+
+  async forgotPassword(email: string): Promise<{ message: string; demo_otp?: string }> {
+    const res = await fetch(`${BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to process request.' }));
+      throw new Error(err.detail || 'Failed to process password reset.');
+    }
+    return await res.json();
+  },
+
+  async resetPassword(email: string, otp: string, new_password: string): Promise<{ message: string }> {
+    const res = await fetch(`${BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp, new_password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to reset password.' }));
+      throw new Error(err.detail || 'Failed to reset password.');
+    }
+    return await res.json();
+  },
+
+  async getMe(): Promise<AuthUser> {
+    const res = await fetch(`${BASE_URL}/auth/me`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      throw new Error('Unauthorized');
+    }
+    return await res.json();
+  },
+
+  async logout(): Promise<void> {
+    try {
+      await fetch(`${BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+      });
+    } catch {
+      // Ignore network errors on logout
+    }
+  },
+
+  async uploadResume(traineeId: string, file: File): Promise<{
+    message: string;
+    filename: string;
+    resume_url: string;
+    extracted_skills: string[];
+    analysis_id?: string;
+    completeness_score?: number;
+    completeness_label?: string;
+    completeness_breakdown?: any;
+    skills_profile?: any[];
+    extracted_metadata?: any;
+    job_matches?: any[];
+    skill_gaps?: any[];
+    recommendations?: any[];
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('skilltrace_auth_token');
+    const res = await fetch(`${BASE_URL}/trainees/${traineeId}/resume`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to upload and analyze resume.' }));
+      throw new Error(err.detail || 'Failed to upload and analyze resume.');
+    }
+    return await res.json();
+  },
+
+  async analyzeResume(traineeId: string, file: File): Promise<ResumeAnalysisResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('skilltrace_auth_token');
+    const res = await fetch(`${BASE_URL}/trainees/${traineeId}/analyze-resume`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'AI Resume Analysis failed.' }));
+      throw new Error(err.detail || 'AI Resume Analysis failed.');
+    }
+    return await res.json();
+  },
+
+  async reanalyzeResume(traineeId: string): Promise<ResumeAnalysisResult> {
+    const res = await fetch(`${BASE_URL}/trainees/${traineeId}/reanalyze-resume`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to re-analyze resume.' }));
+      throw new Error(err.detail || 'Failed to re-analyze resume.');
+    }
+    return await res.json();
+  },
+
+  async getResumeInfo(traineeId: string): Promise<ResumeInfoResponse> {
+    const res = await fetch(`${BASE_URL}/trainees/${traineeId}/resume`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      return { has_resume: false, extracted_skills: [] };
+    }
+    return await res.json();
+  },
+
+  async getLatestResumeAnalysis(traineeId: string): Promise<{ has_analysis: boolean; analysis: ResumeAnalysisResult | null }> {
+    const res = await fetch(`${BASE_URL}/trainees/${traineeId}/latest-resume-analysis`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      return { has_analysis: false, analysis: null };
+    }
+    return await res.json();
   },
 
   // Dashboard
@@ -163,10 +352,10 @@ export const api = {
       fullName: data.fullName || data.full_name || 'New Trainee',
       full_name: data.fullName || data.full_name || 'New Trainee',
       email: data.email || 'trainee@example.com',
-      phone: data.phone || '+1 (555) 000-0000',
+      phone: data.phone || '+91 98765 43210',
       avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
       avatar_url: data.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-      location: data.location || 'Austin, TX',
+      location: data.location || 'Bengaluru, KA',
       bio: data.bio || 'Workforce cohort candidate enrolled in career trajectory tracking.',
       program: data.program || 'Full-Stack Software Engineering',
       cohort: data.cohort || 'Cohort 2024-C',
@@ -181,9 +370,9 @@ export const api = {
         { skillId: 'sk-2', name: 'TypeScript', level: 'intermediate', verified: false, score: 75 }
       ],
       training_details: data.training_details || {
-        provider_name: 'Austin Tech Institute of Technology',
+        provider_name: 'Bengaluru Institute of Technology & Advanced Skills',
         course_title: data.program || 'Full-Stack Software Engineering',
-        accreditation: 'State Workforce Commission Accredited',
+        accreditation: 'National Skill Development Corporation (NSDC) Accredited',
         modality: 'Hybrid',
         attendance_rate: '98.0%',
       },
@@ -192,7 +381,7 @@ export const api = {
       career_preference: {
         target_roles: ['Software Engineer', 'Frontend Developer'],
         preferred_workplace: 'Hybrid',
-        preferred_locations: ['Austin, TX', 'Remote USA'],
+        preferred_locations: ['Bengaluru, KA', 'Remote India'],
         target_industries: ['Enterprise SaaS', 'HealthTech']
       },
       current_pathway: {
@@ -459,8 +648,15 @@ export const api = {
     return await res.json();
   },
 
-  async getTraineeSkillGap(traineeId: string, targetOccupationId?: string): Promise<SkillGapAnalysis> {
-    const qs = targetOccupationId ? `?target_occupation_id=${encodeURIComponent(targetOccupationId)}` : '';
+  async getTraineeSkillGap(
+    traineeId: string,
+    targetOccupationId?: string,
+    targetJobId?: string
+  ): Promise<SkillGapAnalysis> {
+    const params = new URLSearchParams();
+    if (targetOccupationId) params.append('target_occupation_id', targetOccupationId);
+    if (targetJobId) params.append('target_job_id', targetJobId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
     const res = await fetch(`${BASE_URL}/skill-gaps/trainees/${traineeId}${qs}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch skill gap analysis for trainee ${traineeId}`);
@@ -471,6 +667,7 @@ export const api = {
   async analyzeSkillGap(payload: {
     trainee_id: string;
     target_occupation_id?: string;
+    target_job_id?: string;
     target_employer?: string;
   }): Promise<SkillGapAnalysis> {
     const res = await fetch(`${BASE_URL}/skill-gaps/analyze`, {
@@ -480,6 +677,14 @@ export const api = {
     });
     if (!res.ok) {
       throw new Error('Failed to run on-demand skill gap analysis');
+    }
+    return await res.json();
+  },
+
+  async getUnifiedSkillProfile(traineeId: string): Promise<UnifiedSkillProfile> {
+    const res = await fetch(`${BASE_URL}/skill-scoring/trainees/${traineeId}/unified-profile`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch unified skill profile for trainee ${traineeId}`);
     }
     return await res.json();
   },
@@ -877,18 +1082,18 @@ export const api = {
       {
         id: "EVF-2024-001",
         employer_id: "EMP-01",
-        employer_name: "Apex Cloud Solutions",
-        reviewer_name: "Sarah Jenkins",
+        employer_name: "Apex Cloud Technologies India Pvt. Ltd.",
+        reviewer_name: "Sunita Rao",
         reviewer_role: "Director of Frontend Engineering",
-        reviewer_email: "s.jenkins@apexcloud.io",
+        reviewer_email: "sunita.r@apexcloud.in",
         trainee_id: "TRN-2024-001",
-        trainee_name: "Elena Rostova",
+        trainee_name: "Priya Sharma",
         verification_status: "confirmed",
         confirmed_role: "Junior Frontend Engineer",
         confirmed_department: "Enterprise Cloud UI",
         employment_type: "Full-time",
         confirmed_start_date: "2024-06-01",
-        salary_range: "$84,000 / yr",
+        salary_range: "₹8,40,000 / yr",
         is_still_employed: true,
         retention_months: 6,
         skill_ratings: {
@@ -907,13 +1112,13 @@ export const api = {
           "Cross-Functional Stakeholder Presentations"
         ],
         training_relevance_rating: 4.9,
-        training_relevance_notes: "Elena transitioned into our enterprise frontend codebase with zero hand-holding. Exceptionally well prepared in modern React and TypeScript architecture.",
+        training_relevance_notes: "Priya transitioned into our enterprise frontend codebase with zero hand-holding. Exceptionally well prepared in modern React and TypeScript architecture.",
         curriculum_recommendations: "Incorporate 2 weeks of Docker and automated continuous integration so candidates are familiar with cloud build pipelines on day one.",
         would_hire_from_provider_again: true,
         evidence_level: "multi_source_verified",
-        verified_artifacts: ["offer_letter_signed.pdf", "twc_wage_corroboration.pdf"],
+        verified_artifacts: ["offer_letter_signed.pdf", "epfo_wage_corroboration.pdf"],
         multi_source_corroboration: {
-          sources: ["Employer Verification Portal", "TWC Wage Registry Corroboration", "Capstone Defense Grade"],
+          sources: ["Employer Verification Portal", "EPFO Wage Registry Corroboration", "Capstone Defense Grade"],
           confidence_score: 0.98,
           audit_timestamp: "2024-07-22T10:00:00"
         },
@@ -922,41 +1127,41 @@ export const api = {
       {
         id: "EVF-2024-002",
         employer_id: "EMP-04",
-        employer_name: "SunPower Grid Texas",
-        reviewer_name: "Markus Sterling",
-        reviewer_role: "Master Electrician & Apprenticeship Supervisor",
-        reviewer_email: "m.sterling@sunpowergrid.com",
+        employer_name: "Vanguard Healthcare Networks India",
+        reviewer_name: "Dr. Mohanarangam Pillai",
+        reviewer_role: "Medical Operations Director & Apprenticeship Supervisor",
+        reviewer_email: "mpillai@vanguardhealth.in",
         trainee_id: "TRN-2024-004",
-        trainee_name: "Carlos Rodriguez",
+        trainee_name: "Karthik Venkataraman",
         verification_status: "confirmed",
-        confirmed_role: "Solar Industrial Apprentice",
-        confirmed_department: "Grid Infrastructure",
+        confirmed_role: "Healthcare Cybersecurity Systems Apprentice",
+        confirmed_department: "Clinical Information Security",
         employment_type: "Apprenticeship",
         confirmed_start_date: "2024-05-15",
-        salary_range: "$32.00 / hr ($66,560 annualized)",
+        salary_range: "₹4,80,000 / yr + Skill Allowance",
         is_still_employed: true,
         retention_months: 8,
         skill_ratings: {
-          "Electrical Safety / OSHA 30": 5.0,
-          "Photovoltaic Inverter Wiring": 4.7,
+          "Network & Cloud Security": 4.8,
+          "DISHA & DPDP Healthcare Compliance": 5.0,
           "Circuit Diagnostics": 4.3,
-          "Blueprint Reading": 4.5
+          "Incident Response & Triage": 4.6
         },
-        average_skill_score: 4.63,
+        average_skill_score: 4.68,
         missing_technical_skills: [
-          "Medium-Voltage Transformer Coupling"
+          "FHIR / HL7 Interoperability Security"
         ],
         missing_soft_skills: [
-          "Field Service Tablet Documentation"
+          "Field Incident Documentation"
         ],
         training_relevance_rating: 4.8,
-        training_relevance_notes: "Solid fundamental safety knowledge and practical hands-on proficiency with commercial solar array junction boxes.",
-        curriculum_recommendations: "Add more practice hours with high-capacity battery storage systems (Tesla Megapack / Enphase).",
+        training_relevance_notes: "Solid fundamental security hygiene and practical hands-on proficiency with healthcare infrastructure triage.",
+        curriculum_recommendations: "Add more practice hours with high-capacity healthcare data exchange protocol security.",
         would_hire_from_provider_again: true,
         evidence_level: "evidence_backed",
-        verified_artifacts: ["apprenticeship_agreement_usdol.pdf", "osha_30_card_scan.pdf"],
+        verified_artifacts: ["naps_apprenticeship_contract.pdf", "comptia_sec_badge.pdf"],
         multi_source_corroboration: {
-          sources: ["Employer Verification Portal", "USDOL Registered Apprenticeship Log"],
+          sources: ["Employer Verification Portal", "NAPS Apprenticeship Registry"],
           confidence_score: 0.94,
           audit_timestamp: "2024-08-10T14:30:00"
         },
@@ -964,36 +1169,36 @@ export const api = {
       },
       {
         id: "EVF-2024-003",
-        employer_id: "EMP-05",
-        employer_name: "Austin Regional Clinic & Medical Center",
-        reviewer_name: "Dr. Patricia Vance",
-        reviewer_role: "Chief Medical Information Officer",
-        reviewer_email: "pvance@austinregionalclinic.org",
-        trainee_id: "TRN-2024-005",
-        trainee_name: "Aisha Patel",
+        employer_id: "EMP-02",
+        employer_name: "Meridian MedTech India Pvt. Ltd.",
+        reviewer_name: "Vikram Reddy",
+        reviewer_role: "Engineering Director",
+        reviewer_email: "v.reddy@meridianmedtech.in",
+        trainee_id: "TRN-2024-006",
+        trainee_name: "Ananya Iyer",
         verification_status: "confirmed",
-        confirmed_role: "M.S. Health Informatics Research Fellow",
-        confirmed_department: "Clinical Informatics",
+        confirmed_role: "M.Tech Data Science & AI Research Fellow",
+        confirmed_department: "Clinical Informatics & Analytics",
         employment_type: "Fellowship",
         confirmed_start_date: "2024-08-01",
-        salary_range: "$52,000 Academic Stipend + Tuition",
+        salary_range: "₹9,50,000 / yr (Fellowship Stipend + Grant)",
         is_still_employed: true,
         retention_months: 4,
         skill_ratings: {
           "EHR Data Extraction": 4.6,
-          "HIPAA Compliance": 5.0,
+          "DISHA / DPDP Compliance": 5.0,
           "SQL / Healthcare Queries": 4.4,
           "Clinical Terminologies (SNOMED/ICD)": 4.2
         },
         average_skill_score: 4.55,
         missing_technical_skills: [
-          "HL7 / FHIR API Integration"
+          "FHIR API Interoperability"
         ],
         missing_soft_skills: [
           "Interdisciplinary Physician Communication"
         ],
         training_relevance_rating: 4.7,
-        training_relevance_notes: "Aisha demonstrates impeccable data governance and security compliance. A standout research fellow.",
+        training_relevance_notes: "Ananya demonstrates impeccable data governance and security compliance. A standout research fellow.",
         curriculum_recommendations: "Recommend adding practical Fast Healthcare Interoperability Resources (FHIR) API sandbox labs.",
         would_hire_from_provider_again: true,
         evidence_level: "employer_confirmed",
@@ -1057,7 +1262,7 @@ export const api = {
           level_key: "evidence_backed",
           level_number: 3,
           label: "Evidence-Backed",
-          description: "Corroborated by formal artifacts (signed offer letter, W-2 payroll record, DOL apprenticeship agreement).",
+          description: "Corroborated by formal artifacts (signed offer letter, EPF payroll record, NAPS apprenticeship agreement).",
           badge_color: "purple",
           count: 3,
           percentage: 42.9
@@ -1066,7 +1271,7 @@ export const api = {
           level_key: "multi_source_verified",
           level_number: 4,
           label: "Multi-Source Verified",
-          description: "Independently corroborated across 3+ distinct streams: Direct Employer + State Wage Registry + Capstone Defense.",
+          description: "Independently corroborated across 3+ distinct streams: Direct Employer + EPFO Wage Registry + Capstone Defense.",
           badge_color: "success",
           count: 2,
           percentage: 28.6
@@ -1081,52 +1286,52 @@ export const api = {
     const fallback: PendingVerificationCandidate[] = [
       {
         trainee_id: "TRN-2024-001",
-        trainee_name: "Elena Rostova",
+        trainee_name: "Priya Sharma",
         program: "Full-Stack Software Engineering",
         cohort: "Cohort 2024-A",
         status: "placed",
         current_role: "Junior Frontend Engineer",
-        current_employer: "Apex Cloud Solutions",
-        placement_salary: "$84,000 / yr",
+        current_employer: "Apex Cloud Technologies India Pvt. Ltd.",
+        placement_salary: "₹8,40,000 / yr",
         evidence_level: "multi_source_verified",
         is_direct_match: true,
         skills: ["React.js", "TypeScript", "REST APIs", "Git", "State Management"]
       },
       {
         trainee_id: "TRN-2024-004",
-        trainee_name: "Carlos Rodriguez",
-        program: "Commercial Clean Energy & Solar Systems",
+        trainee_name: "Karthik Venkataraman",
+        program: "Commercial Clean Energy & Cyber Defense",
         cohort: "Cohort 2024-A",
         status: "placed",
-        current_role: "Solar Industrial Apprentice",
-        current_employer: "SunPower Grid Texas",
-        placement_salary: "$32.00 / hr ($66,560 annualized)",
+        current_role: "Healthcare Cybersecurity Systems Apprentice",
+        current_employer: "Vanguard Healthcare Networks India",
+        placement_salary: "₹4,80,000 / yr + Skill Allowance",
         evidence_level: "evidence_backed",
         is_direct_match: true,
-        skills: ["Electrical Safety / OSHA 30", "Photovoltaic Inverter Wiring", "Circuit Diagnostics"]
+        skills: ["Electrical Safety & CEA", "Network & Cloud Security", "Circuit Diagnostics"]
       },
       {
-        trainee_id: "TRN-2024-005",
-        trainee_name: "Aisha Patel",
+        trainee_id: "TRN-2024-006",
+        trainee_name: "Ananya Iyer",
         program: "Health Informatics & Data Analytics",
         cohort: "Cohort 2024-A",
         status: "placed",
-        current_role: "M.S. Health Informatics Research Fellow",
-        current_employer: "Austin Regional Clinic & Medical Center",
-        placement_salary: "$52,000 Academic Stipend + Tuition",
+        current_role: "M.Tech Data Science & AI Research Fellow",
+        current_employer: "Meridian MedTech India Pvt. Ltd.",
+        placement_salary: "₹9,50,000 / yr (Fellowship Stipend + Grant)",
         evidence_level: "employer_confirmed",
         is_direct_match: true,
-        skills: ["EHR Data Extraction", "HIPAA Compliance", "SQL", "Clinical Terminologies"]
+        skills: ["EHR Data Extraction", "DISHA / DPDP Compliance", "SQL", "Clinical Terminologies"]
       },
       {
         trainee_id: "TRN-2024-007",
-        trainee_name: "Jordan Miller",
+        trainee_name: "Rohan Sen",
         program: "Backend Systems & Cloud Engineering",
         cohort: "Cohort 2024-B",
         status: "in_training",
-        current_role: "Cloud DevOps Intern",
-        current_employer: "Apex Cloud Solutions",
-        placement_salary: "$65,000 / yr",
+        current_role: "Cloud DevOps Trainee",
+        current_employer: "Apex Cloud Technologies India Pvt. Ltd.",
+        placement_salary: "₹4,20,000 / yr",
         evidence_level: "self_reported",
         is_direct_match: true,
         skills: ["Python", "FastAPI", "Docker", "PostgreSQL", "Linux"]
@@ -1192,24 +1397,24 @@ export const api = {
         ]
       },
       wage_progression: {
-        average_pre_training_wage: "$38,400",
-        average_placement_wage: "$72,500",
-        average_one_year_wage: "$88,600",
-        wage_gain_percentage: 130.7,
+        average_pre_training_wage: "₹3,20,000",
+        average_placement_wage: "₹7,20,000",
+        average_one_year_wage: "₹9,60,000",
+        wage_gain_percentage: 125.0,
         progression_milestones: [
-          { stage: "Pre-Training Baseline", avg_wage: 38400, label: "Intake Baseline" },
-          { stage: "First Outcome Placement", avg_wage: 72500, label: "Graduation Hire ($+34.1k)" },
-          { stage: "6-Month Retention", avg_wage: 78200, label: "Probationary Increase ($+39.8k)" },
-          { stage: "1-Year Progression", avg_wage: 88600, label: "Annualized Promotion ($+50.2k)" },
-          { stage: "2-Year Senior Tier", avg_wage: 104200, label: "Mid/Senior Benchmark ($+65.8k)" }
+          { stage: "Pre-Training Baseline", avg_wage: 320000, label: "Intake Baseline" },
+          { stage: "First Outcome Placement", avg_wage: 720000, label: "Graduation Hire (+₹4.0L)" },
+          { stage: "6-Month Retention", avg_wage: 810000, label: "Probationary Increase (+₹4.9L)" },
+          { stage: "1-Year Progression", avg_wage: 960000, label: "Annualized Promotion (+₹6.4L)" },
+          { stage: "2-Year Senior Tier", avg_wage: 1250000, label: "Mid/Senior Benchmark (+₹9.3L)" }
         ],
         pathway_wage_comparison: [
-          { pathway: "Salaried Employment", starting_wage: 84000, one_year_wage: 94500, pct_gain: 12.5 },
-          { pathway: "Registered Apprenticeship", starting_wage: 58240, one_year_wage: 74880, pct_gain: 28.6 },
-          { pathway: "Self-Employment & LLC", starting_wage: 68000, one_year_wage: 86000, pct_gain: 26.5 },
-          { pathway: "Independent Freelancing", starting_wage: 62400, one_year_wage: 81600, pct_gain: 30.8 },
-          { pathway: "Venture Entrepreneurship", starting_wage: 45000, one_year_wage: 115000, pct_gain: 155.5 },
-          { pathway: "Further Education/Research", starting_wage: 52000, one_year_wage: 68000, pct_gain: 30.8 }
+          { pathway: "Salaried Employment", starting_wage: 840000, one_year_wage: 1050000, pct_gain: 25.0 },
+          { pathway: "Registered Apprenticeship", starting_wage: 480000, one_year_wage: 650000, pct_gain: 35.4 },
+          { pathway: "Self-Employment & LLC", starting_wage: 680000, one_year_wage: 920000, pct_gain: 35.3 },
+          { pathway: "Independent Freelancing", starting_wage: 620000, one_year_wage: 880000, pct_gain: 41.9 },
+          { pathway: "Venture Entrepreneurship", starting_wage: 500000, one_year_wage: 1400000, pct_gain: 180.0 },
+          { pathway: "Further Education/Research", starting_wage: 420000, one_year_wage: 600000, pct_gain: 42.9 }
         ]
       },
       skill_improvement: {
@@ -1221,8 +1426,8 @@ export const api = {
           { skill: "TypeScript Architecture", intake_score: 0.8, graduation_score: 3.5, on_the_job_score: 4.3, net_delta: 3.5 },
           { skill: "Python / FastAPI", intake_score: 1.2, graduation_score: 4.0, on_the_job_score: 4.6, net_delta: 3.4 },
           { skill: "SQL & Data Pipelines", intake_score: 1.5, graduation_score: 3.9, on_the_job_score: 4.4, net_delta: 2.9 },
-          { skill: "Electrical Safety & OSHA", intake_score: 0.5, graduation_score: 4.4, on_the_job_score: 4.9, net_delta: 4.4 },
-          { skill: "Clinical Informatics & HIPAA", intake_score: 1.0, graduation_score: 4.2, on_the_job_score: 4.8, net_delta: 3.8 },
+          { skill: "Electrical Safety & CEA", intake_score: 0.5, graduation_score: 4.4, on_the_job_score: 4.9, net_delta: 4.4 },
+          { skill: "Clinical Informatics & DISHA", intake_score: 1.0, graduation_score: 4.2, on_the_job_score: 4.8, net_delta: 3.8 },
           { skill: "Team Communication", intake_score: 2.6, graduation_score: 3.9, on_the_job_score: 4.4, net_delta: 1.8 },
           { skill: "Problem Solving Under Sprints", intake_score: 2.2, graduation_score: 3.8, on_the_job_score: 4.3, net_delta: 2.1 }
         ]
@@ -1245,42 +1450,42 @@ export const api = {
       },
       training_provider_outcomes: [
         {
-          provider_name: "Austin Tech Institute of Technology",
+          provider_name: "Bengaluru Institute of Technology & Advanced Skills",
           enrolled: 480,
           graduated: 456,
           placed: 412,
           placement_rate: 90.4,
-          average_salary: "$85,200",
+          average_salary: "₹8,52,000",
           employer_satisfaction: 4.8,
           top_domains: "Full-Stack Software, Cloud DevOps"
         },
         {
-          provider_name: "Capital Trades & Energy Academy",
+          provider_name: "NSTI Chennai & National Skills Training Institute",
           enrolled: 320,
           graduated: 308,
           placed: 294,
           placement_rate: 95.5,
-          average_salary: "$68,400",
+          average_salary: "₹4,80,000",
           employer_satisfaction: 4.9,
           top_domains: "Commercial Solar, Industrial Electrical"
         },
         {
-          provider_name: "Lone Star Digital Analytics Institute",
+          provider_name: "Cyberabad Cloud Tech Academy",
           enrolled: 260,
           graduated: 242,
           placed: 218,
           placement_rate: 90.1,
-          average_salary: "$81,000",
+          average_salary: "₹7,80,000",
           employer_satisfaction: 4.7,
           top_domains: "Data Science, Business Intelligence"
         },
         {
-          provider_name: "UT Health Sciences Workforce Initiative",
+          provider_name: "Apollo MedSkills & Health Sciences Initiative",
           enrolled: 188,
           graduated: 178,
           placed: 148,
           placement_rate: 83.1,
-          average_salary: "$74,500",
+          average_salary: "₹5,20,000",
           employer_satisfaction: 4.8,
           top_domains: "Health Informatics, Clinical Data"
         }
@@ -1289,94 +1494,94 @@ export const api = {
         {
           course_code: "CS-101",
           course_title: "Full-Stack Enterprise React & Cloud Web Services",
-          provider: "Austin Tech Institute of Technology",
+          provider: "Bengaluru Institute of Technology & Advanced Skills",
           enrolled: 280,
           placement_rate: 91.4,
-          avg_salary: "$86,500",
+          avg_salary: "₹8,65,000",
           skill_gain: "+3.3",
           retention_365d: 88.2
         },
         {
           course_code: "DEV-201",
           course_title: "Backend Engineering & FastAPI Cloud Architecture",
-          provider: "Austin Tech Institute of Technology",
+          provider: "Cyberabad Cloud Tech Academy",
           enrolled: 200,
           placement_rate: 89.0,
-          avg_salary: "$88,000",
+          avg_salary: "₹8,80,000",
           skill_gain: "+3.4",
           retention_365d: 87.5
         },
         {
           course_code: "ELEC-301",
-          course_title: "Commercial Photovoltaic & Industrial Electrical Trades",
-          provider: "Capital Trades & Energy Academy",
+          course_title: "Industrial Electrical & Clean Energy Systems (CEA / DGFASLI)",
+          provider: "NSTI Chennai & National Skills Training Institute",
           enrolled: 320,
           placement_rate: 95.5,
-          avg_salary: "$68,400",
+          avg_salary: "₹4,80,000",
           skill_gain: "+4.2",
           retention_365d: 92.4
         },
         {
           course_code: "DATA-101",
           course_title: "Applied Data Pipelines & Predictive Analytics",
-          provider: "Lone Star Digital Analytics Institute",
+          provider: "Bengaluru Institute of Technology & Advanced Skills",
           enrolled: 260,
           placement_rate: 90.1,
-          avg_salary: "$81,000",
+          avg_salary: "₹8,10,000",
           skill_gain: "+2.9",
           retention_365d: 84.0
         },
         {
           course_code: "HLTH-101",
-          course_title: "Clinical EHR & Health Data Informatics",
-          provider: "UT Health Sciences Workforce Initiative",
+          course_title: "Clinical EHR & Health Data Informatics (DISHA & DPDP)",
+          provider: "Apollo MedSkills & Health Sciences Initiative",
           enrolled: 188,
           placement_rate: 83.1,
-          avg_salary: "$74,500",
+          avg_salary: "₹5,20,000",
           skill_gain: "+3.6",
           retention_365d: 94.0
         }
       ],
       district_trends: [
         {
-          district: "Travis County Central",
+          district: "Bengaluru Urban Tech Corridor",
           trainees_count: 420,
           placed_count: 382,
           employment_rate: 90.9,
           top_sector: "Enterprise Software & AI",
-          avg_wage: "$87,400"
+          avg_wage: "₹8,74,000"
         },
         {
-          district: "North Austin Tech Hub",
+          district: "Cyberabad Knowledge City (Hyderabad)",
           trainees_count: 310,
           placed_count: 284,
           employment_rate: 91.6,
           top_sector: "Semiconductors & Cloud Services",
-          avg_wage: "$89,800"
+          avg_wage: "₹8,48,000"
         },
         {
-          district: "South Metro Corridor",
+          district: "Chennai IT Highway (OMR)",
           trainees_count: 240,
           placed_count: 218,
           employment_rate: 90.8,
           top_sector: "Clean Energy & Electrical Trades",
-          avg_wage: "$71,200"
+          avg_wage: "₹7,62,000"
         },
         {
-          district: "Williamson Innovation District",
+          district: "Pune Innovation District (Hinjawadi)",
           trainees_count: 180,
           placed_count: 156,
           employment_rate: 86.7,
           top_sector: "Advanced Manufacturing & Robotics",
-          avg_wage: "$78,500"
+          avg_wage: "₹7,85,000"
         },
         {
-          district: "East Industrial Belt",
+          district: "Mumbai Metro FinTech Hub",
           trainees_count: 98,
           placed_count: 82,
           employment_rate: 83.7,
           top_sector: "Logistics & Solar Infrastructure",
-          avg_wage: "$65,000"
+          avg_wage: "₹8,65,000"
         }
       ],
       occupation_demand: [

@@ -100,7 +100,7 @@ export const AppShell: React.FC = () => {
               required
               value={formData.fullName}
               onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              placeholder="e.g. Jordan Miller"
+              placeholder="e.g. Rohan Sen"
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
           </div>
@@ -115,7 +115,7 @@ export const AppShell: React.FC = () => {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="jordan.m@example.com"
+                placeholder="rohan.sen@example.com"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               />
             </div>
@@ -127,7 +127,7 @@ export const AppShell: React.FC = () => {
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+1 (555) 019-2831"
+                placeholder="+91 98310 60129"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               />
             </div>

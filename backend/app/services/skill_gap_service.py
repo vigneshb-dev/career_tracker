@@ -33,8 +33,10 @@ from app.models.entities import (
     SkillAlias,
     SkillGap,
     Job,
+    ResumeAnalysisRecord,
 )
 from app.services.normalization_service import SkillNormalizationService
+from app.services.skill_scoring_service import SkillScoringEngine
 from app.services.job_intelligence_service import (
     JobIntelligenceService,
     get_sentence_transformer,
@@ -276,6 +278,84 @@ class SkillGapEngine:
         return required_list
 
     @classmethod
+    def get_job_required_skills(cls, db: Session, job: Job, occupation: Optional[Occupation] = None) -> List[Dict[str, Any]]:
+        """
+        Assembles required skills for a specific job requisition, combining job.required_skills,
+        job.extracted_skills, and standard workplace soft skills.
+        """
+        required_list: List[Dict[str, Any]] = []
+        seen_names: Set[str] = set()
+
+        # 1. From job.extracted_skills
+        if job.extracted_skills:
+            for es in job.extracted_skills:
+                name = es.canonical_name or es.raw_text
+                name_clean = name.strip()
+                if name_clean and name_clean.lower() not in seen_names:
+                    seen_names.add(name_clean.lower())
+                    required_list.append({
+                        "skill_id": es.canonical_skill_id or f"sk-job-{len(required_list)+1}",
+                        "name": name_clean,
+                        "canonical_name": name_clean,
+                        "category": es.category if es.category in ("hard", "soft") else "hard",
+                        "domain": job.domain or (occupation.domain if occupation else "Technology"),
+                        "required_proficiency": 4.0,
+                        "skill_importance": 1.0,
+                        "importance_label": "Direct Job Requirement",
+                        "market_demand_score": 92,
+                        "market_demand": 0.92,
+                        "description": f"Essential skill required for {job.title} at {job.employer_name}."
+                    })
+
+        # 2. From job.required_skills list
+        if job.required_skills and isinstance(job.required_skills, list):
+            for r in job.required_skills:
+                sname = r if isinstance(r, str) else r.get("name", "")
+                sname_clean = sname.strip()
+                if sname_clean and sname_clean.lower() not in seen_names:
+                    seen_names.add(sname_clean.lower())
+                    sk = db.query(Skill).filter(Skill.name.ilike(sname_clean)).first()
+                    required_list.append({
+                        "skill_id": sk.id if sk else f"sk-job-{len(required_list)+1}",
+                        "name": sk.name if sk else sname_clean,
+                        "canonical_name": sk.canonical_name if sk else sname_clean,
+                        "category": (sk.category if sk else "hard"),
+                        "domain": job.domain or (occupation.domain if occupation else "Technology"),
+                        "required_proficiency": 4.0,
+                        "skill_importance": 0.95,
+                        "importance_label": "Direct Job Requirement",
+                        "market_demand_score": sk.demand_score if sk and sk.demand_score else 90,
+                        "market_demand": (sk.demand_score / 100.0) if sk and sk.demand_score else 0.90,
+                        "description": sk.description if sk else f"Required competency for {job.title}."
+                    })
+
+        # 3. Augment with baseline soft skills
+        standard_soft_skills = [
+            ("sk-comm-01", "Technical Communication", 4.0, 0.90, 95),
+            ("sk-team-01", "Cross-Functional Collaboration", 4.0, 0.90, 92),
+            ("sk-prob-01", "Critical Problem Solving", 4.0, 0.95, 96),
+            ("sk-time-01", "Time Management & Prioritization", 4.0, 0.85, 90),
+        ]
+        for sid, sname, req_prof, imp, mkt_dem in standard_soft_skills:
+            if sname.lower() not in seen_names:
+                seen_names.add(sname.lower())
+                required_list.append({
+                    "skill_id": sid,
+                    "name": sname,
+                    "canonical_name": sname,
+                    "category": "soft",
+                    "domain": job.domain or "Professional",
+                    "required_proficiency": req_prof,
+                    "skill_importance": imp,
+                    "importance_label": "Essential Workplace Behavior",
+                    "market_demand_score": mkt_dem,
+                    "market_demand": mkt_dem / 100.0,
+                    "description": f"Demonstrated {sname} in professional settings."
+                })
+
+        return required_list
+
+    @classmethod
     def match_trainee_skill_semantic(
         cls,
         db: Session,
@@ -354,38 +434,84 @@ class SkillGapEngine:
         db: Session,
         trainee_id: str,
         target_occupation_id: Optional[str] = None,
+        target_job_id: Optional[str] = None,
         target_employer: Optional[str] = None,
         save_record: bool = True
     ) -> Dict[str, Any]:
         """
         Executes complete Skill Gap Analysis comparing:
-        Trainee Demonstrated Skills (0-5) vs Occupation Required Skills (0-5).
+        Trainee Demonstrated Skills (0-5) vs Occupation or Job Required Skills (0-5).
 
-        Calculates:
-        - Skill Gap = Required Proficiency - Current Proficiency (only positive differences)
-        - Priority = Gap Severity x Skill Importance x Market Demand x Confidence
-        - Classification into Learner Gap, Curriculum Gap, Workplace Gap.
+        Connects the Unified Skill Profile (Resume + Assessments + Projects + Certifications + Coach + Employer)
+        with the Job Intelligence Engine.
+        CRITICAL: Resume claims alone do NOT become verified competency scores!
         """
         trainee = db.query(Trainee).filter(Trainee.id == trainee_id).first()
         if not trainee:
             raise ValueError(f"Trainee '{trainee_id}' not found.")
 
-        # 1. Resolve Target Occupation & Enrolled Course Curriculum
-        occupation = cls.resolve_target_occupation(db, trainee, target_occupation_id)
-        if not occupation:
-            raise ValueError("Could not resolve target occupation.")
+        # 1. Resolve Target Job / Occupation & Enrolled Course Curriculum
+        job = None
+        if target_job_id:
+            job = db.query(Job).filter(Job.id == target_job_id).first()
+
+        if job:
+            occupation = cls.resolve_target_occupation(db, trainee, job.mapped_occupation_id or target_occupation_id)
+            effective_job_title = job.title
+            effective_employer = job.employer_name or "Direct Employer Requisition"
+            required_skills = cls.get_job_required_skills(db, job, occupation)
+        else:
+            occupation = cls.resolve_target_occupation(db, trainee, target_occupation_id)
+            if not occupation:
+                raise ValueError("Could not resolve target occupation.")
+            effective_job_title = occupation.title
+            effective_employer = target_employer or trainee.current_employer or "Partner Employer Network"
+            required_skills = cls.get_occupation_required_skills(db, occupation)
 
         course, course_skill_ids, course_skill_names = cls.get_enrolled_course_skills(db, trainee)
 
-        # 2. Fetch Demonstrated Skills & Evidence Records
+        # 2. Sync Multi-Source Unified Competency Scores
+        # Fuses Assessment + Practical Project + Certification + Trainer + Employer + Resume
+        SkillScoringEngine.sync_trainee_skill_scores(db, trainee.id)
+
         trainee_skills = db.query(TraineeSkill).filter(TraineeSkill.trainee_id == trainee.id).all()
         trainee_evidence = db.query(TraineeSkillEvidence).filter(TraineeSkillEvidence.trainee_id == trainee.id).all()
 
-        # 3. Retrieve Occupation Requirements
-        required_skills = cls.get_occupation_required_skills(db, occupation)
+        # 3. Retrieve Candidate's Resume-Detected Skills Profile
+        resume_skills_dict: Dict[str, Dict[str, Any]] = {}
+        resume_record = (
+            db.query(ResumeAnalysisRecord)
+            .filter(ResumeAnalysisRecord.trainee_id == trainee.id)
+            .order_by(ResumeAnalysisRecord.analyzed_at.desc())
+            .first()
+        )
+        if resume_record and resume_record.skills_profile:
+            for item in resume_record.skills_profile:
+                sname = item.get("canonical_name") or item.get("source_term") or item.get("name", "")
+                if sname:
+                    resume_skills_dict[sname.lower().strip()] = {
+                        "name": sname,
+                        "category": item.get("category", "hard"),
+                        "estimated_proficiency": float(item.get("estimated_proficiency", 4.0)),
+                        "confidence": float(item.get("confidence", 0.85)),
+                        "evidence_snippet": item.get("evidence_snippet", "")
+                    }
+
+        for ev in trainee_evidence:
+            if ev.evidence_source == "resume":
+                sname = ev.skill_name.strip()
+                if sname.lower() not in resume_skills_dict:
+                    resume_skills_dict[sname.lower()] = {
+                        "name": sname,
+                        "category": "hard",
+                        "estimated_proficiency": float(ev.score if ev.score <= 5.0 else ev.score / 20.0),
+                        "confidence": float(ev.confidence),
+                        "evidence_snippet": ev.notes or ""
+                    }
 
         gaps_breakdown: List[Dict[str, Any]] = []
         acquired_skills_list: List[Dict[str, Any]] = []
+        skill_comparison_visual: List[Dict[str, Any]] = []
 
         total_critical = 0
         total_moderate = 0
@@ -404,12 +530,67 @@ class SkillGapEngine:
             req_prof = float(req["required_proficiency"])
             total_required_points += req_prof
 
-            matched_skill, current_prof, conf, emp_ev = cls.match_trainee_skill_semantic(
+            matched_skill, sem_prof, conf, emp_ev = cls.match_trainee_skill_semantic(
                 db=db,
                 req_skill=req,
                 trainee_skills=trainee_skills,
                 trainee_evidence=trainee_evidence
             )
+
+            # Collect all evidence items for this skill
+            req_name_clean = req["name"].lower().strip()
+            req_canon_clean = req.get("canonical_name", "").lower().strip()
+
+            skill_ev_list = [
+                e for e in trainee_evidence
+                if (matched_skill and e.skill_id == matched_skill.skill_id)
+                or req_name_clean in e.skill_name.lower()
+                or e.skill_name.lower() in req_name_clean
+                or (req_canon_clean and req_canon_clean in e.skill_name.lower())
+            ]
+
+            # Check if candidate has detected resume claim
+            has_resume = (
+                req_name_clean in resume_skills_dict
+                or req_canon_clean in resume_skills_dict
+                or any(e.evidence_source == "resume" for e in skill_ev_list)
+            )
+            resume_item = resume_skills_dict.get(req_name_clean) or resume_skills_dict.get(req_canon_clean)
+            resume_claim_score = float(resume_item["estimated_proficiency"]) if resume_item else (4.0 if has_resume else 0.0)
+
+            # Determine verified competency score (CRITICAL: Resume claims alone do NOT become verified scores!)
+            has_verified_evidence = any(e.evidence_source != "resume" for e in skill_ev_list) or (matched_skill and matched_skill.verified and (matched_skill.proficiency_score or 0.0) > 0)
+
+            if has_verified_evidence and matched_skill and matched_skill.verified:
+                current_prof = float(matched_skill.proficiency_score or 0.0)
+                is_verified = True
+            elif has_verified_evidence and skill_ev_list:
+                verified_calc = SkillScoringEngine.compute_skill_proficiency(skill_ev_list, target_benchmark=req_prof)
+                current_prof = float(verified_calc["proficiency_score"])
+                is_verified = verified_calc["is_verified"]
+            else:
+                # Skill only detected on resume or completely unevidenced
+                current_prof = 0.0
+                is_verified = False
+
+            # Assemble distinct evidence sources
+            active_sources = set()
+            for e in skill_ev_list:
+                active_sources.add(e.evidence_source)
+            if has_resume:
+                active_sources.add("resume")
+
+            source_order = ["resume", "assessment", "practical_project", "certification", "trainer_evaluation", "employer_feedback"]
+            source_labels_map = {
+                "resume": "Resume",
+                "assessment": "Assessment",
+                "practical_project": "Project",
+                "certification": "Certification",
+                "trainer_evaluation": "Coach Evaluation",
+                "employer_feedback": "Employer Feedback",
+            }
+            ordered_active_labels = [source_labels_map[s] for s in source_order if s in active_sources]
+            evidence_label = " + ".join(ordered_active_labels) if ordered_active_labels else "None"
 
             # Cap earned points at required
             total_earned_points += min(current_prof, req_prof)
@@ -420,25 +601,6 @@ class SkillGapEngine:
             raw_gap = req_prof - current_prof
             skill_gap = round(max(0.0, raw_gap), 2)
 
-            if skill_gap <= 0.0:
-                # Skill is mastered / surplus
-                acquired_skills_list.append({
-                    "skill_id": req["skill_id"],
-                    "skill_name": req["name"],
-                    "category": req["category"],
-                    "required_proficiency": req_prof,
-                    "current_proficiency": current_prof,
-                    "surplus": round(current_prof - req_prof, 2),
-                    "confidence": conf,
-                    "status": "Mastered / Exceeds Target",
-                })
-                continue
-
-            # A positive gap was detected!
-            # ----------------------------------------------------
-            # Formula: Priority = Gap Severity x Skill Importance x Market Demand x Confidence
-            # ----------------------------------------------------
-            # Gap Severity = skill_gap / 5.0 in (0.0, 1.0]
             gap_severity = round(skill_gap / 5.0, 4)
             skill_importance = float(req["skill_importance"])
             market_demand = float(req["market_demand"])
@@ -447,47 +609,27 @@ class SkillGapEngine:
             priority_raw = gap_severity * skill_importance * market_demand * confidence
             priority_score = min(100, max(5, round(priority_raw * 100)))
 
-            # Priority Tier Classification
             if priority_score >= 50 or skill_gap >= 2.0:
                 priority_tier = "critical"
                 priority_label = "Critical Gap"
-                total_critical += 1
+                priority_short = "High"
             elif priority_score >= 25:
                 priority_tier = "moderate"
                 priority_label = "Moderate Gap"
-                total_moderate += 1
+                priority_short = "Medium"
             else:
                 priority_tier = "low"
                 priority_label = "Low Gap"
-                total_low += 1
-
-            if req["category"] == "hard":
-                total_hard_gaps += 1
-            else:
-                total_soft_gaps += 1
-
-            # ----------------------------------------------------
-            # Gap Classification Logic:
-            # 1. Workplace Gap: employer feedback identifies missing practical competency
-            # 2. Curriculum Gap: course does not teach this skill
-            # 3. Learner Gap: skill is taught in course but candidate insufficiently mastered it
-            # ----------------------------------------------------
-            gap_type = "learner_gap"
-            gap_type_label = "Learner Gap"
-            detected_reason = ""
-            remediation_action = ""
+                priority_short = "Low"
 
             # Check 1: Workplace Gap
             is_workplace = False
             employer_notes = None
             if emp_ev:
-                # If employer gave rating < 3.5 or explicitly noted workplace application friction
                 if emp_ev.score < 3.5 or (emp_ev.notes and any(w in emp_ev.notes.lower() for w in ["friction", "struggl", "inconsisten", "delay", "gap", "revisit", "supervis"])):
                     is_workplace = True
                     employer_notes = emp_ev.notes
             elif req["category"] == "hard" and current_prof > 2.0 and req_prof >= 4.0:
-                # If trainee has classroom assessment >= 3.5 but employer feedback is absent or noted practical gaps
-                # e.g. for Docker / Staging environments
                 for ev in trainee_evidence:
                     if ev.evidence_source == "employer_feedback" and ev.notes:
                         if req["name"].lower() in ev.notes.lower() or "production" in ev.notes.lower() or "staging" in ev.notes.lower():
@@ -506,33 +648,93 @@ class SkillGapEngine:
             if is_workplace:
                 gap_type = "workplace_gap"
                 gap_type_label = "Workplace Gap"
-                total_workplace += 1
                 detected_reason = (
-                    f"Employer / internship performance audit identifies a practical workplace application deficit in {req['name']}. "
-                    f"While theoretical or classroom fundamentals may be present, on-the-job execution autonomy scored below benchmark "
-                    f"({f'Employer Feedback: {employer_notes}' if employer_notes else f'Practical Score: {current_prof}/5.0 vs Required {req_prof}/5.0'})."
+                    f"Employer / workplace audit identifies a missing practical competency in {req['name']}. "
+                    f"While baseline theory is established, practical execution scored below standard "
+                    f"({f'Employer Feedback: {employer_notes}' if employer_notes else f'Current Level: {current_prof}/5.0 vs Required {req_prof}/5.0'})."
                 )
                 remediation_action = f"Pair with a Senior {occupation.title} mentor for targeted on-the-job apprenticeship shadowing and live staging deployment drills."
             elif not is_taught_in_course:
                 gap_type = "curriculum_gap"
                 gap_type_label = "Curriculum Gap"
-                total_curriculum += 1
                 detected_reason = (
-                    f"Target occupation '{occupation.title}' requires {req['name']} (Required Level: {req_prof}/5.0, Market Demand: {req['market_demand_score']}%), "
-                    f"but the trainee's enrolled program '{course_title}' does NOT cover this competency in its core curriculum. "
-                    f"This represents an institutional syllabus gap between the training program and modern employer requisitions."
+                    f"Target occupation/job '{effective_job_title}' requires {req['name']} (Required Level: {req_prof}/5.0, Market Demand: {req['market_demand_score']}%), "
+                    f"which is absent from the trainee's training curriculum '{course_title}'."
                 )
                 remediation_action = f"Enroll in elective bridge module: 'Advanced {req['name']} Industry Certification Track' or supplementary lab series."
             else:
                 gap_type = "learner_gap"
                 gap_type_label = "Learner Gap"
-                total_learner += 1
                 detected_reason = (
-                    f"Skill is formally included in the enrolled curriculum '{course_title}', but the candidate demonstrated Level {current_prof}/5.0 "
-                    f"against the occupational benchmark of Level {req_prof}/5.0 (Deficit: -{skill_gap}). "
-                    f"The trainee has received instructional coverage but requires additional deliberate practice to reach autonomous workplace mastery."
+                    f"Skill exists in the enrolled training curriculum '{course_title}', but current demonstrated proficiency is insufficient "
+                    f"({current_prof}/5.0 vs required benchmark {req_prof}/5.0)."
                 )
                 remediation_action = f"Complete guided remediation lab exercises and capstone practical milestones focusing on {req['name']} core rubrics."
+
+            # Formulate the exact explainable gap string
+            # Format: “SQL — Required: 4/5 | Current: 2/5 | Gap: 2 levels | Evidence: Resume + Assessment | Priority: High.”
+            req_disp = int(req_prof) if req_prof.is_integer() else req_prof
+            cur_disp = int(current_prof) if current_prof.is_integer() else current_prof
+            gap_disp = int(skill_gap) if skill_gap.is_integer() else skill_gap
+            levels_word = "level" if gap_disp == 1 else "levels"
+            explainable_gap = f"{req['name']} — Required: {req_disp}/5 | Current: {cur_disp}/5 | Gap: {gap_disp} {levels_word} | Evidence: {evidence_label} | Priority: {priority_short}."
+
+            # Append to 4-way visual comparison dataset
+            skill_comparison_visual.append({
+                "skill_name": req["name"],
+                "category": req["category"],
+                "domain": req["domain"],
+                "resume_claim": resume_claim_score if has_resume else 0.0,
+                "has_resume": has_resume,
+                "verified_level": current_prof if is_verified else 0.0,
+                "is_verified": is_verified,
+                "required_level": req_prof,
+                "is_required": True,
+                "missing_gap": skill_gap,
+                "is_missing": skill_gap > 0.0,
+                "gap_type": gap_type if skill_gap > 0.0 else "none",
+                "gap_type_label": gap_type_label if skill_gap > 0.0 else "Mastered / Aligned",
+                "priority_tier": priority_tier if skill_gap > 0.0 else "none",
+                "priority_label": priority_short if skill_gap > 0.0 else "None",
+                "evidence_sources": list(active_sources),
+                "evidence_label": evidence_label,
+                "explainable_gap": explainable_gap
+            })
+
+            if skill_gap <= 0.0:
+                # Skill is mastered / surplus
+                acquired_skills_list.append({
+                    "skill_id": req["skill_id"],
+                    "skill_name": req["name"],
+                    "category": req["category"],
+                    "required_proficiency": req_prof,
+                    "current_proficiency": current_prof,
+                    "surplus": round(current_prof - req_prof, 2),
+                    "confidence": conf,
+                    "evidence_label": evidence_label,
+                    "status": "Mastered / Exceeds Target",
+                })
+                continue
+
+            # Tally gap types
+            if priority_tier == "critical":
+                total_critical += 1
+            elif priority_tier == "moderate":
+                total_moderate += 1
+            else:
+                total_low += 1
+
+            if req["category"] == "hard":
+                total_hard_gaps += 1
+            else:
+                total_soft_gaps += 1
+
+            if gap_type == "workplace_gap":
+                total_workplace += 1
+            elif gap_type == "curriculum_gap":
+                total_curriculum += 1
+            else:
+                total_learner += 1
 
             # Append structured gap entry
             gaps_breakdown.append({
@@ -552,6 +754,7 @@ class SkillGapEngine:
                 "priority_score": priority_score,
                 "priority_tier": priority_tier,
                 "priority_label": priority_label,
+                "priority_short": priority_short,
                 "gap_type": gap_type,
                 "gap_type_label": gap_type_label,
                 "is_taught_in_course": is_taught_in_course,
@@ -559,6 +762,9 @@ class SkillGapEngine:
                 "detected_reason": detected_reason,
                 "remediation_action": remediation_action,
                 "employer_notes": employer_notes,
+                "evidence_sources": list(active_sources),
+                "evidence_label": evidence_label,
+                "explainable_gap": explainable_gap,
                 "formula_breakdown": {
                     "formula": "Priority = Gap Severity x Skill Importance x Market Demand x Confidence",
                     "gap_calculation": f"{req_prof} (Required) - {current_prof} (Current) = {skill_gap} Gap",
@@ -571,6 +777,35 @@ class SkillGapEngine:
                 }
             })
 
+        # Append non-required candidate resume skills to the visual dataset
+        for norm_rname, ritem in resume_skills_dict.items():
+            if not any(req["name"].lower().strip() == norm_rname or req.get("canonical_name", "").lower().strip() == norm_rname for req in required_skills):
+                matched_ts = next((ts for ts in trainee_skills if ts.name.lower().strip() == norm_rname), None)
+                ver_score = float(matched_ts.proficiency_score or 0.0) if (matched_ts and matched_ts.verified) else 0.0
+                is_ver = ver_score > 0.0
+                r_claim = float(ritem["estimated_proficiency"])
+                ev_lbl = "Resume + Verified" if is_ver else "Resume"
+                skill_comparison_visual.append({
+                    "skill_name": ritem["name"],
+                    "category": ritem.get("category", "hard"),
+                    "domain": occupation.domain if occupation else "General",
+                    "resume_claim": r_claim,
+                    "has_resume": True,
+                    "verified_level": ver_score,
+                    "is_verified": is_ver,
+                    "required_level": 0.0,
+                    "is_required": False,
+                    "missing_gap": 0.0,
+                    "is_missing": False,
+                    "gap_type": "none",
+                    "gap_type_label": "Additional Candidate Skill",
+                    "priority_tier": "none",
+                    "priority_label": "None",
+                    "evidence_sources": ["resume"] + (["assessment"] if is_ver else []),
+                    "evidence_label": ev_lbl,
+                    "explainable_gap": f"{ritem['name']} — Candidate Competency | Resume Claim: {int(r_claim) if r_claim.is_integer() else r_claim}/5 | Verified: {int(ver_score) if ver_score.is_integer() else ver_score}/5 | Evidence: {ev_lbl}."
+                })
+
         # Sort gaps by priority descending (Critical first)
         gaps_breakdown.sort(key=lambda x: x["priority_score"], reverse=True)
 
@@ -580,12 +815,19 @@ class SkillGapEngine:
 
         # Generate holistic recommendation narrative
         recommendation_text = (
-            f"Candidate alignment for {occupation.title}: Match Score {match_score}% with {len(gaps_breakdown)} identified skill gap(s). "
+            f"Candidate alignment for {effective_job_title}: Match Score {match_score}% with {len(gaps_breakdown)} identified skill gap(s). "
             f"Immediate focus should be directed at {total_critical} Critical Gap(s) and {total_curriculum} Curriculum Gap(s) "
             f"where high market demand ({gaps_breakdown[0]['skill_name'] if gaps_breakdown else 'None'}) impacts presentation to hiring partners."
         )
 
-        effective_employer = target_employer or trainee.current_employer or "Partner Employer Network"
+        # 4-way comparison summary counts: Resume Skills | Verified Skills | Required Skills | Missing Skills
+        verified_skills_count = sum(1 for ts in trainee_skills if ts.verified and (ts.proficiency_score or 0.0) > 0.0)
+        skill_comparison_counts = {
+            "resume_skills": len(resume_skills_dict),
+            "verified_skills": verified_skills_count,
+            "required_skills": len(required_skills),
+            "missing_skills": len(gaps_breakdown),
+        }
 
         # Generate or update record in database
         skill_gap_record = None
@@ -597,7 +839,7 @@ class SkillGapEngine:
                     id=gap_id,
                     trainee_id=trainee.id,
                     trainee_name=trainee.full_name,
-                    target_job_title=occupation.title,
+                    target_job_title=effective_job_title,
                     target_employer=effective_employer,
                     target_occupation_id=occupation.id,
                     target_occupation_title=occupation.title,
@@ -622,7 +864,7 @@ class SkillGapEngine:
                 db.add(skill_gap_record)
             else:
                 skill_gap_record.trainee_name = trainee.full_name
-                skill_gap_record.target_job_title = occupation.title
+                skill_gap_record.target_job_title = effective_job_title
                 skill_gap_record.target_employer = effective_employer
                 skill_gap_record.target_occupation_id = occupation.id
                 skill_gap_record.target_occupation_title = occupation.title
@@ -651,6 +893,8 @@ class SkillGapEngine:
             "id": skill_gap_record.id if skill_gap_record else f"GAP-{trainee.id}",
             "trainee_id": trainee.id,
             "trainee_name": trainee.full_name,
+            "target_job_id": job.id if job else None,
+            "target_job_title": effective_job_title,
             "target_occupation_id": occupation.id,
             "target_occupation_title": occupation.title,
             "target_employer": effective_employer,
@@ -669,6 +913,8 @@ class SkillGapEngine:
             "soft_gaps_count": total_soft_gaps,
             "gaps_breakdown": gaps_breakdown,
             "acquired_skills": acquired_skills_list,
+            "skill_comparison_counts": skill_comparison_counts,
+            "skill_comparison_visual": skill_comparison_visual,
             "recommendation": recommendation_text,
             "scoring_formula_metadata": {
                 "formula": "Priority = Gap Severity x Skill Importance x Market Demand x Confidence",

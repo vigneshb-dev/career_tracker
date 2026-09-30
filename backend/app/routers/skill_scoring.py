@@ -40,6 +40,20 @@ def get_trainee_radar_profile(trainee_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Trainee not found")
     return profile
 
+@router.get("/trainees/{trainee_id}/unified-profile")
+def get_trainee_unified_profile(trainee_id: str, db: Session = Depends(get_db)):
+    """
+    Returns Trainee Unified Skill Profile combining multiple evidence streams:
+    Resume + Assessments + Practical Projects + Certifications + Coach Evaluation + Employer Feedback.
+    Enforces rule: Resume claims alone do not become verified competency scores.
+    """
+    trainee = db.query(Trainee).filter(Trainee.id == trainee_id).first()
+    if not trainee:
+        raise HTTPException(status_code=404, detail="Trainee not found")
+    
+    profile = SkillScoringEngine.get_unified_skill_profile(db, trainee_id)
+    return profile
+
 @router.get("/trainees/{trainee_id}/evidence", response_model=List[TraineeSkillEvidenceRead])
 def get_trainee_evidence(
     trainee_id: str,

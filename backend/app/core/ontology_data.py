@@ -18,7 +18,7 @@ COURSES_DATA = [
         "code": "CRS-SWE-101",
         "title": "Full-Stack Enterprise Cloud & Web Architecture",
         "domain": "Software Development",
-        "provider": "Austin Tech Institute of Technology",
+        "provider": "Bengaluru Institute of Technology & Skills",
         "duration_weeks": 24,
         "description": "Comprehensive immersive engineering curriculum covering asynchronous backend microservices, modern reactive component frontends, SQL database persistence, and cloud orchestration.",
         "competency_ids": ["cmp-sw-01", "cmp-sw-02"],
@@ -29,7 +29,7 @@ COURSES_DATA = [
         "code": "CRS-DAT-201",
         "title": "Applied Business Intelligence & Data Analytics",
         "domain": "Data Analytics",
-        "provider": "Northeast Data Academy",
+        "provider": "IIIT Bangalore Data Science Academy",
         "duration_weeks": 16,
         "description": "End-to-end analytical pipeline engineering focusing on relational data extraction, SQL querying, interactive executive dashboards in Tableau, and predictive decision support.",
         "competency_ids": ["cmp-da-01", "cmp-da-02"],
@@ -40,7 +40,7 @@ COURSES_DATA = [
         "code": "CRS-MKT-301",
         "title": "Omnichannel Growth & Performance Marketing",
         "domain": "Digital Marketing",
-        "provider": "Digital Media Growth Institute",
+        "provider": "Digital Media Growth Institute (Mumbai)",
         "duration_weeks": 14,
         "description": "Cross-channel digital marketing mastery emphasizing organic search engine ranking, GA4 event instrumentation, paid acquisition telemetry, and high-conversion copywriting.",
         "competency_ids": ["cmp-dm-01", "cmp-dm-02"],
@@ -51,9 +51,9 @@ COURSES_DATA = [
         "code": "CRS-ELE-401",
         "title": "Commercial & Industrial Electrical Trades Program",
         "domain": "Electrician",
-        "provider": "Metropolitan Trades & Apprenticeship Center",
+        "provider": "National Skill Training Institute (NSTI) Chennai",
         "duration_weeks": 30,
-        "description": "Rigorous hands-on vocational curriculum preparing apprentices for journeyman licensing through conduit bending, diagnostic multimeter troubleshooting, and OSHA/NEC safety protocols.",
+        "description": "Rigorous hands-on vocational curriculum preparing apprentices for electrical contractor licensing through conduit bending, diagnostic multimeter troubleshooting, and BIS/CEA safety protocols.",
         "competency_ids": ["cmp-el-01", "cmp-el-02"],
     },
     # 5. Healthcare
@@ -62,7 +62,7 @@ COURSES_DATA = [
         "code": "CRS-HEA-501",
         "title": "Certified Clinical Medical Assisting & Patient Care",
         "domain": "Healthcare",
-        "provider": "Allied Health Career Institute",
+        "provider": "Apollo MedSkills Allied Health Institute (Hyderabad)",
         "duration_weeks": 20,
         "description": "Accredited clinical program developing front-line healthcare competencies including patient vitals triage, Electronic Health Record documentation, and empathic patient bedside de-escalation.",
         "competency_ids": ["cmp-hc-01", "cmp-hc-02"],
@@ -73,7 +73,7 @@ COURSES_DATA = [
         "code": "CRS-RET-601",
         "title": "Modern Retail Operations & Storefront Leadership",
         "domain": "Retail",
-        "provider": "Retail Leadership Institute",
+        "provider": "Retail Leadership Institute of India (Delhi NCR)",
         "duration_weeks": 12,
         "description": "Practical retail management certification developing point-of-sale transactional accuracy, inventory replenishment, shrinkage mitigation, and conflict de-escalation.",
         "competency_ids": ["cmp-rt-01", "cmp-rt-02"],
@@ -84,7 +84,7 @@ COURSES_DATA = [
         "code": "CRS-MFG-701",
         "title": "Advanced Precision CNC Machining & Quality Control",
         "domain": "Manufacturing",
-        "provider": "Great Lakes Advanced Manufacturing Center",
+        "provider": "PSG Industrial Technology Center (Coimbatore)",
         "duration_weeks": 22,
         "description": "Industry 4.0 machining academy providing hands-on setup of multi-axis CNC mills, ISO G-code programming, GD&T precision metrology, and 5S workplace organization.",
         "competency_ids": ["cmp-mf-01", "cmp-mf-02"],
@@ -1188,7 +1188,7 @@ SKILLS_DATA = [
                 "level": 2,
                 "title": "Competent / Working Knowledge",
                 "description": "Handles returns with or without receipt, applies store credit, processes tax-exempt purchases, and voids errors correctly.",
-                "rubric": ["Follows return policy verification steps", "Reconciles drawer at end-of-shift with < $2 variance"]
+                "rubric": ["Follows return policy verification steps", "Reconciles drawer at end-of-shift with < ₹100 variance"]
             },
             "3": {
                 "level": 3,
@@ -1497,7 +1497,7 @@ OCCUPATIONS_DATA = [
         "domain": "Software Development",
         "description": "Designs, writes, and maintains resilient user-facing interfaces and backend business logic services for enterprise software applications.",
         "career_band": "Mid-Level Professional",
-        "median_salary": "$110,000 / yr",
+        "median_salary": "₹12,50,000 / yr",
         "demand_outlook": "+25% (Much faster than average)",
         "required_skill_ids": ["sk-6", "sk-1", "sk-17"],
         "competency_ids": ["cmp-sw-01", "cmp-sw-02"]
@@ -1509,7 +1509,7 @@ OCCUPATIONS_DATA = [
         "domain": "Software Development",
         "description": "Specializes in high-throughput distributed microservices, scalable database clustering, asynchronous messaging, and cloud reliability.",
         "career_band": "Senior / Specialist",
-        "median_salary": "$135,000 / yr",
+        "median_salary": "₹18,00,000 / yr",
         "demand_outlook": "+21% (Faster than average)",
         "required_skill_ids": ["sk-6", "sk-17"],
         "competency_ids": ["cmp-sw-01"]
@@ -1523,7 +1523,7 @@ OCCUPATIONS_DATA = [
         "domain": "Data Analytics",
         "description": "Transforms structured organizational data into executive Tableau dashboards, KPI scorecards, and operational performance reports.",
         "career_band": "Mid-Level Professional",
-        "median_salary": "$88,000 / yr",
+        "median_salary": "₹9,50,000 / yr",
         "demand_outlook": "+23% (Much faster than average)",
         "required_skill_ids": ["sk-sql", "sk-tableau", "sk-storytelling"],
         "competency_ids": ["cmp-da-01", "cmp-da-02"]
@@ -1535,7 +1535,7 @@ OCCUPATIONS_DATA = [
         "domain": "Data Analytics",
         "description": "Extracts insights from large data lakes through SQL queries, statistical tests, cohort analysis, and executive storytelling presentations.",
         "career_band": "Mid-Level Professional",
-        "median_salary": "$96,000 / yr",
+        "median_salary": "₹11,00,000 / yr",
         "demand_outlook": "+28% (Much faster than average)",
         "required_skill_ids": ["sk-sql", "sk-storytelling"],
         "competency_ids": ["cmp-da-01"]
@@ -1549,7 +1549,7 @@ OCCUPATIONS_DATA = [
         "domain": "Digital Marketing",
         "description": "Orchestrates organic search engine visibility, paid conversion funnels, and compelling brand storytelling across omnichannel customer touchpoints.",
         "career_band": "Mid-Level Professional",
-        "median_salary": "$74,000 / yr",
+        "median_salary": "₹7,20,000 / yr",
         "demand_outlook": "+19% (Faster than average)",
         "required_skill_ids": ["sk-seo", "sk-ga4", "sk-copywriting"],
         "competency_ids": ["cmp-dm-01", "cmp-dm-02"]
@@ -1561,7 +1561,7 @@ OCCUPATIONS_DATA = [
         "domain": "Digital Marketing",
         "description": "Leads acquisition experiments, optimizes customer acquisition cost (CAC), instruments conversion telemetry, and manages multi-channel ad spend.",
         "career_band": "Senior / Management",
-        "median_salary": "$98,000 / yr",
+        "median_salary": "₹12,00,000 / yr",
         "demand_outlook": "+16% (Faster than average)",
         "required_skill_ids": ["sk-ga4", "sk-seo", "sk-copywriting"],
         "competency_ids": ["cmp-dm-01", "cmp-dm-02"]
@@ -1575,7 +1575,7 @@ OCCUPATIONS_DATA = [
         "domain": "Electrician",
         "description": "Installs, tests, and repairs commercial and residential electrical conduit, wiring, lighting, switchgear, and branch circuit panels.",
         "career_band": "Licensed Tradesperson",
-        "median_salary": "$68,500 / yr",
+        "median_salary": "₹4,80,000 / yr",
         "demand_outlook": "+11% (Faster than average)",
         "required_skill_ids": ["sk-conduit", "sk-multimeter", "sk-loto"],
         "competency_ids": ["cmp-el-01", "cmp-el-02"]
@@ -1587,7 +1587,7 @@ OCCUPATIONS_DATA = [
         "domain": "Electrician",
         "description": "Troubleshoots 480V 3-phase machinery, control panels, transformers, and electrical raceways in industrial manufacturing environments.",
         "career_band": "Mid-Level Technical",
-        "median_salary": "$76,000 / yr",
+        "median_salary": "₹6,50,000 / yr",
         "demand_outlook": "+14% (Faster than average)",
         "required_skill_ids": ["sk-multimeter", "sk-loto"],
         "competency_ids": ["cmp-el-02"]
@@ -1601,7 +1601,7 @@ OCCUPATIONS_DATA = [
         "domain": "Healthcare",
         "description": "Conducts patient rooming, measures vital signs, documents clinical histories in EHR systems, and provides empathic patient care.",
         "career_band": "Certified Healthcare Specialist",
-        "median_salary": "$44,000 / yr",
+        "median_salary": "₹4,20,000 / yr",
         "demand_outlook": "+16% (Much faster than average)",
         "required_skill_ids": ["sk-vitals", "sk-ehr", "sk-empathy"],
         "competency_ids": ["cmp-hc-01", "cmp-hc-02"]
@@ -1613,7 +1613,7 @@ OCCUPATIONS_DATA = [
         "domain": "Healthcare",
         "description": "Manages patient transitions of care, ensures complete medical record compliance, triages clinic appointments, and navigates patient services.",
         "career_band": "Mid-Level Professional",
-        "median_salary": "$52,000 / yr",
+        "median_salary": "₹6,00,000 / yr",
         "demand_outlook": "+18% (Much faster than average)",
         "required_skill_ids": ["sk-ehr", "sk-empathy", "sk-vitals"],
         "competency_ids": ["cmp-hc-01", "cmp-hc-02"]
@@ -1627,7 +1627,7 @@ OCCUPATIONS_DATA = [
         "domain": "Retail",
         "description": "Oversees floor sales operations, enforces POS cashiering policies, coordinates inventory merchandising, and handles customer conflict de-escalation.",
         "career_band": "First-Line Supervisor",
-        "median_salary": "$48,500 / yr",
+        "median_salary": "₹4,50,000 / yr",
         "demand_outlook": "+9% (Average)",
         "required_skill_ids": ["sk-pos", "sk-inventory", "sk-conflict"],
         "competency_ids": ["cmp-rt-01", "cmp-rt-02"]
@@ -1639,7 +1639,7 @@ OCCUPATIONS_DATA = [
         "domain": "Retail",
         "description": "Leads store profitability, shrinkage mitigation, staff scheduling, customer experience standards, and inventory supply chain replenishment.",
         "career_band": "Management",
-        "median_salary": "$65,000 / yr",
+        "median_salary": "₹7,50,000 / yr",
         "demand_outlook": "+10% (Average)",
         "required_skill_ids": ["sk-inventory", "sk-conflict", "sk-pos"],
         "competency_ids": ["cmp-rt-01", "cmp-rt-02"]
@@ -1653,7 +1653,7 @@ OCCUPATIONS_DATA = [
         "domain": "Manufacturing",
         "description": "Sets up and operates CNC mills and lathes to produce high-precision metal parts conforming strictly to GD&T blueprint specifications.",
         "career_band": "Skilled Tradesperson",
-        "median_salary": "$58,000 / yr",
+        "median_salary": "₹5,40,000 / yr",
         "demand_outlook": "+12% (Faster than average)",
         "required_skill_ids": ["sk-cnc", "sk-gdt", "sk-lean5s"],
         "competency_ids": ["cmp-mf-01", "cmp-mf-02"]
@@ -1665,7 +1665,7 @@ OCCUPATIONS_DATA = [
         "domain": "Manufacturing",
         "description": "Verifies manufactured parts against aerospace/automotive GD&T tolerances using CMMs, calipers, micrometers, and statistical quality audits.",
         "career_band": "Mid-Level Technical",
-        "median_salary": "$56,500 / yr",
+        "median_salary": "₹5,20,000 / yr",
         "demand_outlook": "+10% (Average)",
         "required_skill_ids": ["sk-gdt", "sk-lean5s"],
         "competency_ids": ["cmp-mf-02"]

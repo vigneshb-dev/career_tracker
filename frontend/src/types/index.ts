@@ -309,6 +309,7 @@ export interface SkillGapBreakdownItem {
   priority_score: number;
   priority_tier: GapPriorityTier;
   priority_label: string;
+  priority_short?: string;
   gap_type: GapClassification;
   gap_type_label: string;
   is_taught_in_course: boolean;
@@ -316,7 +317,38 @@ export interface SkillGapBreakdownItem {
   detected_reason: string;
   remediation_action: string;
   employer_notes?: string;
+  evidence_sources?: string[];
+  evidence_label?: string;
+  explainable_gap?: string;
   formula_breakdown?: SkillGapFormulaBreakdown;
+}
+
+export interface SkillComparisonCounts {
+  resume_skills: number;
+  verified_skills: number;
+  required_skills: number;
+  missing_skills: number;
+}
+
+export interface SkillComparisonVisualItem {
+  skill_name: string;
+  category: 'hard' | 'soft' | string;
+  domain?: string;
+  resume_claim: number;
+  has_resume: boolean;
+  verified_level: number;
+  is_verified: boolean;
+  required_level: number;
+  is_required: boolean;
+  missing_gap: number;
+  is_missing: boolean;
+  gap_type: 'learner_gap' | 'curriculum_gap' | 'workplace_gap' | 'none';
+  gap_type_label: string;
+  priority_tier?: string;
+  priority_label?: string;
+  evidence_sources?: string[];
+  evidence_label: string;
+  explainable_gap: string;
 }
 
 export interface SkillGapAnalysis {
@@ -327,6 +359,7 @@ export interface SkillGapAnalysis {
   trainee_name?: string;
   targetJobTitle: string;
   target_job_title?: string;
+  target_job_id?: string;
   targetEmployer: string;
   target_employer?: string;
   target_occupation_id?: string;
@@ -351,6 +384,8 @@ export interface SkillGapAnalysis {
   missing_skills?: any[];
   acquiredSkills?: any[];
   acquired_skills?: any[];
+  skill_comparison_counts?: SkillComparisonCounts;
+  skill_comparison_visual?: SkillComparisonVisualItem[];
   recommendation: string;
 }
 
@@ -603,6 +638,18 @@ export interface SkillMatrixItem {
   sources_present: string[];
   calculation_explanation?: string;
   evidence: TraineeSkillEvidenceItem[];
+  sources_summary?: {
+    resume?: string;
+    assessment?: string;
+    practical_project?: string;
+    certification?: string;
+    trainer_evaluation?: string;
+    coach_evaluation?: string;
+    employer_feedback?: string;
+    final_skill_profile?: string;
+  };
+  verification_status?: string;
+  evidence_label?: string;
 }
 
 export interface TraineeRadarProfile {
@@ -1148,5 +1195,148 @@ export interface ComprehensiveAnalyticsData {
   non_placement_reasons: NonPlacementReasonItem[];
 }
 
+// ---------------------------------------------------------------------------
+// Real-Time AI Resume Analyzer & Competency Mapping Types
+// ---------------------------------------------------------------------------
+export interface ExtractedSkillItem {
+  skill_id: string;
+  canonical_name: string;
+  category: string;
+  evidence_snippet: string;
+  estimated_proficiency: number; // 0.0 - 5.0
+  confidence: number; // 0.0 - 1.0
+  matched_via: string;
+  source_term: string;
+  embedding_similarity?: number;
+}
 
+export interface ExtractedCareerMetadata {
+  job_titles: string[];
+  years_of_experience: number;
+  education: Array<{ degree?: string; institution?: string; year?: string; details?: string }>;
+  certifications: string[];
+  projects: Array<{ title?: string; description?: string; metrics?: string[] }>;
+  work_experience: Array<{ title?: string; organization?: string; duration?: string; description?: string }>;
+  technical_skills_raw: string[];
+  soft_skills_raw: string[];
+  tools_technologies_raw: string[];
+  domains_industries: string[];
+  contact_info: { email?: string; phone?: string; linkedin?: string; github?: string };
+}
 
+export interface CompletenessCriterion {
+  score: number;
+  max: number;
+  label: string;
+  status: 'present' | 'missing' | 'partial';
+  detail: string;
+}
+
+export interface CompletenessBreakdown {
+  contact_info: CompletenessCriterion;
+  summary: CompletenessCriterion;
+  skills_evidence: CompletenessCriterion;
+  work_experience: CompletenessCriterion;
+  education: CompletenessCriterion;
+  projects_metrics: CompletenessCriterion;
+  certifications: CompletenessCriterion;
+}
+
+export interface ResumeJobMatch {
+  job_id: string;
+  title: string;
+  company: string;
+  location: string;
+  salary_range: string;
+  match_percentage: number;
+  matched_skills: string[];
+  missing_skills: string[];
+}
+
+export interface ResumeSkillGap {
+  target_job_id: string;
+  target_job_title: string;
+  target_job_company: string;
+  missing_skills: string[];
+  gap_count: number;
+  urgency: string;
+}
+
+export interface ResumeRecommendation {
+  course_id: string;
+  title: string;
+  provider: string;
+  duration_weeks: number;
+  skills_covered: string[];
+  target_job_relevance: string;
+  enrollment_url: string;
+}
+
+export interface ResumeAnalysisResult {
+  analysis_id: string;
+  trainee_id: string;
+  trainee_name?: string;
+  filename: string;
+  file_url: string;
+  file_type: string;
+  analyzed_at: string;
+  extracted_metadata: ExtractedCareerMetadata;
+  skills_profile: ExtractedSkillItem[];
+  skills_count: number;
+  completeness_score: number;
+  completeness_label: string;
+  completeness_breakdown: CompletenessBreakdown;
+  job_matches: ResumeJobMatch[];
+  skill_gaps: ResumeSkillGap[];
+  recommendations: ResumeRecommendation[];
+}
+
+export interface ResumeInfoResponse {
+  has_resume: boolean;
+  filename?: string | null;
+  resume_url?: string | null;
+  extracted_skills: string[];
+  analysis?: ResumeAnalysisResult | null;
+}
+
+// ---------------------------------------------------------------------------
+// Unified Skill Profile Types (Multi-Source Competency Fusion)
+// ---------------------------------------------------------------------------
+export interface UnifiedSkillItem {
+  skill_id: string;
+  name: string;
+  category: string;
+  current_level: number;
+  current_score: number;
+  target_level: number;
+  confidence: number;
+  date_assessed?: string;
+  verification_status: 'verified' | 'detected' | 'unverified';
+  is_verified: boolean;
+  sources_summary: {
+    resume: string;
+    assessment: string;
+    practical_project: string;
+    certification: string;
+    coach_evaluation: string;
+    employer_feedback: string;
+    final_skill_profile: string;
+  };
+  evidence_label: string;
+  evidence_count: number;
+  sources_present: string[];
+  calculation_explanation: string;
+  evidence: any[];
+}
+
+export interface UnifiedSkillProfile {
+  trainee_id: string;
+  trainee_name: string;
+  program: string;
+  total_skills: number;
+  verified_skills_count: number;
+  detected_skills_count: number;
+  skills: UnifiedSkillItem[];
+  radar_data: any[];
+  scoring_formula: any;
+}

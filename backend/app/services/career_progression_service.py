@@ -57,41 +57,41 @@ class CareerProgressionService:
         logger.info("Seeding comprehensive Career Timelines and Longitudinal Milestones across all 6 pathways + Unknown...")
 
         # -------------------------------------------------------------
-        # 1. TRN-2024-001 (Elena Rostova - Employment)
+        # 1. TRN-2024-001 (Priya Sharma - Employment)
         # -------------------------------------------------------------
         events_trn1 = [
             CareerTimelineEvent(
                 id="EVT-TRN1-01",
                 trainee_id="TRN-2024-001",
-                trainee_name="Elena Rostova",
+                trainee_name="Priya Sharma",
                 stage="training",
                 pathway="employment",
                 title="Enrolled in Full-Stack Enterprise React & Cloud Web Services",
-                organization="Austin Tech Institute of Technology",
+                organization="Bengaluru Institute of Technology & Advanced Skills",
                 event_date="2024-01-15",
                 metrics={
-                    "accreditation": "State Workforce Commission (TWC)",
+                    "accreditation": "National Skill Development Corporation (NSDC)",
                     "hours_completed": 720,
                     "attendance_rate": "98.4%",
                     "capstone_grade": "A+"
                 },
                 verification_status="verified",
-                verification_notes="State training transcript and certificate of completion verified.",
+                verification_notes="NSDC training transcript and certificate of completion verified.",
                 sequence_order=1
             ),
             CareerTimelineEvent(
                 id="EVT-TRN1-02",
                 trainee_id="TRN-2024-001",
-                trainee_name="Elena Rostova",
+                trainee_name="Priya Sharma",
                 stage="first_outcome",
                 pathway="employment",
                 title="Hired as Software Engineering Apprentice",
-                organization="Apex Cloud Solutions",
+                organization="Apex Cloud Technologies India Pvt. Ltd.",
                 event_date="2024-06-01",
                 metrics={
                     "job_role": "Software Engineering Apprentice",
-                    "employer": "Apex Cloud Solutions",
-                    "salary_range": "$28.00 / hr ($58,240 annualized)",
+                    "employer": "Apex Cloud Technologies India Pvt. Ltd.",
+                    "salary_range": "₹25,000 / mo (₹3,00,000 annualized)",
                     "employment_type": "Full-Time Apprenticeship",
                     "retention": "Completed 10-Week Rotation"
                 },
@@ -102,36 +102,36 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN1-03",
                 trainee_id="TRN-2024-001",
-                trainee_name="Elena Rostova",
+                trainee_name="Priya Sharma",
                 stage="current_status",
                 pathway="employment",
                 title="Converted to Salaried Junior Frontend Engineer",
-                organization="Apex Cloud Solutions",
+                organization="Apex Cloud Technologies India Pvt. Ltd.",
                 event_date="2024-07-22",
                 metrics={
                     "job_role": "Junior Frontend Engineer",
-                    "employer": "Apex Cloud Solutions",
-                    "salary_range": "$84,000 / yr + Medical/401(k)",
+                    "employer": "Apex Cloud Technologies India Pvt. Ltd.",
+                    "salary_range": "₹8,40,000 / yr + Medical/EPF",
                     "retention": "6-Month Verified Retention",
                     "promotion": "Apprentice to Permanent Staff"
                 },
                 verification_status="verified",
-                verification_notes="Full-time W-2 employment agreement verified by employer portal.",
+                verification_notes="Full-time employment agreement and EPFO enrollment verified.",
                 is_current=True,
                 sequence_order=3
             ),
             CareerTimelineEvent(
                 id="EVT-TRN1-04",
                 trainee_id="TRN-2024-001",
-                trainee_name="Elena Rostova",
+                trainee_name="Priya Sharma",
                 stage="career_event",
                 pathway="employment",
                 title="Shipped Enterprise Multi-Tenant Billing UI to Production",
-                organization="Apex Cloud Solutions",
+                organization="Apex Cloud Technologies India Pvt. Ltd.",
                 event_date="2024-08-30",
                 metrics={
                     "job_role": "Junior Frontend Engineer",
-                    "employer": "Apex Cloud Solutions",
+                    "employer": "Apex Cloud Technologies India Pvt. Ltd.",
                     "impact": "Automated recurring invoicing for 1,400 business clients",
                     "mentor_evaluation": "5.0 / 5.0 Star Rating"
                 },
@@ -142,16 +142,16 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN1-05",
                 trainee_id="TRN-2024-001",
-                trainee_name="Elena Rostova",
+                trainee_name="Priya Sharma",
                 stage="progression",
                 pathway="employment",
                 title="Promoted to Frontend Software Engineer II",
-                organization="Apex Cloud Solutions",
+                organization="Apex Cloud Technologies India Pvt. Ltd.",
                 event_date="2024-12-15",
                 metrics={
                     "job_role": "Frontend Software Engineer II",
-                    "employer": "Apex Cloud Solutions",
-                    "salary_range": "$96,000 / yr (+14.3% Wage Progression)",
+                    "employer": "Apex Cloud Technologies India Pvt. Ltd.",
+                    "salary_range": "₹10,50,000 / yr (+25% Wage Progression)",
                     "retention": "12-Month Projected Retention",
                     "promotion": "Early Promotion based on technical velocity"
                 },
@@ -162,20 +162,20 @@ class CareerProgressionService:
         ]
 
         # -------------------------------------------------------------
-        # 2. TRN-2024-002 (Marcus Vance - Self-Employment)
+        # 2. TRN-2024-002 (Rajesh Kumar - Self-Employment)
         # -------------------------------------------------------------
         events_trn2 = [
             CareerTimelineEvent(
                 id="EVT-TRN2-01",
                 trainee_id="TRN-2024-002",
-                trainee_name="Marcus Vance",
+                trainee_name="Rajesh Kumar",
                 stage="training",
                 pathway="self_employment",
                 title="Completed Enterprise Cloud Architecture & Distributed Systems",
-                organization="Midwest Cloud Academy",
+                organization="IIIT Bangalore Data Academy",
                 event_date="2024-07-15",
                 metrics={
-                    "accreditation": "Illinois Board of Higher Education (IBHE)",
+                    "accreditation": "Telangana State Council of Higher Education (TSCHE) Endorsed",
                     "hours_completed": 680,
                     "certification": "CKA Certified Kubernetes Administrator"
                 },
@@ -185,58 +185,58 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN2-02",
                 trainee_id="TRN-2024-002",
-                trainee_name="Marcus Vance",
+                trainee_name="Rajesh Kumar",
                 stage="first_outcome",
                 pathway="self_employment",
-                title="Formed & Registered Vance Cloud Architecture LLC",
-                organization="Vance Cloud Architecture LLC",
+                title="Formed & Registered Kumar Cloud Architecture LLP",
+                organization="Kumar Cloud Architecture LLP",
                 event_date="2024-08-01",
                 metrics={
                     "trade_service": "Cloud DevOps & Kubernetes Consulting",
-                    "business_name": "Vance Cloud Architecture LLC",
-                    "client_base": "1 Initial Regional Logistics Client",
-                    "monthly_earnings": "$4,500 / mo",
+                    "business_name": "Kumar Cloud Architecture LLP",
+                    "client_base": "1 Initial HITEC City Logistics Client",
+                    "monthly_earnings": "₹65,000 / mo",
                     "operating_status": "Formed & In Good Standing"
                 },
                 verification_status="verified",
-                verification_notes="Illinois Secretary of State LLC Certificate of Good Standing.",
+                verification_notes="Ministry of Corporate Affairs (MCA) LLP Certificate of Incorporation.",
                 sequence_order=2
             ),
             CareerTimelineEvent(
                 id="EVT-TRN2-03",
                 trainee_id="TRN-2024-002",
-                trainee_name="Marcus Vance",
+                trainee_name="Rajesh Kumar",
                 stage="current_status",
                 pathway="self_employment",
                 title="Principal Cloud Architect & Independent Business Owner",
-                organization="Vance Cloud Architecture LLC",
+                organization="Kumar Cloud Architecture LLP",
                 event_date="2024-09-01",
                 metrics={
                     "trade_service": "Containerization, Cloud Failover & DevOps Retainers",
-                    "business_name": "Vance Cloud Architecture LLC",
+                    "business_name": "Kumar Cloud Architecture LLP",
                     "client_base": "3 Recurring Enterprise Retainers",
-                    "monthly_earnings": "$8,500 / mo ($102,000 / yr run rate)",
+                    "monthly_earnings": "₹1,20,000 / mo (₹14.4 Lakhs / yr run rate)",
                     "operating_status": "Active & Self-Sustaining"
                 },
                 verification_status="verified",
-                verification_notes="Bank statements and executed consulting retainers audited by workforce counselor.",
+                verification_notes="Current account bank statements and executed consulting retainers audited by workforce counselor.",
                 is_current=True,
                 sequence_order=3
             ),
             CareerTimelineEvent(
                 id="EVT-TRN2-04",
                 trainee_id="TRN-2024-002",
-                trainee_name="Marcus Vance",
+                trainee_name="Rajesh Kumar",
                 stage="progression",
                 pathway="self_employment",
                 title="Expanded Practice to Multi-Cloud Migrations (5 Retainers)",
-                organization="Vance Cloud Architecture LLC",
+                organization="Kumar Cloud Architecture LLP",
                 event_date="2025-01-10",
                 metrics={
                     "trade_service": "Enterprise Cloud Architecture",
-                    "business_name": "Vance Cloud Architecture LLC",
+                    "business_name": "Kumar Cloud Architecture LLP",
                     "client_base": "5 Retainer Clients",
-                    "monthly_earnings": "$11,200 / mo ($134,400 / yr)",
+                    "monthly_earnings": "₹1,80,000 / mo (₹21.6 Lakhs / yr)",
                     "operating_status": "Scaling towards subcontracting associate engineers"
                 },
                 verification_status="verified",
@@ -245,17 +245,17 @@ class CareerProgressionService:
         ]
 
         # -------------------------------------------------------------
-        # 3. TRN-2024-003 (Sophia Martinez - Freelancing)
+        # 3. TRN-2024-003 (Sneha Patel - Freelancing)
         # -------------------------------------------------------------
         events_trn3 = [
             CareerTimelineEvent(
                 id="EVT-TRN3-01",
                 trainee_id="TRN-2024-003",
-                trainee_name="Sophia Martinez",
+                trainee_name="Sneha Patel",
                 stage="training",
                 pathway="freelancing",
                 title="Completed Agile Web Engineering & Freelance Practice",
-                organization="Rocky Mountain Code Academy",
+                organization="Western India Tech Academy, Pune",
                 event_date="2024-03-31",
                 metrics={
                     "hours_completed": 700,
@@ -267,7 +267,7 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN3-02",
                 trainee_id="TRN-2024-003",
-                trainee_name="Sophia Martinez",
+                trainee_name="Sneha Patel",
                 stage="first_outcome",
                 pathway="freelancing",
                 title="Launched Independent Contracting Portfolio & Upwork Pro",
@@ -276,7 +276,7 @@ class CareerProgressionService:
                 metrics={
                     "active_status": "Active Freelance Contractor",
                     "projects": "3 Initial Client Milestones",
-                    "income_range": "$50.00 / hr ($3,800 first month)",
+                    "income_range": "₹1,200 / hr (₹75,000 first month)",
                     "client_satisfaction_rate": "100% 5-Star"
                 },
                 verification_status="verified",
@@ -285,7 +285,7 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN3-03",
                 trainee_id="TRN-2024-003",
-                trainee_name="Sophia Martinez",
+                trainee_name="Sneha Patel",
                 stage="current_status",
                 pathway="freelancing",
                 title="Upwork Top Rated Plus Full-Stack Contractor",
@@ -294,27 +294,27 @@ class CareerProgressionService:
                 metrics={
                     "active_status": "Top Rated Plus (Top 3% of Global Talent)",
                     "projects": "18 Completed Client Projects",
-                    "income_range": "$68.00 / hr ($7,200/mo avg net)",
+                    "income_range": "₹1,800 / hr (₹1,15,000/mo avg net)",
                     "client_satisfaction_rate": "100% Job Success Score"
                 },
                 verification_status="verified",
-                verification_notes="Audited platform ledger: $42,500 collected in first 5 months.",
+                verification_notes="Audited platform ledger: ₹6,50,000 collected in first 5 months.",
                 is_current=True,
                 sequence_order=3
             ),
             CareerTimelineEvent(
                 id="EVT-TRN3-04",
                 trainee_id="TRN-2024-003",
-                trainee_name="Sophia Martinez",
+                trainee_name="Sneha Patel",
                 stage="progression",
                 pathway="freelancing",
-                title="Elevated Hourly Rate to $85/hr & Transition to Agency",
-                organization="Sophia Martinez Engineering Studio",
+                title="Elevated Hourly Rate to ₹2,500/hr & Transition to Agency",
+                organization="Sneha Patel Engineering Studio",
                 event_date="2024-11-20",
                 metrics={
                     "active_status": "Boutique Dev Studio Lead",
                     "projects": "24 Completed Projects",
-                    "income_range": "$85.00 / hr ($9,500/mo net)",
+                    "income_range": "₹2,500 / hr (₹1,60,000/mo net)",
                     "client_satisfaction_rate": "100% Repeat Client Ratio: 65%"
                 },
                 verification_status="verified",
@@ -323,17 +323,17 @@ class CareerProgressionService:
         ]
 
         # -------------------------------------------------------------
-        # 4. TRN-2024-004 (Devon Harper - Apprenticeship)
+        # 4. TRN-2024-004 (Karthik Venkataraman - Apprenticeship)
         # -------------------------------------------------------------
         events_trn4 = [
             CareerTimelineEvent(
                 id="EVT-TRN4-01",
                 trainee_id="TRN-2024-004",
-                trainee_name="Devon Harper",
+                trainee_name="Karthik Venkataraman",
                 stage="training",
                 pathway="apprenticeship",
                 title="Completed Healthcare Cyber Defense & Threat Intelligence",
-                organization="Commonwealth Cybersecurity Training Center",
+                organization="National Skill Training Institute (NSTI) Chennai",
                 event_date="2024-07-15",
                 metrics={"hours_completed": 750, "cert": "CompTIA Security+"},
                 verification_status="verified",
@@ -342,36 +342,36 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN4-02",
                 trainee_id="TRN-2024-004",
-                trainee_name="Devon Harper",
+                trainee_name="Karthik Venkataraman",
                 stage="first_outcome",
                 pathway="apprenticeship",
-                title="Enrolled in USDOL Registered Healthcare Cybersecurity Apprenticeship",
-                organization="Vanguard Health Systems",
+                title="Enrolled in NAPS / MSDE Registered Healthcare Cybersecurity Apprenticeship",
+                organization="Vanguard Healthcare Networks India",
                 event_date="2024-08-01",
                 metrics={
-                    "organization": "Vanguard Health Systems (USDOL Registered Sponsor)",
+                    "organization": "Vanguard Healthcare Networks India (NAPS Registered Sponsor)",
                     "duration": "2-Year Registered Term (4,000 Hours Total)",
                     "conversion": "Contractual conversion upon passing milestone",
-                    "starting_wage": "$32.50 / hr + Tuition Reimbursement"
+                    "starting_wage": "₹40,000 / mo + Skill Allowance"
                 },
                 verification_status="verified",
-                verification_notes="USDOL RAPIDS Registration #81920 verified.",
+                verification_notes="NAPS / MSDE Apprenticeship Registration Contract Portal ID #NAPS-81920 verified.",
                 sequence_order=2
             ),
             CareerTimelineEvent(
                 id="EVT-TRN4-03",
                 trainee_id="TRN-2024-004",
-                trainee_name="Devon Harper",
+                trainee_name="Karthik Venkataraman",
                 stage="current_status",
                 pathway="apprenticeship",
                 title="Year 1 Cyber Operations Apprentice (Medical Device Defense)",
-                organization="Vanguard Health Systems",
+                organization="Vanguard Healthcare Networks India",
                 event_date="2024-09-01",
                 metrics={
-                    "organization": "Vanguard Health Systems",
+                    "organization": "Vanguard Healthcare Networks India",
                     "duration": "1,200 of 2,000 Year 1 Hours Completed",
                     "conversion": "On Track for Full-Time Conversion (Target: Q3 2025)",
-                    "current_wage": "$32.50 / hr ($67,600/yr)"
+                    "current_wage": "₹4,80,000 / yr"
                 },
                 verification_status="verified",
                 is_current=True,
@@ -380,17 +380,17 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN4-04",
                 trainee_id="TRN-2024-004",
-                trainee_name="Devon Harper",
+                trainee_name="Karthik Venkataraman",
                 stage="progression",
                 pathway="apprenticeship",
-                title="Passed Year 1 Gateway Review & Wage Step Increase (+10%)",
-                organization="Vanguard Health Systems",
+                title="Passed Year 1 Gateway Review & Wage Step Increase (+12.5%)",
+                organization="Vanguard Healthcare Networks India",
                 event_date="2025-01-15",
                 metrics={
-                    "organization": "Vanguard Health Systems",
+                    "organization": "Vanguard Healthcare Networks India",
                     "duration": "1,600 Hours Completed",
                     "conversion": "Apprenticeship Committee Approved Wage Step",
-                    "current_wage": "$35.75 / hr ($74,360/yr)"
+                    "current_wage": "₹5,40,000 / yr"
                 },
                 verification_status="verified",
                 sequence_order=4
@@ -398,17 +398,17 @@ class CareerProgressionService:
         ]
 
         # -------------------------------------------------------------
-        # 5. TRN-2024-005 (Tariq Al-Jamil - Entrepreneurship)
+        # 5. TRN-2024-005 (Aditya Verma - Entrepreneurship)
         # -------------------------------------------------------------
         events_trn5 = [
             CareerTimelineEvent(
                 id="EVT-TRN5-01",
                 trainee_id="TRN-2024-005",
-                trainee_name="Tariq Al-Jamil",
+                trainee_name="Aditya Verma",
                 stage="training",
                 pathway="entrepreneurship",
                 title="Completed Applied AI Engineering & Venture Commercialization",
-                organization="Silicon Valley Data Institute",
+                organization="Mumbai Institute of Artificial Intelligence & Data Science",
                 event_date="2024-04-12",
                 metrics={"hours_completed": 720, "capstone": "AI Oncology Diagnostic Tool"},
                 verification_status="verified",
@@ -417,35 +417,35 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN5-02",
                 trainee_id="TRN-2024-005",
-                trainee_name="Tariq Al-Jamil",
+                trainee_name="Aditya Verma",
                 stage="first_outcome",
                 pathway="entrepreneurship",
-                title="Incorporated Startup: OmniTrace Diagnostics Inc. (Delaware C-Corp)",
-                organization="OmniTrace Diagnostics Inc.",
+                title="Incorporated Startup: OmniTrace Diagnostics Pvt. Ltd. (DPIIT Recognized)",
+                organization="OmniTrace Diagnostics Pvt. Ltd.",
                 event_date="2024-05-01",
                 metrics={
-                    "business_status": "Incorporated C-Corp / Pre-Seed",
+                    "business_status": "Incorporated Pvt Ltd / DPIIT Startup",
                     "sector": "Healthcare AI / Clinical Workflow",
-                    "revenue_range": "$250,000 State Technology Commercialization Grant",
+                    "revenue_range": "₹50 Lakhs DPIIT Seed Grant",
                     "employees": "2 Co-Founders"
                 },
                 verification_status="verified",
-                verification_notes="Delaware Certificate of Incorporation and Grant Agreement.",
+                verification_notes="MCA Certificate of Incorporation (CIN) and Grant Agreement.",
                 sequence_order=2
             ),
             CareerTimelineEvent(
                 id="EVT-TRN5-03",
                 trainee_id="TRN-2024-005",
-                trainee_name="Tariq Al-Jamil",
+                trainee_name="Aditya Verma",
                 stage="current_status",
                 pathway="entrepreneurship",
                 title="Founder & Chief Executive Officer",
-                organization="OmniTrace Diagnostics Inc.",
+                organization="OmniTrace Diagnostics Pvt. Ltd.",
                 event_date="2024-08-01",
                 metrics={
                     "business_status": "Active / Accelerating in HealthTech Incubator",
                     "sector": "Oncology Imaging AI",
-                    "revenue_range": "$250k Grant + $12,500 MRR from Pilot Clinics",
+                    "revenue_range": "₹50L Grant + ₹2,50,000 MRR from Pilot Diagnostics Labs",
                     "employees": "4 Full-Time (including 2 workforce apprentice hires)"
                 },
                 verification_status="verified",
@@ -455,17 +455,17 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN5-04",
                 trainee_id="TRN-2024-005",
-                trainee_name="Tariq Al-Jamil",
+                trainee_name="Aditya Verma",
                 stage="progression",
                 pathway="entrepreneurship",
-                title="Closed $1.2M Seed Round with Institutional Healthcare Syndicate",
-                organization="OmniTrace Diagnostics Inc.",
+                title="Closed ₹8 Crore Series Seed with Institutional Healthcare Syndicate",
+                organization="OmniTrace Diagnostics Pvt. Ltd.",
                 event_date="2025-02-01",
                 metrics={
                     "business_status": "Venture Seed Funded",
                     "sector": "Healthcare AI",
-                    "revenue_range": "$1.2M Seed Capital + $28,000 MRR",
-                    "employees": "7 Full-Time Engineers & Regulatory Specialists"
+                    "revenue_range": "₹8 Crore Seed Capital + ₹6,50,000 MRR",
+                    "employees": "8 Full-Time Engineers & Clinical Regulatory Specialists"
                 },
                 verification_status="verified",
                 sequence_order=4
@@ -473,17 +473,17 @@ class CareerProgressionService:
         ]
 
         # -------------------------------------------------------------
-        # 6. TRN-2024-006 (Aisha Al-Mansoor - Further Education / Research)
+        # 6. TRN-2024-006 (Ananya Iyer - Further Education / Research)
         # -------------------------------------------------------------
         events_trn6 = [
             CareerTimelineEvent(
                 id="EVT-TRN6-01",
                 trainee_id="TRN-2024-006",
-                trainee_name="Aisha Al-Mansoor",
+                trainee_name="Ananya Iyer",
                 stage="training",
                 pathway="further_education",
                 title="Graduated Applied Statistical Learning & Neural Network Topologies",
-                organization="Northeast Data Academy",
+                organization="Delhi AI & Deep Learning Academy",
                 event_date="2024-04-12",
                 metrics={"hours_completed": 720, "gpa_equivalent": "3.95"},
                 verification_status="verified",
@@ -492,36 +492,36 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN6-02",
                 trainee_id="TRN-2024-006",
-                trainee_name="Aisha Al-Mansoor",
+                trainee_name="Ananya Iyer",
                 stage="first_outcome",
                 pathway="further_education",
-                title="Awarded Merit Fellowship for M.Sc. in Data Science",
-                organization="Northeastern University Khoury College",
+                title="Awarded Merit Fellowship for M.Tech in Data Science & AI",
+                organization="IIT Delhi School of Artificial Intelligence",
                 event_date="2024-08-25",
                 metrics={
-                    "programme": "Master of Science in Data Science (BioNLP Track)",
-                    "institution": "Northeastern University Khoury College of Computer Sciences",
+                    "programme": "Master of Technology (M.Tech) in AI & Data Science (BioNLP Track)",
+                    "institution": "IIT Delhi School of Artificial Intelligence",
                     "current_status": "Enrolled Full-Time Graduate Fellow",
-                    "funding": "100% Tuition Waiver + $34,000 / yr Research Stipend"
+                    "funding": "100% Tuition Waiver + ₹50,000 / mo Ministry of Education Fellowship Stipend"
                 },
                 verification_status="verified",
-                verification_notes="University fellowship award letter and registrar enrollment certification.",
+                verification_notes="IIT Delhi fellowship award letter and registrar enrollment certification.",
                 sequence_order=2
             ),
             CareerTimelineEvent(
                 id="EVT-TRN6-03",
                 trainee_id="TRN-2024-006",
-                trainee_name="Aisha Al-Mansoor",
+                trainee_name="Ananya Iyer",
                 stage="current_status",
                 pathway="further_education",
                 title="Graduate Research Fellow & Clinical NLP Project Lead",
-                organization="Northeastern University & Boston Children's Hospital",
+                organization="IIT Delhi & AIIMS New Delhi",
                 event_date="2024-09-15",
                 metrics={
-                    "programme": "M.Sc. in Data Science (2nd Semester)",
-                    "institution": "Northeastern University",
+                    "programme": "M.Tech in AI & Data Science (2nd Semester)",
+                    "institution": "IIT Delhi",
                     "current_status": "Lead Author on Healthcare Vector Search Paper",
-                    "expected_completion": "May 2026"
+                    "expected_completion": "July 2026"
                 },
                 verification_status="verified",
                 is_current=True,
@@ -530,17 +530,17 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN6-04",
                 trainee_id="TRN-2024-006",
-                trainee_name="Aisha Al-Mansoor",
+                trainee_name="Ananya Iyer",
                 stage="progression",
                 pathway="further_education",
-                title="Admitted to Ph.D. Fast-Track Program in Biomedical Informatics",
-                organization="Harvard-MIT Health Sciences & Technology Affiliation",
+                title="Admitted to Prime Minister's Research Fellowship (PMRF) Direct Ph.D. Fast-Track",
+                organization="IIT Delhi & AIIMS Collaborative Healthcare Informatics",
                 event_date="2025-01-20",
                 metrics={
                     "programme": "Ph.D. Biomedical Informatics",
-                    "institution": "Harvard-MIT / Northeastern Partnership",
+                    "institution": "IIT Delhi PMRF Scheme",
                     "current_status": "Doctoral Research Fellow",
-                    "funding": "Fully Funded 5-Year NIH Training Grant ($42,000/yr stipend)"
+                    "funding": "Fully Funded 5-Year PMRF Fellowship (₹75,000/mo stipend + ₹2 Lakhs annual research grant)"
                 },
                 verification_status="verified",
                 sequence_order=4
@@ -548,18 +548,18 @@ class CareerProgressionService:
         ]
 
         # -------------------------------------------------------------
-        # 7. TRN-2024-007 (Jordan Miller - OUTCOME UNKNOWN)
+        # 7. TRN-2024-007 (Rohan Sen - OUTCOME UNKNOWN)
         # -------------------------------------------------------------
         # Ensure Trainee TRN-2024-007 exists in database
         trn7 = db.query(Trainee).filter(Trainee.id == "TRN-2024-007").first()
         if not trn7:
             trn7 = Trainee(
                 id="TRN-2024-007",
-                full_name="Jordan Miller",
-                email="jordan.miller@example.com",
-                phone="+1 (555) 601-2944",
+                full_name="Rohan Sen",
+                email="rohan.sen@example.in",
+                phone="+91 98310 60129",
                 avatar_url="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-                location="Austin, TX",
+                location="Kolkata / Bengaluru",
                 bio="Workforce candidate completed introductory web development coursework. Relocated out-of-district with contact details pending update.",
                 program="Full-Stack Software Engineering",
                 cohort="Cohort 2024-A",
@@ -568,7 +568,7 @@ class CareerProgressionService:
                 enrollment_date="2023-10-15",
                 graduation_date="2024-04-30",
                 training_details={
-                    "provider_name": "Austin Tech Institute",
+                    "provider_name": "Bengaluru Institute of Technology & Advanced Skills",
                     "course_title": "Full-Stack Web Foundations",
                     "attendance_rate": "91.2%",
                     "hours_completed": 600
@@ -579,7 +579,7 @@ class CareerProgressionService:
                 match_score=70,
                 last_follow_up="2024-08-30",
                 next_follow_up="2024-11-30",
-                notes="Status marked as Outcome Unknown. 3 outreach attempts by counselor unreturned. Scheduled for cross-agency wage matching audit."
+                notes="Status marked as Outcome Unknown. 3 outreach attempts by counselor unreturned. Scheduled for cross-agency EPFO wage matching audit."
             )
             db.add(trn7)
             db.commit()
@@ -588,11 +588,11 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN7-01",
                 trainee_id="TRN-2024-007",
-                trainee_name="Jordan Miller",
+                trainee_name="Rohan Sen",
                 stage="training",
                 pathway="unknown",
                 title="Completed Full-Stack Web Foundations Coursework",
-                organization="Austin Tech Institute",
+                organization="Bengaluru Institute of Technology & Advanced Skills",
                 event_date="2024-04-30",
                 metrics={"hours_completed": 600, "status": "Certificate Awarded"},
                 verification_status="verified",
@@ -601,16 +601,16 @@ class CareerProgressionService:
             CareerTimelineEvent(
                 id="EVT-TRN7-02",
                 trainee_id="TRN-2024-007",
-                trainee_name="Jordan Miller",
+                trainee_name="Rohan Sen",
                 stage="current_status",
                 pathway="unknown",
                 title="Outcome Unknown — Contact Audit in Progress",
                 organization="Workforce Longitudinal Tracking Unit",
                 event_date="2024-08-30",
                 metrics={
-                    "last_contact_attempt": "2024-08-30 (Phone & Certified Email)",
+                    "last_contact_attempt": "2024-08-30 (Phone & Registered Email)",
                     "unreachable_reason": "Unresponsive to 30-day and 90-day follow-up outreach",
-                    "follow_up_priority": "High / Escalated to State Unemployment Insurance Wage Record Match",
+                    "follow_up_priority": "High / Escalated to EPFO Universal Account Number (UAN) Wage Record Match",
                     "status_label": "Outcome Unknown"
                 },
                 verification_status="unknown",

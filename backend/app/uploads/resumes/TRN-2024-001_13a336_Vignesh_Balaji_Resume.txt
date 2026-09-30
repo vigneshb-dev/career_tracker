@@ -1,0 +1,38 @@
+
+VIGNESH BALAJI
+Chennai, Tamil Nadu, India | vignesh@example.com | +91 98401 23456
+LinkedIn: linkedin.com/in/vigneshbalaji | GitHub: github.com/vignesh-balaji
+
+PROFESSIONAL SUMMARY
+Dynamic and results-driven Full Stack Software Developer with 2.5 years of experience architecting high-throughput web applications, microservices, and AI-enabled workflows. Proficient in Python Programming, React Development, TypeScript, PostgreSQL database design, and cloud deployments. Strong problem solving and team collaboration skills.
+
+TECHNICAL SKILLS
+- Programming Languages: Python, Python Development, JavaScript (ES6+), TypeScript, SQL
+- Web Frameworks & Libraries: React.js, FastAPI, Node.js, Next.js, Express, Tailwind CSS
+- Databases & Vectors: PostgreSQL, SQLite, Redis, pgvector
+- Cloud & DevOps: Docker, Git, GitHub Actions, AWS EC2, S3, RESTful APIs
+- Core Competencies: Software Architecture, Data Structures, Problem Solving, Agile Scrum, System Design
+
+EDUCATION
+Bachelor of Engineering (B.E.) in Computer Science and Engineering
+Anna University, Chennai | Graduated: 2023 | CGPA: 8.7/10.0
+
+CERTIFICATIONS
+- AWS Certified Cloud Practitioner (Amazon Web Services)
+- Meta Certified Front-End Developer Specialization (Coursera)
+- Postman API Fundamentals Student Expert
+
+WORK EXPERIENCE
+Software Developer | Zoho Corporation, Chennai | July 2023 – Present
+- Architected and deployed scalable REST APIs using FastAPI and Python, decreasing response latency by 32% for over 500,000 monthly active users.
+- Designed responsive user interfaces in React.js and TypeScript with Tailwind CSS, increasing user session engagement by 24%.
+- Integrated PostgreSQL databases with optimized indexing and complex relational schemas, eliminating query bottlenecks.
+- Collaborated in cross-functional agile teams of 8 engineers and conducted regular code reviews.
+
+Junior Full Stack Intern | Freshworks, Chennai | Jan 2023 – June 2023
+- Implemented real-time notification engine with Redis pub/sub and WebSockets.
+- Built reusable UI component library in React and authored comprehensive unit test suites.
+
+FEATURED PROJECTS
+- Career AI Intelligence Platform: Built automated competency parsing and recommendation system using PyTorch, Sentence Transformers, and FastAPI.
+- E-Commerce Scalable Platform: Engineered distributed microservices application handling 10,000 concurrent orders with PostgreSQL and Docker.
