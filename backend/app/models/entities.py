@@ -558,3 +558,55 @@ class ResumeAnalysisRecord(Base):
 
     trainee = relationship("Trainee", backref="resume_analyses")
 
+
+# ========================================================
+# Longitudinal Trainee Outcome Passport & Audit Trail Models
+# ========================================================
+
+class TrainingRecord(Base):
+    __tablename__ = "training_records"
+
+    id = Column(String(50), primary_key=True, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id"), nullable=False, index=True)
+    course_name = Column(String(200), nullable=False)
+    provider_name = Column(String(200), nullable=False)
+    batch = Column(String(100), nullable=True)
+    start_date = Column(String(50), nullable=True)
+    end_date = Column(String(50), nullable=True)
+    delivery_mode = Column(String(50), default="Hybrid") # Online, In-Person, Hybrid
+    completion_status = Column(String(50), default="completed") # in_progress, completed, dropped
+    attendance_rate = Column(String(50), nullable=True)
+    hours_completed = Column(Integer, default=0)
+    assessment_result = Column(String(100), nullable=True)
+    certificate_url = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    verification_status = Column(String(50), default="pending", index=True) # pending, verified, rejected
+    verified_by = Column(String(150), nullable=True)
+    verified_at = Column(String(50), nullable=True)
+    source = Column(String(50), default="trainee") # trainee, coach, provider, system
+    created_at = Column(String(50), nullable=False)
+
+    trainee = relationship("Trainee", backref="training_records")
+
+
+class PassportEvent(Base):
+    __tablename__ = "passport_events"
+
+    id = Column(String(50), primary_key=True, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id"), nullable=False, index=True)
+    actor_id = Column(String(50), nullable=True)
+    actor_name = Column(String(150), nullable=False)
+    actor_role = Column(String(50), nullable=False) # TRAINEE, COACH, EMPLOYER, ADMIN, SYSTEM
+    event_type = Column(String(100), nullable=False, index=True)
+    action = Column(String(255), nullable=False)
+    entity_type = Column(String(50), nullable=False, index=True) # PROFILE, TRAINING, SKILL, CERTIFICATION, CAREER_GOAL, OUTCOME, FOLLOWUP
+    entity_id = Column(String(50), nullable=True)
+    previous_value = Column(JSON, nullable=True)
+    new_value = Column(JSON, nullable=True)
+    source = Column(String(50), default="TRAINEE")
+    verification_status = Column(String(50), nullable=True)
+    notes = Column(Text, nullable=True)
+    timestamp = Column(String(50), nullable=False, index=True)
+
+    trainee = relationship("Trainee", backref="events")
+

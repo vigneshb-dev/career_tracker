@@ -1,4 +1,4 @@
-export type TraineeStatus = 'in_training' | 'graduated' | 'placed' | 'seeking_job' | 'at_risk';
+export type TraineeStatus = 'in_training' | 'graduated' | 'placed' | 'seeking_job' | 'at_risk' | 'outcome_unknown';
 
 export type OutcomeType = 
   | 'employment' 
@@ -6,7 +6,9 @@ export type OutcomeType =
   | 'freelancing' 
   | 'apprenticeship' 
   | 'entrepreneurship' 
-  | 'further_education';
+  | 'further_education'
+  | 'research'
+  | 'other';
 
 export interface TraineeSkill {
   skillId?: string;
@@ -75,7 +77,10 @@ export interface OutcomeRecord {
   start_date: string;
   end_date?: string;
   is_current: boolean;
-  verification_status: 'verified' | 'pending_documentation' | 'unverified';
+  location?: string;
+  work_arrangement?: string;
+  description?: string;
+  verification_status: 'verified' | 'pending_documentation' | 'unverified' | 'pending' | 'rejected';
   verification_notes?: string;
   created_at?: string;
 }
@@ -85,7 +90,7 @@ export interface FollowUpAuditRecord {
   checkpoint_type: string;
   date: string;
   counselor_name: string;
-  status: 'completed' | 'scheduled' | 'overdue';
+  status: 'completed' | 'scheduled' | 'overdue' | 'pending';
   retention_confirmed: boolean;
   wage_progressed: boolean;
   counselor_notes: string;
@@ -1339,4 +1344,134 @@ export interface UnifiedSkillProfile {
   skills: UnifiedSkillItem[];
   radar_data: any[];
   scoring_formula: any;
+}
+
+// ---------------------------------------------------------------------------
+// Longitudinal Trainee Passport & Event Audit Types
+// ---------------------------------------------------------------------------
+
+export interface TrainingRecord {
+  id: string;
+  trainee_id: string;
+  course_name: string;
+  provider_name: string;
+  batch?: string;
+  start_date?: string;
+  end_date?: string;
+  delivery_mode?: string;
+  completion_status: string;
+  attendance_percentage?: number;
+  hours_completed?: number;
+  assessment_score?: number;
+  certificate_url?: string;
+  description?: string;
+  verification_status: 'pending' | 'verified' | 'rejected';
+  verified_by?: string;
+  verified_at?: string;
+  verification_notes?: string;
+  source: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PassportEvent {
+  id: number;
+  trainee_id?: string;
+  timestamp: string;
+  actor_name: string;
+  actor_role: string;
+  event_type: string;
+  action: string;
+  entity_type?: string;
+  entity_id?: string;
+  previous_value?: any;
+  new_value?: any;
+  source: string;
+  verification_status: string;
+  notes?: string;
+}
+
+export interface TraineePassportData {
+  trainee: Trainee;
+  training_records: TrainingRecord[];
+  timeline: PassportEvent[];
+  audit_history: PassportEvent[];
+  stats: {
+    training_count: number;
+    skills_count: number;
+    certifications_count: number;
+    outcomes_count: number;
+    follow_ups_count: number;
+    events_count: number;
+  };
+}
+
+export interface TraineeProfileUpdatePayload {
+  full_name?: string;
+  phone?: string;
+  email?: string;
+  avatar_url?: string;
+  location?: string;
+  address?: string;
+  languages?: string[];
+  education?: string;
+  bio?: string;
+  employment_status?: string;
+  career_interests?: string[];
+  preferred_locations?: string[];
+  career_preference?: Record<string, any>;
+}
+
+export interface TrainingRecordCreatePayload {
+  course_name: string;
+  provider_name: string;
+  batch?: string;
+  start_date?: string;
+  end_date?: string;
+  delivery_mode?: string;
+  completion_status?: string;
+  attendance_percentage?: number;
+  hours_completed?: number;
+  certificate_url?: string;
+  description?: string;
+}
+
+export interface CareerGoalsUpdatePayload {
+  target_occupation?: string;
+  target_roles?: string[];
+  preferred_industry?: string;
+  preferred_workplace?: string;
+  preferred_locations?: string[];
+  target_salary_min?: string;
+  target_salary_max?: string;
+  employment_type?: string;
+  short_term_goal?: string;
+  long_term_goal?: string;
+  entrepreneurship_interest?: boolean;
+  further_education_interest?: boolean;
+}
+
+export interface SkillAddPayload {
+  skill_name: string;
+  category?: string;
+  self_rating?: number;
+  evidence_notes?: string;
+  evidence_source?: string;
+}
+
+export interface FollowUpResponsePayload {
+  employment_status: string;
+  current_role?: string;
+  current_employer?: string;
+  current_salary?: string;
+  still_using_learned_skills: boolean;
+  occupation_changed: boolean;
+  additional_skills_needed?: string;
+  trainee_notes?: string;
+}
+
+export interface OutcomeVerifyPayload {
+  verification_status: 'verified' | 'rejected' | 'pending';
+  verification_notes?: string;
+  confirmed_role?: string;
 }

@@ -2,8 +2,8 @@ import os
 import re
 import uuid
 import logging
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, status
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Body, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.auth import get_current_user, require_roles, verify_trainee_resource_access
@@ -17,9 +17,23 @@ from app.schemas.schemas import (
     PaginatedTraineeResponse,
     ConsentUpdateRequest,
     OutcomeAddRequest,
+    OutcomeUpdateRequest,
     FollowUpAddRequest,
     CertificationAddRequest,
+    CertificationUpdateRequest,
     AssessmentAddRequest,
+    TrainingRecordCreate,
+    TrainingRecordUpdate,
+    TrainingRecordVerifyRequest,
+    TrainingRecordRead,
+    PassportEventRead,
+    TraineeProfileUpdateRequest,
+    CareerGoalsUpdateRequest,
+    SkillAddRequest,
+    SkillUpdateRequest,
+    SkillVerifyRequest,
+    FollowUpResponseRequest,
+    OutcomeVerifyRequest,
 )
 from app.services.trainee_service import TraineeService
 
@@ -29,6 +43,450 @@ router = APIRouter(prefix="/trainees", tags=["Trainee Outcome Passport"])
 
 RESUME_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads", "resumes")
 os.makedirs(RESUME_UPLOAD_DIR, exist_ok=True)
+
+
+def _get_caller_trainee(current_user: User, db: Session) -> Trainee:
+    """Helper to locate authenticated caller's own Trainee record."""
+    trainee = db.query(Trainee).filter(
+        (Trainee.user_id == current_user.id) | 
+        (Trainee.email.ilike(current_user.email))
+    ).first()
+    if not trainee and current_user.trainee_profile and current_user.trainee_profile.trainee_id:
+        trainee = db.query(Trainee).filter(Trainee.id == current_user.trainee_profile.trainee_id).first()
+    if not trainee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No Trainee Outcome Passport registered for this user account."
+        )
+    return trainee
+
+
+def _build_passport_response(trainee: Trainee, db: Session) -> Dict[str, Any]:
+    """Helper that packages full longitudinal outcome passport data."""
+    training_records = TraineeService.get_training_records(db, trainee)
+    timeline = TraineeService.get_timeline(db, trainee.id)
+    audit_history = TraineeService.get_audit_history(db, trainee.id)
+    detailed_skills = TraineeService.get_detailed_skills(db, trainee)
+
+    skills_count = len(trainee.skills)
+    certs_count = len(trainee.certifications or [])
+    outcomes_count = len(trainee.outcome_history or [])
+    followups_count = len(trainee.follow_up_history or [])
+    training_count = len(training_records)
+
+    return {
+        "trainee": TraineeRead.from_orm(trainee),
+        "passport_id": trainee.id,
+        "is_locked_id": True,
+        "evidence_level": trainee.evidence_level,
+        "counts": {
+            "skills": skills_count,
+            "certifications": certs_count,
+            "skills_and_certifications": skills_count + certs_count,
+            "outcomes": outcomes_count,
+            "followups": followups_count,
+            "training": training_count,
+        },
+        "stats": {
+            "skills_count": skills_count,
+            "certifications_count": certs_count,
+            "outcomes_count": outcomes_count,
+            "follow_ups_count": followups_count,
+            "training_count": training_count,
+            "events_count": len(timeline),
+        },
+        "training_records": [
+            TrainingRecordRead.from_orm(r) for r in training_records
+        ],
+        "skills": detailed_skills,
+        "certifications": trainee.certifications or [],
+        "career_goals": trainee.career_preference or {},
+        "outcomes": trainee.outcome_history or [],
+        "followups": trainee.follow_up_history or [],
+        "timeline": timeline,
+        "audit_history": audit_history,
+    }
+
+
+# ========================================================
+# /me Self-Service Routes (Trainee Outcome Passport)
+# ========================================================
+
+@router.get("/me/passport")
+def get_my_passport(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Convenience endpoint returning the authenticated caller's own Outcome Passport."""
+    trainee = _get_caller_trainee(current_user, db)
+    return _build_passport_response(trainee, db)
+
+
+@router.patch("/me/profile")
+def update_my_profile(
+    payload: TraineeProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Trainee updates own permitted personal profile & career preference fields."""
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot modify trainee's personal profile.")
+    trainee = _get_caller_trainee(current_user, db)
+    updated = TraineeService.update_profile(
+        db=db,
+        trainee=trainee,
+        updates=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+    return {
+        "success": True,
+        "message": "Profile updated successfully.",
+        "trainee": TraineeRead.from_orm(updated)
+    }
+
+
+@router.get("/me/training", response_model=List[TrainingRecordRead])
+def get_my_training(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.get_training_records(db, trainee)
+
+
+@router.post("/me/training", status_code=201)
+def add_my_training(
+    payload: TrainingRecordCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot add trainee training records.")
+    trainee = _get_caller_trainee(current_user, db)
+    record = TraineeService.add_training_record(
+        db=db,
+        trainee=trainee,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+    rec_dict = TrainingRecordRead.from_orm(record).model_dump()
+    return {
+        "success": True,
+        "message": "Training submitted for verification." if record.verification_status == "pending" else "Training record added.",
+        "record": rec_dict,
+        **rec_dict
+    }
+
+
+@router.patch("/me/training/{record_id}")
+def update_my_training(
+    record_id: str,
+    payload: TrainingRecordUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot modify trainee training records.")
+    trainee = _get_caller_trainee(current_user, db)
+    record = TraineeService.update_training_record(
+        db=db,
+        trainee=trainee,
+        record_id=record_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+    rec_dict = TrainingRecordRead.from_orm(record).model_dump()
+    return {
+        "success": True,
+        "message": "Training update submitted for verification." if record.verification_status == "pending" else "Training record updated.",
+        "record": rec_dict,
+        **rec_dict
+    }
+
+
+@router.post("/me/training/{record_id}/verification-request")
+def request_my_training_verification(
+    record_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    record = TraineeService.request_training_verification(
+        db=db,
+        trainee=trainee,
+        record_id=record_id,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+    return {
+        "success": True,
+        "message": "Verification request submitted to training provider/coach.",
+        "record": TrainingRecordRead.from_orm(record)
+    }
+
+
+@router.get("/me/skills")
+def get_my_skills(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.get_detailed_skills(db, trainee)
+
+
+@router.post("/me/skills")
+def add_my_skill(
+    payload: SkillAddRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot add trainee skills.")
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.add_skill(
+        db=db,
+        trainee=trainee,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.patch("/me/skills/{skill_id}")
+def update_my_skill(
+    skill_id: str,
+    payload: SkillUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot modify trainee skills.")
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.update_skill(
+        db=db,
+        trainee=trainee,
+        skill_id=skill_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.post("/me/certifications", response_model=TraineeRead)
+def add_my_certification(
+    payload: CertificationAddRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot upload trainee certifications.")
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.add_certification(
+        db=db,
+        trainee=trainee,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.patch("/me/certifications/{cert_id}", response_model=TraineeRead)
+def update_my_certification(
+    cert_id: str,
+    payload: CertificationUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot modify trainee certifications.")
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.update_certification(
+        db=db,
+        trainee=trainee,
+        cert_id=cert_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.post("/me/resume/analyze")
+async def analyze_my_resume(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    content = await file.read()
+    safe_filename = f"{trainee.id}_{uuid.uuid4().hex[:6]}_{file.filename}"
+    file_path = os.path.join(RESUME_UPLOAD_DIR, safe_filename)
+    with open(file_path, "wb") as f:
+        f.write(content)
+    file_url = f"/uploads/resumes/{safe_filename}"
+    try:
+        result = ResumeAnalyzerService.analyze_and_integrate_resume(
+            db=db,
+            trainee_id=trainee.id,
+            file_bytes=content,
+            filename=file.filename,
+            file_url=file_url
+        )
+        extracted = [s["canonical_name"] for s in result.get("skills_profile", [])]
+        TraineeService.log_passport_event(
+            db=db,
+            trainee_id=trainee.id,
+            actor_name=current_user.full_name,
+            actor_role=current_user.role,
+            actor_id=current_user.id,
+            event_type="RESUME_ANALYZED",
+            action=f"AI Resume Analyzer scanned resume: {file.filename} ({len(extracted)} skills detected)",
+            entity_type="RESUME",
+            entity_id=safe_filename,
+            previous_value=None,
+            new_value={"filename": file.filename, "skills_detected": len(extracted)},
+            source="RESUME_ANALYZER",
+            verification_status="AI_EXTRACTED",
+            notes="Real-time semantic extraction and canonical mapping completed."
+        )
+        return {
+            "success": True,
+            "message": f"Resume analyzed. {len(extracted)} skills detected.",
+            "extracted_skills": extracted,
+            **result
+        }
+    except Exception as exc:
+        logger.error(f"Error analyzing resume: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/me/career-goals")
+def get_my_career_goals(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    return trainee.career_preference or {}
+
+
+@router.patch("/me/career-goals")
+def update_my_career_goals(
+    payload: CareerGoalsUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot modify trainee career goals.")
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.update_career_goals(
+        db=db,
+        trainee=trainee,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.get("/me/outcomes")
+def get_my_outcomes(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    return trainee.outcome_history or []
+
+
+@router.post("/me/outcomes", response_model=TraineeRead)
+def add_my_outcome(
+    payload: OutcomeAddRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.add_outcome(
+        db=db,
+        trainee=trainee,
+        outcome=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.patch("/me/outcomes/{outcome_id}", response_model=TraineeRead)
+def update_my_outcome(
+    outcome_id: str,
+    payload: OutcomeUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.update_outcome(
+        db=db,
+        trainee=trainee,
+        outcome_id=outcome_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.get("/me/followups")
+def get_my_followups(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    return trainee.follow_up_history or []
+
+
+@router.post("/me/followups/{followup_id}/respond", response_model=TraineeRead)
+def respond_my_followup(
+    followup_id: str,
+    payload: FollowUpResponseRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.respond_to_follow_up(
+        db=db,
+        trainee=trainee,
+        followup_id=followup_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.get("/me/passport/timeline")
+def get_my_timeline(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.get_timeline(db, trainee.id)
+
+
+@router.get("/me/audit-history")
+def get_my_audit_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = _get_caller_trainee(current_user, db)
+    return TraineeService.get_audit_history(db, trainee.id)
 
 
 @router.get("", response_model=List[TraineeRead])
@@ -52,7 +510,6 @@ def list_trainees(
     user_role = (current_user.role or "").upper()
 
     if user_role == "TRAINEE":
-        # Trainee sees only their own profile
         trainee = db.query(Trainee).filter(
             (Trainee.user_id == current_user.id) | 
             (Trainee.email == current_user.email)
@@ -77,7 +534,6 @@ def list_trainees(
             query = query.filter(Trainee.id.in_(auth_ids))
         return query.offset(skip).limit(limit).all()
 
-    # ADMIN: Full directory access
     return TraineeService.get_trainees(
         db,
         search=search,
@@ -144,16 +600,32 @@ def get_trainee(
     return trainee
 
 
+@router.get("/{trainee_id}/passport")
+def get_trainee_passport(
+    trainee_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns the complete Living Trainee Outcome Passport:
+    - Overview & Profile with state flags
+    - Training Programme Records (accredited baseline + trainee-added)
+    - Dynamic Skills & Certifications with source breakdown
+    - Career Pathway & Goals
+    - Longitudinal Outcome History
+    - Retention Follow-Ups & Immutable Audit Trail
+    """
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return _build_passport_response(trainee, db)
+
+
 @router.post("", response_model=TraineeRead, status_code=201)
 def create_trainee(
     payload: TraineeCreate,
     current_user: User = Depends(require_roles(["ADMIN"])),
     db: Session = Depends(get_db)
 ):
-    """
-    Administrative trainee provisioning.
-    Standard learners use self-service registration at /api/auth/signup.
-    """
+    """Administrative trainee provisioning."""
     return TraineeService.create(db, payload)
 
 
@@ -169,23 +641,524 @@ def update_trainee(
     return TraineeService.update(db, trainee, payload)
 
 
+@router.patch("/{trainee_id}/profile")
+def update_trainee_profile_fields(
+    trainee_id: str,
+    payload: TraineeProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Trainee-editable personal profile & career preference endpoint.
+    Preserves verified data, audits diffs, logs previous values.
+    Supports OUTCOME_UNKNOWN status without treating missing data as unemployed.
+    """
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot modify trainee's personal profile.")
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    updated = TraineeService.update_profile(
+        db=db,
+        trainee=trainee,
+        updates=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+    return {
+        "success": True,
+        "message": "Profile updated successfully.",
+        "trainee": TraineeRead.from_orm(updated)
+    }
+
+
+# ========================================================
+# Training Programme & Provider Routes
+# ========================================================
+
+@router.get("/{trainee_id}/training", response_model=List[TrainingRecordRead])
+def get_trainee_training(
+    trainee_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Retrieves all accredited training records for trainee."""
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.get_training_records(db, trainee)
+
+
+@router.post("/{trainee_id}/training", status_code=201)
+def add_trainee_training(
+    trainee_id: str,
+    payload: TrainingRecordCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Allows trainee to add training programme.
+    New trainee-entered training defaults to 'pending' verification.
+    """
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot add trainee training records.")
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    record = TraineeService.add_training_record(
+        db=db,
+        trainee=trainee,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+    rec_dict = TrainingRecordRead.from_orm(record).model_dump()
+    return {
+        "success": True,
+        "message": "Training submitted for verification." if record.verification_status == "pending" else "Training record added.",
+        "record": rec_dict,
+        **rec_dict
+    }
+
+
+@router.patch("/{trainee_id}/training/{record_id}")
+def update_trainee_training(
+    trainee_id: str,
+    record_id: str,
+    payload: TrainingRecordUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Updates training programme. If trainee edits a verified record,
+    preserves previous verified value in history and sets status to pending.
+    """
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot modify trainee training records.")
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    record = TraineeService.update_training_record(
+        db=db,
+        trainee=trainee,
+        record_id=record_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+    rec_dict = TrainingRecordRead.from_orm(record).model_dump()
+    return {
+        "success": True,
+        "message": "Training update submitted for verification." if record.verification_status == "pending" else "Training record updated.",
+        "record": rec_dict,
+        **rec_dict
+    }
+
+
+@router.post("/{trainee_id}/training/{record_id}/verification-request")
+def request_trainee_training_verification(
+    trainee_id: str,
+    record_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    record = TraineeService.request_training_verification(
+        db=db,
+        trainee=trainee,
+        record_id=record_id,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+    return {
+        "success": True,
+        "message": "Verification request submitted to training provider/coach.",
+        "record": TrainingRecordRead.from_orm(record)
+    }
+
+
+@router.patch("/{trainee_id}/training/{record_id}/verify")
+def verify_training_record(
+    trainee_id: str,
+    record_id: str,
+    payload: TrainingRecordVerifyRequest,
+    current_user: User = Depends(require_roles(["COACH", "ADMIN"])),
+    db: Session = Depends(get_db)
+):
+    """Allows assigned Coach or Admin to officially verify a training record."""
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    try:
+        record = TraineeService.verify_training_record(
+            db=db,
+            trainee=trainee,
+            record_id=record_id,
+            payload=payload,
+            actor_name=current_user.full_name,
+            actor_role=current_user.role,
+            actor_id=current_user.id
+        )
+        rec_dict = TrainingRecordRead.from_orm(record).model_dump()
+        return {
+            "success": True,
+            "message": f"Training record marked as {record.verification_status}.",
+            "record": rec_dict,
+            **rec_dict
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ========================================================
+# Skills & Evidence Routes
+# ========================================================
+
+@router.get("/{trainee_id}/skills")
+def get_trainee_skills(
+    trainee_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Retrieves all trainee skills with detailed source metadata, confidence, and verification breakdown."""
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.get_detailed_skills(db, trainee)
+
+
+@router.post("/{trainee_id}/skills")
+def add_trainee_skill(
+    trainee_id: str,
+    payload: SkillAddRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Trainee adds a skill with self-rating & practical evidence.
+    Normalizes equivalents to canonical skill taxonomy.
+    Triggers 0-5 scoring & gap recalculation.
+    """
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot add trainee skills.")
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.add_skill(
+        db=db,
+        trainee=trainee,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.patch("/{trainee_id}/skills/{skill_id}")
+def update_trainee_skill(
+    trainee_id: str,
+    skill_id: str,
+    payload: SkillUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot modify trainee skills.")
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.update_skill(
+        db=db,
+        trainee=trainee,
+        skill_id=skill_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.patch("/{trainee_id}/skills/{skill_id}/verify")
+def verify_trainee_skill(
+    trainee_id: str,
+    skill_id: str,
+    payload: SkillVerifyRequest,
+    current_user: User = Depends(require_roles(["COACH", "ADMIN"])),
+    db: Session = Depends(get_db)
+):
+    """Coach assesses and officially verifies a trainee skill."""
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    try:
+        return TraineeService.verify_skill(
+            db=db,
+            trainee=trainee,
+            skill_id=skill_id,
+            score=payload.score,
+            notes=payload.notes or "",
+            actor_name=current_user.full_name,
+            actor_role=current_user.role,
+            actor_id=current_user.id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ========================================================
+# Career Pathway & Goals Routes
+# ========================================================
+
+@router.get("/{trainee_id}/career-goals")
+def get_trainee_career_goals(
+    trainee_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return trainee.career_preference or {}
+
+
+@router.patch("/{trainee_id}/career-goals")
+def update_trainee_career_goals(
+    trainee_id: str,
+    payload: CareerGoalsUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Trainee updates target role, salary band, and workplace preference.
+    Triggers live skill gaps recalculation without overwriting trainee choice.
+    """
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot modify trainee career goals.")
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.update_career_goals(
+        db=db,
+        trainee=trainee,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+# ========================================================
+# Outcome History Routes
+# ========================================================
+
+@router.get("/{trainee_id}/outcomes")
+def get_trainee_outcomes(
+    trainee_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return trainee.outcome_history or []
+
+
+@router.post("/{trainee_id}/outcomes", response_model=TraineeRead)
+def add_outcome(
+    trainee_id: str,
+    payload: OutcomeAddRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Trainee, Coach, or Admin reports a placement/venture outcome.
+    Trainee-reported outcomes start as 'pending' verification.
+    """
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.add_outcome(
+        db=db,
+        trainee=trainee,
+        outcome=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.patch("/{trainee_id}/outcomes/{outcome_id}", response_model=TraineeRead)
+def update_outcome(
+    trainee_id: str,
+    outcome_id: str,
+    payload: OutcomeUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.update_outcome(
+        db=db,
+        trainee=trainee,
+        outcome_id=outcome_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.patch("/{trainee_id}/outcomes/{outcome_id}/verify", response_model=TraineeRead)
+def verify_outcome(
+    trainee_id: str,
+    outcome_id: str,
+    payload: OutcomeVerifyRequest,
+    current_user: User = Depends(require_roles(["EMPLOYER", "COACH", "ADMIN"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Employer or Coach verifies an employment/career outcome.
+    Elevates evidence level and records immutable verification event.
+    """
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.verify_outcome(
+        db=db,
+        trainee=trainee,
+        outcome_id=outcome_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+# ========================================================
+# Follow-Ups & Longitudinal Audits
+# ========================================================
+
+@router.get("/{trainee_id}/followups")
+@router.get("/{trainee_id}/follow-ups")
+def get_trainee_followups(
+    trainee_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return trainee.follow_up_history or []
+
+
+@router.post("/{trainee_id}/follow-ups", response_model=TraineeRead)
+def add_follow_up(
+    trainee_id: str,
+    payload: FollowUpAddRequest,
+    current_user: User = Depends(require_roles(["ADMIN", "COACH"])),
+    db: Session = Depends(get_db)
+):
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.add_follow_up(db, trainee, payload)
+
+
+@router.post("/{trainee_id}/follow-ups/{followup_id}/respond", response_model=TraineeRead)
+@router.post("/{trainee_id}/followups/{followup_id}/respond", response_model=TraineeRead)
+def respond_follow_up(
+    trainee_id: str,
+    followup_id: str,
+    payload: FollowUpResponseRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Trainee responds to scheduled retention check-in (30, 90, 180, 365 days).
+    Captures employment status, salary, skill usage, and creates a passport audit event.
+    """
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.respond_to_follow_up(
+        db=db,
+        trainee=trainee,
+        followup_id=followup_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+# ========================================================
+# Certifications & Assessments
+# ========================================================
+
+@router.post("/{trainee_id}/certifications", response_model=TraineeRead)
+def add_certification(
+    trainee_id: str,
+    payload: CertificationAddRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot upload trainee certifications.")
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.add_certification(
+        db=db,
+        trainee=trainee,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.patch("/{trainee_id}/certifications/{cert_id}", response_model=TraineeRead)
+def update_trainee_certification(
+    trainee_id: str,
+    cert_id: str,
+    payload: CertificationUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if (current_user.role or "").upper() == "EMPLOYER":
+        raise HTTPException(status_code=403, detail="Employers cannot modify trainee certifications.")
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.update_certification(
+        db=db,
+        trainee=trainee,
+        cert_id=cert_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
+@router.post("/{trainee_id}/assessments", response_model=TraineeRead)
+def add_assessment(
+    trainee_id: str,
+    payload: AssessmentAddRequest,
+    current_user: User = Depends(require_roles(["ADMIN", "COACH"])),
+    db: Session = Depends(get_db)
+):
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.add_assessment(db, trainee, payload)
+
+
+# ========================================================
+# Timeline & Immutable Audit History
+# ========================================================
+
+@router.get("/{trainee_id}/timeline")
+@router.get("/{trainee_id}/passport/timeline")
+def get_passport_timeline(
+    trainee_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Returns chronological timeline of career milestones and verified updates."""
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.get_timeline(db, trainee.id)
+
+
+@router.get("/{trainee_id}/audit-history")
+def get_passport_audit_history(
+    trainee_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Returns immutable audit log for governance and compliance."""
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.get_audit_history(db, trainee.id)
+
+
+# ========================================================
+# Resume Analyzer Integration
+# ========================================================
+
 @router.post("/{trainee_id}/resume")
 @router.post("/{trainee_id}/analyze-resume")
+@router.post("/{trainee_id}/resume/analyze")
 async def upload_trainee_resume(
     trainee_id: str,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Real-Time AI Resume Analyzer:
-    Upload Resume -> Parse (PDF/DOCX/TXT) -> Extract (spaCy) -> Normalize (Sentence Transformers)
-    -> Score -> Match (Jobs) -> Gap Detection -> Recommendations
-    Integrates directly with SkillTrace competency engine.
-    """
     trainee = verify_trainee_resource_access(trainee_id, current_user, db)
 
-    # Read and store resume file
     content = await file.read()
     safe_filename = f"{trainee.id}_{uuid.uuid4().hex[:6]}_{file.filename}"
     file_path = os.path.join(RESUME_UPLOAD_DIR, safe_filename)
@@ -195,7 +1168,6 @@ async def upload_trainee_resume(
 
     file_url = f"/uploads/resumes/{safe_filename}"
 
-    # Run complete AI Resume Analyzer & Competency System Integration Engine
     try:
         result = ResumeAnalyzerService.analyze_and_integrate_resume(
             db=db,
@@ -204,9 +1176,30 @@ async def upload_trainee_resume(
             filename=file.filename,
             file_url=file_url
         )
+        extracted = [s["canonical_name"] for s in result.get("skills_profile", [])]
+
+        # Log Passport Event for Resume Analysis
+        TraineeService.log_passport_event(
+            db=db,
+            trainee_id=trainee.id,
+            actor_name=current_user.full_name,
+            actor_role=current_user.role,
+            actor_id=current_user.id,
+            event_type="RESUME_ANALYZED",
+            action=f"AI Resume Analyzer scanned resume: {file.filename} ({len(extracted)} skills detected)",
+            entity_type="RESUME",
+            entity_id=safe_filename,
+            previous_value=None,
+            new_value={"filename": file.filename, "skills_detected": len(extracted)},
+            source="RESUME_ANALYZER",
+            verification_status="AI_EXTRACTED",
+            notes="Real-time semantic extraction and canonical mapping completed."
+        )
+
         return {
             "success": True,
-            "message": "Resume parsed and competencies successfully mapped.",
+            "message": f"Resume analyzed. {len(extracted)} skills detected.",
+            "extracted_skills": extracted,
             **result
         }
     except Exception as exc:
@@ -223,9 +1216,6 @@ def reanalyze_trainee_resume(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Re-runs the NLP and competency pipeline on the trainee's currently stored resume.
-    """
     trainee = verify_trainee_resource_access(trainee_id, current_user, db)
     profile = db.query(TraineeProfile).filter(TraineeProfile.trainee_id == trainee.id).first()
     if not profile or not profile.resume_url:
@@ -234,7 +1224,6 @@ def reanalyze_trainee_resume(
             detail="No uploaded resume found to re-analyze. Please upload a resume first."
         )
 
-    # Find the file on disk
     rel_path = profile.resume_url.replace("/uploads/resumes/", "")
     file_path = os.path.join(RESUME_UPLOAD_DIR, rel_path)
     
@@ -252,9 +1241,27 @@ def reanalyze_trainee_resume(
         filename=profile.resume_filename or "resume.pdf",
         file_url=profile.resume_url
     )
+
+    TraineeService.log_passport_event(
+        db=db,
+        trainee_id=trainee.id,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id,
+        event_type="RESUME_ANALYZED",
+        action=f"AI Resume Analyzer re-scanned stored resume ({len(result.get('extracted_skills', []))} skills synchronized)",
+        entity_type="RESUME",
+        entity_id=profile.resume_filename or "resume.pdf",
+        previous_value=None,
+        new_value={"skills_detected": len(result.get("extracted_skills", []))},
+        source="RESUME_ANALYZER",
+        verification_status="AI_EXTRACTED",
+        notes="Stored resume re-analyzed with updated canonical taxonomy."
+    )
+
     return {
         "success": True,
-        "message": "Resume successfully re-analyzed and competencies synchronized.",
+        "message": f"Resume re-analyzed. {len(result.get('extracted_skills', []))} skills synchronized.",
         **result
     }
 
@@ -265,7 +1272,6 @@ def get_latest_resume_analysis(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Retrieves the most recent AI Resume Analysis Record for the specified trainee."""
     trainee = verify_trainee_resource_access(trainee_id, current_user, db)
     record = (
         db.query(ResumeAnalysisRecord)
@@ -275,10 +1281,7 @@ def get_latest_resume_analysis(
     )
 
     if not record:
-        return {
-            "has_analysis": False,
-            "analysis": None
-        }
+        return {"has_analysis": False, "analysis": None}
 
     return {
         "has_analysis": True,
@@ -308,7 +1311,6 @@ def get_trainee_resume_info(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Retrieves resume metadata and extracted skills for an authorized trainee."""
     trainee = verify_trainee_resource_access(trainee_id, current_user, db)
     profile = db.query(TraineeProfile).filter(TraineeProfile.trainee_id == trainee.id).first()
     latest_record = (
@@ -361,48 +1363,3 @@ def update_consent(
 ):
     trainee = verify_trainee_resource_access(trainee_id, current_user, db)
     return TraineeService.update_consent(db, trainee, payload)
-
-
-@router.post("/{trainee_id}/outcomes", response_model=TraineeRead)
-def add_outcome(
-    trainee_id: str,
-    payload: OutcomeAddRequest,
-    current_user: User = Depends(require_roles(["ADMIN", "COACH"])),
-    db: Session = Depends(get_db)
-):
-    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
-    return TraineeService.add_outcome(db, trainee, payload)
-
-
-@router.post("/{trainee_id}/follow-ups", response_model=TraineeRead)
-def add_follow_up(
-    trainee_id: str,
-    payload: FollowUpAddRequest,
-    current_user: User = Depends(require_roles(["ADMIN", "COACH"])),
-    db: Session = Depends(get_db)
-):
-    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
-    return TraineeService.add_follow_up(db, trainee, payload)
-
-
-@router.post("/{trainee_id}/certifications", response_model=TraineeRead)
-def add_certification(
-    trainee_id: str,
-    payload: CertificationAddRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
-    return TraineeService.add_certification(db, trainee, payload)
-
-
-@router.post("/{trainee_id}/assessments", response_model=TraineeRead)
-def add_assessment(
-    trainee_id: str,
-    payload: AssessmentAddRequest,
-    current_user: User = Depends(require_roles(["ADMIN", "COACH"])),
-    db: Session = Depends(get_db)
-):
-    """Allows assigned Coach or Admin to record a formal skill assessment."""
-    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
-    return TraineeService.add_assessment(db, trainee, payload)

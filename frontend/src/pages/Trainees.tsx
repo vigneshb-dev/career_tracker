@@ -81,6 +81,8 @@ export const Trainees: React.FC = () => {
     apprenticeship: { label: 'Apprenticeship', variant: 'amber', icon: GraduationCap },
     entrepreneurship: { label: 'Entrepreneurship', variant: 'danger', icon: Rocket },
     further_education: { label: 'Further Education', variant: 'neutral', icon: BookOpen },
+    research: { label: 'Research', variant: 'neutral', icon: BookOpen },
+    other: { label: 'Career Transition', variant: 'neutral', icon: Briefcase },
   };
 
   const columns: Column<Trainee>[] = [

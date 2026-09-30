@@ -383,16 +383,25 @@ class ResumeAnalyzerService:
         # Step B: Fallback check on full text if some core skills are mentioned in a skills list section
         for db_skill in all_db_skills:
             if db_skill.id not in detected_skills_map:
+                matched_term = None
                 if re.search(r"(?i)\b" + re.escape(db_skill.name.lower()) + r"\b", text):
+                    matched_term = db_skill.name
+                elif db_skill.aliases:
+                    for al in db_skill.aliases:
+                        if al and len(al) > 1 and re.search(r"(?i)\b" + re.escape(al.lower()) + r"\b", text):
+                            matched_term = al
+                            break
+
+                if matched_term:
                     detected_skills_map[db_skill.id] = {
                         "skill_id": db_skill.id,
                         "canonical_name": db_skill.name,
                         "category": db_skill.category or "Hard Skill",
                         "domain": db_skill.domain,
-                        "matched_term": db_skill.name,
-                        "evidence_snippet": f"Identified in candidate skills profile: {db_skill.name}.",
+                        "matched_term": matched_term,
+                        "evidence_snippet": f"Identified in candidate skills profile: {matched_term}.",
                         "estimated_proficiency": 3.0,
-                        "confidence": 0.80,
+                        "confidence": 0.85,
                         "description": db_skill.description
                     }
 

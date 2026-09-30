@@ -11,7 +11,10 @@ import {
   CreateCareerEventPayload, CompleteLongitudinalFollowUpPayload,
   EmployerFeedbackVerification, EmployerVerificationCreatePayload, EvidenceHierarchySummary,
   PendingVerificationCandidate, ComprehensiveAnalyticsData,
-  ResumeAnalysisResult, ResumeInfoResponse, UnifiedSkillProfile
+  ResumeAnalysisResult, ResumeInfoResponse, UnifiedSkillProfile,
+  TrainingRecord, PassportEvent, TraineePassportData, TraineeProfileUpdatePayload,
+  TrainingRecordCreatePayload, CareerGoalsUpdatePayload, SkillAddPayload,
+  FollowUpResponsePayload, OutcomeVerifyPayload
 } from '../types';
 import { AuthUser, AuthResponse, SignupPayload } from '../types/auth';
 
@@ -1673,6 +1676,340 @@ export const api = {
     };
 
     return fetchWithFallback<ComprehensiveAnalyticsData>('/analytics/comprehensive', fallback);
+  },
+
+  // ---------------------------------------------------------------------------
+  // Longitudinal Trainee Passport & Event Audit Service Methods
+  // ---------------------------------------------------------------------------
+
+  async getTraineePassport(id: string): Promise<TraineePassportData | null> {
+    try {
+      const res = await fetch(`${BASE_URL}/trainees/${id}/passport`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.error('Error fetching trainee passport:', e);
+    }
+    return null;
+  },
+
+  async updateTraineeProfile(id: string, updates: TraineeProfileUpdatePayload): Promise<Trainee> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/profile`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to update profile' }));
+      throw new Error(err.detail || 'Failed to update profile');
+    }
+    return await res.json();
+  },
+
+  async getTrainingRecords(id: string): Promise<TrainingRecord[]> {
+    try {
+      const res = await fetch(`${BASE_URL}/trainees/${id}/training`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.error('Error fetching training records:', e);
+    }
+    return [];
+  },
+
+  async addTrainingRecord(id: string, record: TrainingRecordCreatePayload): Promise<TrainingRecord> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/training`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(record),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to add training record' }));
+      throw new Error(err.detail || 'Failed to add training record');
+    }
+    return await res.json();
+  },
+
+  async verifyTrainingRecord(id: string, recordId: string, status: 'verified' | 'rejected', notes?: string): Promise<TrainingRecord> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/training/${recordId}/verify`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({
+        verification_status: status,
+        verification_notes: notes,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to verify training record' }));
+      throw new Error(err.detail || 'Failed to verify training record');
+    }
+    return await res.json();
+  },
+
+  async addTraineeSkill(id: string, payload: SkillAddPayload): Promise<any> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/skills`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to add skill' }));
+      throw new Error(err.detail || 'Failed to add skill');
+    }
+    return await res.json();
+  },
+
+  async verifyTraineeSkill(id: string, skillId: string, score: number, notes?: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/skills/${skillId}/verify`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ score, notes }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to verify skill' }));
+      throw new Error(err.detail || 'Failed to verify skill');
+    }
+    return await res.json();
+  },
+
+  async updateCareerGoals(id: string, payload: CareerGoalsUpdatePayload): Promise<any> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/career-goals`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to update career goals' }));
+      throw new Error(err.detail || 'Failed to update career goals');
+    }
+    return await res.json();
+  },
+
+  async verifyTraineeOutcome(id: string, outcomeId: string, payload: OutcomeVerifyPayload): Promise<Trainee> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/outcomes/${outcomeId}/verify`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to verify outcome' }));
+      throw new Error(err.detail || 'Failed to verify outcome');
+    }
+    return await res.json();
+  },
+
+  async respondToFollowUp(id: string, followupId: string, payload: FollowUpResponsePayload): Promise<Trainee> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/follow-ups/${followupId}/respond`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to submit follow-up response' }));
+      throw new Error(err.detail || 'Failed to submit follow-up response');
+    }
+    return await res.json();
+  },
+
+  async getPassportTimeline(id: string): Promise<PassportEvent[]> {
+    try {
+      const res = await fetch(`${BASE_URL}/trainees/${id}/timeline`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.error('Error fetching passport timeline:', e);
+    }
+    return [];
+  },
+
+  async getPassportAuditHistory(id: string): Promise<PassportEvent[]> {
+    try {
+      const res = await fetch(`${BASE_URL}/trainees/${id}/audit-history`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.error('Error fetching audit history:', e);
+    }
+    return [];
+  },
+
+  async updateTrainingRecord(id: string, recordId: string, updates: Record<string, any>): Promise<any> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/training/${recordId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to update training record' }));
+      throw new Error(err.detail || 'Failed to update training record');
+    }
+    return await res.json();
+  },
+
+  async requestTrainingVerification(id: string, recordId: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/training/${recordId}/verification-request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to request verification' }));
+      throw new Error(err.detail || 'Failed to request verification');
+    }
+    return await res.json();
+  },
+
+  async updateTraineeSkill(id: string, skillId: string, updates: Record<string, any>): Promise<any> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/skills/${skillId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to update skill' }));
+      throw new Error(err.detail || 'Failed to update skill');
+    }
+    return await res.json();
+  },
+
+  async updateCertification(id: string, certId: string, updates: Record<string, any>): Promise<any> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/certifications/${certId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to update certification' }));
+      throw new Error(err.detail || 'Failed to update certification');
+    }
+    return await res.json();
+  },
+
+  async updateTraineeOutcome(id: string, outcomeId: string, updates: Record<string, any>): Promise<any> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/outcomes/${outcomeId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to update outcome' }));
+      throw new Error(err.detail || 'Failed to update outcome');
+    }
+    return await res.json();
+  },
+
+  async analyzeTraineeResume(id: string, file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const authHeaders = getAuthHeader();
+    const res = await fetch(`${BASE_URL}/trainees/${id}/resume/analyze`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+      },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to analyze resume' }));
+      throw new Error(err.detail || 'Failed to analyze resume');
+    }
+    return await res.json();
+  },
+
+  // Self-Service /me API wrappers
+  async getMyPassport(): Promise<TraineePassportData | null> {
+    try {
+      const res = await fetch(`${BASE_URL}/trainees/me/passport`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.error('Error fetching my passport:', e);
+    }
+    return null;
+  },
+
+  async updateMyProfile(updates: TraineeProfileUpdatePayload): Promise<Trainee> {
+    const res = await fetch(`${BASE_URL}/trainees/me/profile`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to update profile' }));
+      throw new Error(err.detail || 'Failed to update profile');
+    }
+    return await res.json();
   }
 };
 

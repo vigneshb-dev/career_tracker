@@ -175,6 +175,178 @@ class AssessmentAddRequest(BaseModel):
 
 
 # ========================================================
+# Longitudinal Passport, Audit & Event Schemas
+# ========================================================
+
+class TrainingRecordCreate(BaseModel):
+    course_name: str
+    provider_name: str
+    batch: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    delivery_mode: Optional[str] = "Hybrid"
+    completion_status: Optional[str] = "completed"
+    attendance_rate: Optional[str] = None
+    hours_completed: Optional[int] = 0
+    assessment_result: Optional[str] = None
+    certificate_url: Optional[str] = None
+    description: Optional[str] = None
+    verification_status: Optional[str] = "pending"
+
+class TrainingRecordVerifyRequest(BaseModel):
+    verification_status: str = "verified"
+    verification_notes: Optional[str] = None
+
+class TrainingRecordRead(BaseModel):
+    id: str
+    trainee_id: str
+    course_name: str
+    provider_name: str
+    batch: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    delivery_mode: str = "Hybrid"
+    completion_status: str = "completed"
+    attendance_rate: Optional[str] = None
+    hours_completed: int = 0
+    assessment_result: Optional[str] = None
+    certificate_url: Optional[str] = None
+    description: Optional[str] = None
+    verification_status: str = "pending"
+    verified_by: Optional[str] = None
+    verified_at: Optional[str] = None
+    source: str = "trainee"
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+class PassportEventRead(BaseModel):
+    id: str
+    trainee_id: str
+    actor_id: Optional[str] = None
+    actor_name: str
+    actor_role: str
+    event_type: str
+    action: str
+    entity_type: str
+    entity_id: Optional[str] = None
+    previous_value: Optional[Any] = None
+    new_value: Optional[Any] = None
+    source: str = "TRAINEE"
+    verification_status: Optional[str] = None
+    notes: Optional[str] = None
+    timestamp: str
+
+    class Config:
+        from_attributes = True
+
+class TraineeProfileUpdateRequest(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    avatar_url: Optional[str] = None
+    location: Optional[str] = None
+    bio: Optional[str] = None
+    address: Optional[str] = None
+    languages: Optional[List[str]] = None
+    education: Optional[str] = None
+    career_interests: Optional[List[str]] = None
+    preferred_locations: Optional[List[str]] = None
+    employment_status: Optional[str] = None
+    career_preference: Optional[Dict[str, Any]] = None
+
+class CareerGoalsUpdateRequest(BaseModel):
+    target_occupation: Optional[str] = None
+    target_roles: Optional[List[str]] = None
+    preferred_industry: Optional[str] = None
+    preferred_workplace: Optional[str] = None
+    preferred_locations: Optional[List[str]] = None
+    target_salary_min: Optional[str] = None
+    target_salary_max: Optional[str] = None
+    employment_type: Optional[str] = None
+    short_term_goal: Optional[str] = None
+    long_term_goal: Optional[str] = None
+    entrepreneurship_interest: Optional[str] = None
+    further_education_interest: Optional[str] = None
+
+class SkillAddRequest(BaseModel):
+    skill_name: str
+    canonical_id: Optional[str] = None
+    category: Optional[str] = "hard"
+    self_rating: Optional[float] = 3.0
+    evidence_notes: Optional[str] = None
+    project_title: Optional[str] = None
+    project_url: Optional[str] = None
+
+class FollowUpResponseRequest(BaseModel):
+    employment_status: str
+    current_role: Optional[str] = None
+    current_employer: Optional[str] = None
+    current_compensation: Optional[str] = None
+    current_salary: Optional[str] = None
+    still_using_learned_skills: Optional[Any] = True
+    has_changed_occupation: Optional[Any] = False
+    occupation_changed: Optional[Any] = False
+    changed_occupation_details: Optional[str] = None
+    additional_skills_needed: Optional[str] = None
+    trainee_notes: Optional[str] = None
+
+class OutcomeVerifyRequest(BaseModel):
+    verification_status: str = "verified"
+    verification_notes: Optional[str] = None
+    confirmed_role: Optional[str] = None
+    confirmed_start_date: Optional[str] = None
+    is_still_employed: Optional[bool] = True
+
+class SkillVerifyRequest(BaseModel):
+    score: float = 4.0
+    notes: Optional[str] = ""
+
+class TrainingRecordUpdate(BaseModel):
+    course_name: Optional[str] = None
+    provider_name: Optional[str] = None
+    batch: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    delivery_mode: Optional[str] = None
+    completion_status: Optional[str] = None
+    attendance_rate: Optional[str] = None
+    hours_completed: Optional[int] = None
+    assessment_result: Optional[str] = None
+    certificate_url: Optional[str] = None
+    description: Optional[str] = None
+
+class SkillUpdateRequest(BaseModel):
+    self_rating: Optional[float] = None
+    evidence_notes: Optional[str] = None
+    project_title: Optional[str] = None
+    project_url: Optional[str] = None
+
+class CertificationUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    issuing_organization: Optional[str] = None
+    issue_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    credential_id: Optional[str] = None
+    verification_url: Optional[str] = None
+    status: Optional[str] = None
+
+class OutcomeUpdateRequest(BaseModel):
+    outcome_type: Optional[str] = None
+    organization_or_venture: Optional[str] = None
+    role_or_course: Optional[str] = None
+    compensation_or_funding: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    is_current: Optional[bool] = None
+    location: Optional[str] = None
+    work_arrangement: Optional[str] = None
+    description: Optional[str] = None
+    verification_notes: Optional[str] = None
+
+
+# ========================================================
 # Competency Intelligence Schemas
 # ========================================================
 

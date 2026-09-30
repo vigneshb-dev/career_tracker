@@ -20,6 +20,8 @@ from app.models.entities import (
     Intervention,
     TraineeIntervention,
     ResumeAnalysisRecord,
+    TrainingRecord,
+    PassportEvent,
 )
 
 __all__ = [
@@ -44,5 +46,7 @@ __all__ = [
     "Intervention",
     "TraineeIntervention",
     "ResumeAnalysisRecord",
+    "TrainingRecord",
+    "PassportEvent",
 ]
 
