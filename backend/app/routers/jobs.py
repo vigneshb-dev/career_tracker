@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from app.core.database import get_db
-from app.models.entities import Job, JobExtractedSkill
+from app.core.auth import get_current_user, require_roles
+from app.models.entities import Job, JobExtractedSkill, User
 from app.schemas.schemas import (
     JobRead,
     JobCreate,
@@ -83,16 +84,33 @@ def list_jobs(
     return jobs
 
 @router.post("", response_model=JobRead, status_code=status.HTTP_201_CREATED)
-def create_job(job_in: JobCreate, db: Session = Depends(get_db)):
+def create_job(
+    job_in: JobCreate,
+    current_user: User = Depends(require_roles(["ADMIN", "EMPLOYER"])),
+    db: Session = Depends(get_db)
+):
     """
     Creates a new job description:
     Triggers NLP Skill Extraction -> Skill Normalization -> Occupation Mapping -> Embedding Generation.
+    Restricted to authorized Employer or Admin.
     """
-    job = JobIntelligenceService.process_and_save_job(db, job_in.model_dump())
+    user_role = (current_user.role or "").strip().upper()
+    job_data = job_in.model_dump()
+    if user_role == "EMPLOYER" and current_user.employer_profile:
+        # Enforce employer affiliation
+        job_data["employer_id"] = current_user.employer_profile.employer_id
+        if current_user.employer_profile.company_name:
+            job_data["employer_name"] = current_user.employer_profile.company_name
+
+    job = JobIntelligenceService.process_and_save_job(db, job_data)
     return job
 
 @router.post("/analyze", response_model=JobAnalyzeResponse)
-def analyze_job_description(request: JobAnalyzeRequest, db: Session = Depends(get_db)):
+def analyze_job_description(
+    request: JobAnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Instant on-the-fly NLP extraction and analysis of any raw job description text.
     Extracts Hard Skills, Soft Skills, Tools, Experience, Education, Salary, and Mapped Occupation.

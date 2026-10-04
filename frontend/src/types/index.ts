@@ -38,6 +38,8 @@ export interface Certification {
   credential_id?: string;
   verification_url?: string;
   status: string;
+  verification_status?: string;
+  verification_notes?: string;
 }
 
 export interface AssessmentRecord {
@@ -58,6 +60,9 @@ export interface CareerPreference {
   target_salary_max?: string;
   preferred_locations: string[];
   target_industries: string[];
+  preferred_industry?: string;
+  short_term_goal?: string;
+  long_term_goal?: string;
 }
 
 export interface CurrentPathway {
@@ -1034,6 +1039,11 @@ export interface PendingVerificationCandidate {
   placement_salary: string;
   evidence_level: EvidenceLevelType;
   is_direct_match: boolean;
+  is_verified?: boolean;
+  verification_id?: string;
+  has_pending?: boolean;
+  outcome_status?: string;
+  reported_start_date?: string;
   skills: string[];
 }
 
@@ -1092,51 +1102,85 @@ export interface SkillImprovementBenchmarkItem {
 }
 
 export interface SkillGapItem {
-  skill: string;
-  severity: number;
-  employer_citations: number;
-  category: 'technical' | 'soft' | string;
-  urgency: 'High' | 'Medium' | 'Low' | string;
+  skill?: string;
+  skill_name?: string;
+  severity?: number | string;
+  employer_citations?: number;
+  frequency?: number;
+  frequency_count?: number;
+  category?: 'technical' | 'soft' | string;
+  urgency?: 'High' | 'Medium' | 'Low' | string;
+  percentage_affected?: number;
+  recommended_curriculum_action?: string;
 }
 
 export interface TrainingProviderOutcomeItem {
-  provider_name: string;
-  enrolled: number;
-  graduated: number;
-  placed: number;
+  provider?: string;
+  provider_id?: string;
+  provider_name?: string;
+  domain?: string;
+  enrolled?: number;
+  graduated?: number;
+  total_trainees?: number;
+  trainees_enrolled?: number;
+  placed?: number;
+  trainees_placed?: number;
   placement_rate: number;
-  average_salary: string;
-  employer_satisfaction: number;
-  top_domains: string;
+  average_salary?: any;
+  employer_satisfaction?: number;
+  employer_rating?: number;
+  top_domains?: string;
+  retention_90d_rate?: number;
+  retention_365d_rate?: number;
+  status?: string;
 }
 
 export interface CourseOutcomeItem {
-  course_code: string;
-  course_title: string;
-  provider: string;
-  enrolled: number;
+  course_code?: string;
+  course_title?: string;
+  provider?: string;
+  domain?: string;
+  enrolled?: number;
+  total_enrolled?: number;
   placement_rate: number;
-  avg_salary: string;
-  skill_gain: string;
-  retention_365d: number;
+  avg_salary?: any;
+  average_wage?: any;
+  skill_gain?: string;
+  verified_skill_score?: number;
+  retention_rate?: number;
+  retention_365d?: number;
+  completion_rate?: number;
 }
 
 export interface DistrictTrendItem {
   district: string;
-  trainees_count: number;
-  placed_count: number;
-  employment_rate: number;
-  top_sector: string;
-  avg_wage: string;
+  state?: string;
+  trainees_count?: number;
+  total_graduates?: number;
+  placed_count?: number;
+  placement_rate?: number;
+  employment_rate?: number;
+  top_sector?: string;
+  avg_wage?: string;
+  average_salary?: any;
+  active_employers?: number;
+  demand_growth_pct?: number;
 }
 
 export interface OccupationDemandItem {
-  occupation: string;
-  market_demand_index: number;
-  open_jobs: number;
-  pipeline_supply: number;
-  supply_gap: number;
-  growth_rate: string;
+  occupation?: string;
+  occupation_code?: string;
+  title?: string;
+  market_demand_index?: number;
+  open_jobs?: number;
+  current_openings?: number;
+  pipeline_supply?: number;
+  pipeline_candidates?: number;
+  pipeline_coverage_ratio?: number;
+  supply_gap?: number;
+  growth_rate?: string;
+  median_market_salary?: string;
+  status?: string;
 }
 
 export interface NonPlacementReasonItem {
@@ -1198,6 +1242,119 @@ export interface ComprehensiveAnalyticsData {
   district_trends: DistrictTrendItem[];
   occupation_demand: OccupationDemandItem[];
   non_placement_reasons: NonPlacementReasonItem[];
+  longitudinal_intelligence?: LongitudinalMetricsData;
+  data_quality_summary?: Record<string, any>;
+}
+
+// ---------------------------------------------------------------------------
+// Longitudinal Outcome Intelligence & Cohort Filtering Types
+// ---------------------------------------------------------------------------
+export interface LongitudinalMetricsData {
+  placement_rate: number | null;
+  employment_rate: number | null;
+  self_employment_rate: number | null;
+  apprenticeship_rate: number | null;
+  freelancing_rate: number | null;
+  higher_studies_rate: number | null;
+  unemployed_rate: number | null;
+  unknown_rate: number | null;
+  unreachable_rate: number | null;
+  withdrawn_consent_rate: number | null;
+  retention_30d: number | null;
+  retention_90d: number | null;
+  retention_180d: number | null;
+  retention_365d: number | null;
+  wage_progression: number | null;
+  median_wage: number | null;
+  average_placement_wage: number | null;
+  average_current_wage: number | null;
+  training_to_job_relevance: number | null;
+  skill_gap_frequency: Array<{ skill: string; count: number; category: string; type: string }>;
+  attrition_reasons: Array<{ reason: string; count: number; percentage: number }>;
+  follow_up_response_rate: number | null;
+  cohort_filters_applied?: Record<string, any>;
+}
+
+export interface DataQualityAuditRecord {
+  trainee_id: string;
+  trainee_name: string;
+  program: string;
+  cohort: string;
+  outcome_state: string;
+  verification_level: string;
+  quality_score: number;
+  completeness: number;
+  freshness: number;
+  verification: number;
+  consistency: number;
+  deductions: string[];
+  is_stale: boolean;
+  has_missing_wages: boolean;
+  has_missing_employer_verification: boolean;
+  days_since_active?: number | null;
+  data_source: string;
+}
+
+export interface DataQualityDashboardData {
+  total_records: number;
+  verified_records: number;
+  verified_pct: number;
+  self_reported_records: number;
+  self_reported_pct: number;
+  unknown_outcomes: number;
+  unknown_pct: number;
+  unreachable_trainees: number;
+  unreachable_pct: number;
+  stale_records: number;
+  stale_pct: number;
+  missing_wages: number;
+  missing_wages_pct: number;
+  missing_employer_verification: number;
+  missing_employer_verification_pct: number;
+  missing_follow_ups: number;
+  missing_follow_ups_pct: number;
+  overall_quality_score: number;
+  score_breakdown: {
+    completeness: number;
+    freshness: number;
+    verification: number;
+    consistency: number;
+  };
+  record_audits: DataQualityAuditRecord[];
+}
+
+export interface TraineeOutcomeRecord {
+  trainee_id: string;
+  trainee_name: string;
+  status: string;
+  verification_level: string;
+  confidence: number;
+  last_verified_at: string | null;
+  source: string | null;
+  is_synthetic: boolean;
+  data_source: string;
+}
+
+export interface CohortFilterOptionsData {
+  courses: string[];
+  providers: string[];
+  districts: string[];
+  batches: string[];
+  outcome_states: string[];
+  verification_levels: string[];
+  data_sources: string[];
+}
+
+export interface CohortFilterParams {
+  course?: string;
+  provider?: string;
+  district?: string;
+  batch?: string;
+  training_period_start?: string;
+  training_period_end?: string;
+  demographic_dimension?: string;
+  outcome_type?: string;
+  include_demo?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -1475,3 +1632,573 @@ export interface OutcomeVerifyPayload {
   verification_notes?: string;
   confirmed_role?: string;
 }
+
+// ========================================================
+// Career Outcome Digital Twin Types
+// ========================================================
+
+export type UncertaintyState = 'KNOWN' | 'SELF_REPORTED' | 'VERIFIED' | 'STALE' | 'UNKNOWN';
+export type DigitalTwinRiskState = 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL' | 'UNKNOWN';
+
+export interface DigitalTwinEvidenceItem {
+  attribute: string;
+  source: string;
+  confidence: number;
+  explanation: string;
+  last_verified_at?: string;
+  verifier_identity?: string;
+}
+
+export interface DigitalTwinSkillDNAItem {
+  skill_id?: string;
+  skill_name: string;
+  proficiency_score: number;
+  score: number;
+  level: string;
+  confidence: number;
+  verified: boolean;
+  evidence_count: number;
+}
+
+export interface DigitalTwinSkillEvolutionStage {
+  stage_id: 'TRAINING_COMPLETION' | 'INTERVENTION' | 'REASSESSMENT' | 'TARGET_JOB';
+  stage_name: string;
+  timestamp: string;
+  skills: { skill_name: string; score: number; target: number }[];
+}
+
+export interface DigitalTwinOutcomeMilestone {
+  month: number;
+  milestone_label: string;
+  status: string;
+  event_date: string;
+  role?: string;
+  organization?: string;
+  wage?: string;
+  notes?: string;
+}
+
+export interface DigitalTwinStateData {
+  trainee_id: string;
+  trainee_name?: string;
+  current_outcome: string;
+  current_role?: string;
+  current_employer?: string;
+  employment_status: string;
+  employment_start_date?: string;
+  current_income_range?: string;
+  current_wage_numeric?: number;
+  placement_wage_numeric?: number;
+  wage_growth_percent?: number;
+  training_relevance: string;
+  retention_state: string;
+  skill_readiness: number;
+  job_readiness: number;
+  skill_gap_count: number;
+  high_priority_gaps: {
+    skill_name: string;
+    priority: string;
+    current_level: number;
+    target_level: number;
+    gap: number;
+  }[];
+  active_interventions_count: number;
+  active_interventions: {
+    id: string;
+    intervention_name: string;
+    status: string;
+    progress_percentage: number;
+  }[];
+  last_verified_at?: string;
+  data_quality: number;
+  data_quality_breakdown?: {
+    score: number;
+    completeness: number;
+    freshness: number;
+    verification: number;
+    consistency: number;
+    deductions: string[];
+    is_stale: boolean;
+    days_since_active?: number;
+  };
+  confidence: number;
+  confidence_percentage: number;
+  uncertainty_state: UncertaintyState;
+  risk_state: DigitalTwinRiskState;
+  risk_factors: string[];
+  skill_dna: DigitalTwinSkillDNAItem[];
+  skill_evolution: DigitalTwinSkillEvolutionStage[];
+  outcome_evolution: DigitalTwinOutcomeMilestone[];
+  evidence_traceability: DigitalTwinEvidenceItem[];
+  updated_at: string;
+}
+
+export interface DigitalTwinTimelineResponse {
+  trainee_id: string;
+  total_events: number;
+  timeline_events: Array<{
+    id: string;
+    trainee_id: string;
+    stage: string;
+    title: string;
+    description?: string;
+    organization?: string;
+    pathway?: string;
+    event_date: string;
+    sequence_order: number;
+    verification_status: string;
+    verified_by?: string;
+    evidence_url?: string;
+    metadata?: Record<string, any>;
+  }>;
+}
+
+export interface DigitalTwinDataQualityResponse {
+  trainee_id: string;
+  quality_score: number;
+  completeness: number;
+  freshness: number;
+  verification: number;
+  consistency: number;
+  deductions: string[];
+  is_stale: boolean;
+  has_missing_wages: boolean;
+  has_missing_employer_verification: boolean;
+  days_since_active?: number;
+}
+
+// ========================================================
+// What-If Career Simulator Frontend Types
+// ========================================================
+
+export interface AdditionalSkillInput {
+  name: string;
+  level?: string; // weak, moderate, strong, beginner, intermediate, advanced
+  proficiency_score?: number;
+}
+
+export interface ScenarioInput {
+  trainee_id?: string;
+  baseline_skills?: Array<{
+    name: string;
+    level: string;
+    proficiency_score?: number;
+    verified?: boolean;
+  }>;
+  additional_skills: AdditionalSkillInput[];
+  certification?: string;
+  target_role?: string;
+  target_location?: string;
+  intervention_id?: string;
+  intervention_name?: string;
+  scenario_name?: string;
+}
+
+export interface JobImpactItem {
+  job_id: string;
+  title: string;
+  employer_name: string;
+  location: string;
+  employment_type: string;
+  salary_range: string;
+  current_match_score: number;
+  simulated_match_score: number;
+  score_change: number;
+  is_newly_matched: boolean;
+  status: 'NEWLY_MATCHED' | 'IMPROVED_MATCH' | 'UNCHANGED';
+  explanation: string;
+}
+
+export interface RemainingGapItem {
+  skill_name: string;
+  category: string;
+  current_level: number;
+  target_level: number;
+  gap: number;
+  priority: string;
+  importance_label: string;
+}
+
+export interface NewlyEligiblePathway {
+  pathway_id: string;
+  title: string;
+  track: string;
+  current_readiness: number;
+  simulated_readiness: number;
+  readiness_delta: number;
+  status: string;
+  unlocked_milestones: string[];
+}
+
+export interface RequiredTrainingIntervention {
+  intervention_id: string;
+  title: string;
+  type: string;
+  domain: string;
+  target_skills: string[];
+  estimated_effort: string;
+  provider_or_platform: string;
+  description: string;
+  why_it_matters?: string;
+}
+
+export interface ReadinessEstimation {
+  output_type: string; // "ESTIMATION"
+  current_readiness: number;
+  simulated_readiness: number;
+  readiness_delta: number;
+  benchmark_basis: string;
+  disclaimer: string;
+}
+
+export interface SimulationResponse {
+  status: 'SIMULATION' | 'INSUFFICIENT_DATA';
+  trainee_id?: string;
+  trainee_name?: string;
+  scenario_name: string;
+  output_label: 'SIMULATION';
+  estimation_label: 'ESTIMATION';
+  simulation_disclaimer: string;
+  guarantee_clause: string;
+  current_profile: {
+    trainee_id?: string;
+    trainee_name?: string;
+    skills: Array<{
+      name: string;
+      level: string;
+      proficiency_score: number;
+      verified?: boolean;
+    }>;
+    total_skills?: number;
+    target_role?: string;
+  };
+  simulated_profile: {
+    skills: Array<{
+      name: string;
+      level: string;
+      proficiency_score: number;
+      verified?: boolean;
+    }>;
+    total_skills?: number;
+    added_skills?: string[];
+    certification?: string;
+    intervention?: string;
+  };
+  skill_changes: Array<{
+    skill_name: string;
+    previous_level: string;
+    simulated_level: string;
+    previous_score: number;
+    simulated_score: number;
+    change_type: string;
+    explanation: string;
+  }>;
+  newly_matched_jobs: JobImpactItem[];
+  changed_job_matches: JobImpactItem[];
+  remaining_skill_gaps: RemainingGapItem[];
+  newly_eligible_pathways: NewlyEligiblePathway[];
+  required_training_interventions: RequiredTrainingIntervention[];
+  estimated_readiness: ReadinessEstimation;
+  data_sufficiency: {
+    is_sufficient: boolean;
+    active_jobs_evaluated?: number;
+    job_count?: number;
+    note: string;
+  };
+  insufficient_data_reasons?: string[];
+}
+
+export interface SimulatorOptions {
+  available_skills: Array<{ id: string; name: string; category: string; domain: string }>;
+  target_roles: string[];
+  locations: string[];
+  suggested_certifications: string[];
+  interventions: Array<{ id: string; title: string; type: string; domain: string }>;
+}
+
+// ========================================================
+// Outcome Risk Engine Frontend Types
+// ========================================================
+
+export type OutcomeRiskType =
+  | 'SKILL_GAP'
+  | 'EMPLOYMENT_INSTABILITY'
+  | 'FOLLOWUP_FAILURE'
+  | 'DATA_STALENESS'
+  | 'JOB_SEARCH_DIFFICULTY'
+  | 'TRAINING_JOB_MISMATCH';
+
+export type OutcomeRiskSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export type OutcomeRiskStatus =
+  | 'DETECTED'
+  | 'INTERVENTION_SUGGESTED'
+  | 'INTERVENTION_ACCEPTED'
+  | 'INTERVENTION_REJECTED'
+  | 'INTERVENTION_IN_PROGRESS'
+  | 'INTERVENTION_COMPLETED'
+  | 'REASSESSED'
+  | 'RESOLVED'
+  | 'MONITORING';
+
+export interface OutcomeRiskItem {
+  id: string;
+  trainee_id: string;
+  trainee_name?: string;
+  risk_type: OutcomeRiskType;
+  severity: OutcomeRiskSeverity;
+  signals: string[];
+  evidence: Record<string, any>;
+  status: OutcomeRiskStatus;
+  recommended_intervention?: {
+    title: string;
+    type: string;
+    domain?: string;
+    target_skills?: string[];
+    estimated_effort?: string;
+    provider_or_platform?: string;
+    rationale?: string;
+    expected_outcome?: string;
+  };
+  reassessment_record?: {
+    reassessed_at: string;
+    evaluator_name: string;
+    evaluator_role: string;
+    raw_score: number;
+    normalized_score: number;
+    old_severity: string;
+    new_severity: string;
+    outcome_verdict: string;
+    recalc_note: string;
+    evaluator_notes?: string;
+    evidence_url?: string;
+  };
+  created_at: string;
+  updated_at: string;
+  risk_signal_label: 'RISK SIGNAL';
+  why_explanation: {
+    signal_1: string;
+    signal_2: string;
+    signal_3: string;
+    evidence_breakdown?: Record<string, any>;
+  };
+}
+
+export interface OutcomeRiskSummary {
+  total_risks: number;
+  by_severity: Record<string, number>;
+  by_type: Record<string, number>;
+  by_status: Record<string, number>;
+  critical_trainees_count: number;
+  high_trainees_count: number;
+  active_interventions_count: number;
+}
+
+// ==========================================
+// SKILL GAP INTELLIGENCE TYPES
+// ==========================================
+
+export type SkillGapCategory = 'NO_GAP' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface TraineeSkillGapItem {
+  skill_id: string;
+  skill_name: string;
+  canonical_name?: string;
+  category: string;
+  required_level: number;
+  current_level: number;
+  gap_level: number;
+  gap_category: SkillGapCategory;
+  source: string;
+  detected_at?: string;
+  status_icon?: string;
+  status_flag: 'VALID' | 'WARNING' | 'CRITICAL_GAP';
+  flag_reason?: string;
+  explanation: string;
+}
+
+export interface TraineeSkillGapResponse {
+  trainee_id: string;
+  trainee_name: string;
+  course_id?: string;
+  course_title?: string;
+  target_role?: string;
+  target_job_id?: string;
+  target_job_title?: string;
+  target_domain?: string;
+  overall_readiness_score?: number;
+  current_skills_summary: TraineeSkillGapItem[];
+  required_skills_summary: TraineeSkillGapItem[];
+  skill_gaps: TraineeSkillGapItem[];
+  suggested_learning_areas: (string | any)[];
+  available_roles?: { id?: string; title: string; domain?: string }[];
+  employment_relevance_score: number;
+  sample_size_context: string;
+  estimation_label: string;
+}
+
+export interface CourseCoverageSkillItem {
+  skill_id: string;
+  skill_name: string;
+  category: string;
+  covered_in_course: boolean;
+  proficiency_taught: number;
+  mandatory_in_course: boolean;
+  job_demand_frequency: number;
+  trainee_gap_frequency: number;
+  average_trainee_proficiency: number;
+  average_gap: number;
+  coverage_status: 'GOOD_COVERAGE' | 'HIGH_DEMAND_LOW_COVERAGE' | 'CURRICULUM_GAP' | 'SUFFICIENT';
+  employment_association: string;
+}
+
+export interface CourseSkillAnalysisResponse {
+  course_id: string;
+  course_title: string;
+  domain: string;
+  total_enrolled_trainees: number;
+  sample_size: number;
+  training_coverage_rate: number;
+  average_skill_gap: number;
+  skills_taught: CourseCoverageSkillItem[];
+  skills_demanded: CourseCoverageSkillItem[];
+  high_demand_low_coverage_skills: CourseCoverageSkillItem[];
+  good_coverage_skills: CourseCoverageSkillItem[];
+  emerging_skills_detected: string[];
+  suggested_curriculum_additions: string[];
+  outcome_associations: Record<string, any>;
+  estimation_label: string;
+}
+
+export interface TopSkillGapItem {
+  skill_id: string;
+  skill_name: string;
+  category: string;
+  frequency: number;
+  average_gap: number;
+  severity_distribution: Record<string, number>;
+  top_associated_courses: string[];
+}
+
+export interface TopSkillGapsResponse {
+  sample_size: number;
+  detected_at: string;
+  filters_applied: Record<string, any>;
+  top_gaps: TopSkillGapItem[];
+}
+
+export interface QuarterlyEmergingSkill {
+  skill_id: string;
+  skill_name: string;
+  category: string;
+  quarterly_growth: Record<string, number>;
+  baseline_frequency: number;
+  current_frequency: number;
+  growth_rate_pct: number;
+  is_emerging: boolean;
+  sample_size: number;
+  sample_warning: string | null;
+}
+
+export interface EmergingSkillsResponse {
+  sample_size: number;
+  threshold_growth_pct: number;
+  emerging_skills: QuarterlyEmergingSkill[];
+}
+
+export interface JobSkillDemandItem {
+  skill_id: string;
+  skill_name: string;
+  category: string;
+  total_jobs_demanding: number;
+  demand_percentage: number;
+  mandatory_count: number;
+  preferred_count: number;
+  top_sectors: string[];
+}
+
+export interface JobSkillDemandResponse {
+  sample_size: number;
+  total_jobs_analyzed: number;
+  skills: JobSkillDemandItem[];
+}
+
+// ==========================================
+// OUTCOME FAILURE & ATTRITION CAUSE TYPES
+// ==========================================
+
+export interface OutcomeReasonItem {
+  id: number;
+  category: 'NON_PLACEMENT' | 'ATTRITION' | 'SELF_EMPLOYMENT';
+  reason_key: string;
+  reason_label: string;
+  description: string;
+  is_active: boolean;
+}
+
+export interface OutcomeReasonDistributionItem {
+  reason_key: string;
+  reason_label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface OutcomeReasonBreakdownResponse {
+  outcome_category: string;
+  sample_size: number;
+  filter_context: Record<string, any>;
+  metric_definition: string;
+  distribution: OutcomeReasonDistributionItem[];
+  subgroup_breakdowns: Record<string, any>;
+  associations: string[];
+}
+
+export interface RecommendedInterventionArea {
+  title: string;
+  domain: string;
+  description: string;
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+}
+
+export interface OutcomeSummaryAnalyticsResponse {
+  total_outcomes: number;
+  sample_size: number;
+  date_range: string;
+  stale_status_count: number;
+  by_outcome_category: Record<string, number>;
+  top_non_placement_reasons: OutcomeReasonDistributionItem[];
+  top_attrition_reasons: OutcomeReasonDistributionItem[];
+  top_self_employment_challenges: OutcomeReasonDistributionItem[];
+  key_associations: string[];
+  recommended_interventions: RecommendedInterventionArea[];
+}
+
+export interface FollowUpQuestion {
+  id: string;
+  question_text: string;
+  question_type: 'SINGLE_CHOICE' | 'MULTI_CHOICE' | 'TEXT' | 'RATING';
+  options: string[];
+  required: boolean;
+}
+
+export interface FollowUpGenerationResponse {
+  trainee_id: string;
+  employment_status: string;
+  generated_at: string;
+  questions: FollowUpQuestion[];
+}
+
+export interface FollowUpAnswerItem {
+  question_id: string;
+  question_text: string;
+  answer_value: string;
+  details?: string;
+}
+
+export interface FollowUpResponseSubmission {
+  trainee_id: string;
+  employment_status: string;
+  answers: FollowUpAnswerItem[];
+}
+
+

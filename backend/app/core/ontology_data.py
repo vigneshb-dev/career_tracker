@@ -286,6 +286,30 @@ SKILLS_DATA = [
         "related_occupation_ids": ["occ-sw-01", "occ-sw-02"]
     },
     {
+        "id": "sk-spring-boot",
+        "code": "SK-SW-SPRING",
+        "name": "Spring Boot",
+        "canonical_name": "Spring Boot",
+        "category": "hard",
+        "domain": "Software Development",
+        "description": "Enterprise Java backend microservices framework providing opinionated production configuration, dependency injection, and REST persistence.",
+        "demand_score": 90,
+        "trainees_proficient": 140,
+        "open_job_demands": 65,
+        "growth_trend": "+28% YoY",
+        "aliases": ["Spring", "Spring Framework", "SpringBoot", "Spring Boot", "Spring Boot Framework", "Spring MVC"],
+        "proficiency_levels": {
+            "0": {"level": 0, "title": "Novice", "description": "Unfamiliar with Spring ecosystem."},
+            "1": {"level": 1, "title": "Basic", "description": "Understands dependency injection basics."},
+            "2": {"level": 2, "title": "Working", "description": "Builds basic CRUD REST endpoints with Spring Data JPA."},
+            "3": {"level": 3, "title": "Autonomous", "description": "Builds production microservices, security filters, and unit tests."},
+            "4": {"level": 4, "title": "Advanced", "description": "Optimizes JVM concurrency, circuit breakers, and distributed tracing."},
+            "5": {"level": 5, "title": "Expert", "description": "Designs large-scale distributed enterprise architectures."}
+        },
+        "related_competency_ids": ["cmp-sw-01"],
+        "related_occupation_ids": ["occ-sw-01", "occ-sw-02"]
+    },
+    {
         "id": "sk-1",
         "code": "SK-SW-REACT",
         "name": "React.js",

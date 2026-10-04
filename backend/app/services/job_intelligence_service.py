@@ -573,8 +573,8 @@ class JobIntelligenceService:
                 domain=job_data.get("domain") or analysis["domain"],
                 mapped_occupation_id=mapped_occ.get("id"),
                 mapped_occupation_title=mapped_occ.get("title"),
-                experience_level=analysis["experience_requirements"],
-                education_level=analysis["education_requirements"],
+                experience_level=(analysis["experience_requirements"][:250] if analysis.get("experience_requirements") else None),
+                education_level=(analysis["education_requirements"][:250] if analysis.get("education_requirements") else None),
                 source=job_data.get("source", "direct_submission"),
                 extracted_metadata={
                     "hard_skills": analysis["extracted_hard_skills"],
@@ -594,8 +594,8 @@ class JobIntelligenceService:
             job.domain = job_data.get("domain") or analysis["domain"]
             job.mapped_occupation_id = mapped_occ.get("id")
             job.mapped_occupation_title = mapped_occ.get("title")
-            job.experience_level = analysis["experience_requirements"]
-            job.education_level = analysis["education_requirements"]
+            job.experience_level = (analysis["experience_requirements"][:250] if analysis.get("experience_requirements") else None)
+            job.education_level = (analysis["education_requirements"][:250] if analysis.get("education_requirements") else None)
             job.required_skills = req_skills_list
             job.extracted_metadata = {
                 "hard_skills": analysis["extracted_hard_skills"],

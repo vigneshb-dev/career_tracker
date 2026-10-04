@@ -14,7 +14,10 @@ import {
   LogOut,
   Sparkles,
   FileText,
-  UserCheck
+  UserCheck,
+  Sliders,
+  ShieldAlert,
+  BrainCircuit
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -35,6 +38,10 @@ export const DesktopSidebar: React.FC<SidebarProps> = ({ followUpsCount = 4 }) =
   if (userRole === 'TRAINEE') {
     navItems = [
       { label: 'My Trainee Passport', path: traineePassportPath, icon: UserCheck },
+      { label: 'Career Digital Twin', path: `/digital-twin/${user?.trainee_id || 'TRN-2024-001'}`, icon: Sparkles },
+      { label: 'What-If Simulator', path: '/career-simulator', icon: Sliders },
+      { label: 'My Outcome Risks', path: '/outcome-risks', icon: ShieldAlert },
+      { label: 'Skill Gap Diagnostic', path: '/trainee/skill-gap', icon: BrainCircuit },
       { label: 'Resume & Extraction', path: '/my-resume', icon: FileText },
       { label: 'My Skills & Evidence', path: '/skills', icon: Award },
       { label: 'Skill Gaps & Goals', path: '/skill-gaps', icon: GitCompare },
@@ -44,8 +51,12 @@ export const DesktopSidebar: React.FC<SidebarProps> = ({ followUpsCount = 4 }) =
   } else if (userRole === 'COACH') {
     navItems = [
       { label: 'Assigned Trainees', path: '/trainees', icon: Users },
+      { label: 'Career Digital Twins', path: '/digital-twin', icon: Sparkles },
+      { label: 'What-If Simulator', path: '/career-simulator', icon: Sliders },
+      { label: 'Outcome Risk Engine', path: '/outcome-risks', icon: ShieldAlert },
+      { label: 'Skill Gap Intelligence', path: '/admin/skill-intelligence', icon: BrainCircuit },
+      { label: 'Trainee Skill Gap View', path: '/trainee/skill-gap', icon: GitCompare },
       { label: 'Skill Assessments', path: '/skills', icon: Award },
-      { label: 'Skill Gap Verification', path: '/skill-gaps', icon: GitCompare },
       { label: 'Career Trajectories', path: '/career-path', icon: TrendingUp },
       { label: 'Retention Follow-ups', path: '/follow-ups', icon: CalendarCheck, badge: followUpsCount > 0 ? followUpsCount : undefined },
       { label: 'Job Opportunities', path: '/jobs', icon: Briefcase },
@@ -59,10 +70,15 @@ export const DesktopSidebar: React.FC<SidebarProps> = ({ followUpsCount = 4 }) =
     // ADMIN: Complete platform access
     navItems = [
       { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+      { label: 'Skill Gap Intelligence', path: '/admin/skill-intelligence', icon: BrainCircuit },
+      { label: 'Career Digital Twin', path: '/digital-twin', icon: Sparkles },
+      { label: 'What-If Simulator', path: '/career-simulator', icon: Sliders },
+      { label: 'Outcome Risk Engine', path: '/outcome-risks', icon: ShieldAlert },
       { label: 'Trainees Directory', path: '/trainees', icon: Users },
       { label: 'Skills & Competencies', path: '/skills', icon: Award },
       { label: 'Job Opportunities', path: '/jobs', icon: Briefcase },
       { label: 'Skill Gap Verification', path: '/skill-gaps', icon: GitCompare },
+      { label: 'Trainee Skill Gap View', path: '/trainee/skill-gap', icon: UserCheck },
       { label: 'Career Trajectories', path: '/career-path', icon: TrendingUp },
       { label: 'Retention Follow-ups', path: '/follow-ups', icon: CalendarCheck, badge: followUpsCount > 0 ? followUpsCount : undefined, badgeVariant: 'danger' },
       { label: 'Employer Portal & Verification', path: '/employers', icon: Building2 },

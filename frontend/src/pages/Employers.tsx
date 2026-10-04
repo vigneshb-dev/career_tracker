@@ -42,9 +42,11 @@ import {
   PendingVerificationCandidate,
   EvidenceLevelType
 } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 export const Employers: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // State
   const [activeTab, setActiveTab] = useState<'candidates' | 'verifications' | 'employers'>('candidates');
@@ -55,6 +57,7 @@ export const Employers: React.FC = () => {
   const [evidenceHierarchy, setEvidenceHierarchy] = useState<EvidenceHierarchySummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [candidateFilter, setCandidateFilter] = useState<'pending' | 'verified' | 'all'>('all');
 
   // Verification Modal State
   const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false);
@@ -72,10 +75,21 @@ export const Employers: React.FC = () => {
   const [isStillEmployed, setIsStillEmployed] = useState(true);
   const [retentionMonths, setRetentionMonths] = useState(6);
 
-  // Reviewer credentials
-  const [reviewerName, setReviewerName] = useState('Sunita Rao');
-  const [reviewerRole, setReviewerRole] = useState('Engineering Director / VP People');
-  const [reviewerEmail, setReviewerEmail] = useState('sunita.r@apexcloud.in');
+  // Reviewer credentials - prefilled from authenticated session
+  const [reviewerName, setReviewerName] = useState(user?.full_name || 'Sunita Rao');
+  const [reviewerRole, setReviewerRole] = useState(user?.details?.designation || 'Engineering Director / VP People');
+  const [reviewerEmail, setReviewerEmail] = useState(user?.email || 'sunita.r@apexcloud.in');
+
+  useEffect(() => {
+    if (user) {
+      if (user.full_name) setReviewerName(user.full_name);
+      if (user.email) setReviewerEmail(user.email);
+      if (user.details?.designation) setReviewerRole(user.details.designation);
+      if (user.role === 'EMPLOYER' && user.employer_id && selectedEmployerId === 'all') {
+        setSelectedEmployerId(user.employer_id);
+      }
+    }
+  }, [user]);
 
   // Skill Ratings (0.0 to 5.0)
   const [skillRatings, setSkillRatings] = useState<Record<string, number>>({});
@@ -132,11 +146,12 @@ export const Employers: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
+      const empTarget = selectedEmployerId !== 'all' ? selectedEmployerId : (user?.employer_id || 'all');
       const [empList, verList, hierarchy, candidateList] = await Promise.all([
         api.getEmployers(),
         api.getEmployerVerifications(selectedEmployerId !== 'all' ? { employer_id: selectedEmployerId } : undefined),
         api.getEvidenceHierarchySummary(),
-        api.getPendingCandidatesForEmployer(selectedEmployerId !== 'all' ? selectedEmployerId : 'EMP-01')
+        api.getPendingCandidatesForEmployer(empTarget)
       ]);
 
       setEmployers(empList);
@@ -152,14 +167,14 @@ export const Employers: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [selectedEmployerId]);
+  }, [selectedEmployerId, user?.employer_id]);
 
   // Open modal for a specific candidate
   const handleOpenVerifyModal = (candidate: PendingVerificationCandidate) => {
     setSelectedCandidate(candidate);
     setConfirmedRole(candidate.current_role);
-    setSalaryRange(candidate.placement_salary || '₹8,00,000 / yr');
-    setStartDate('2024-06-01');
+    setSalaryRange(candidate.placement_salary || '₹8,40,000 / yr');
+    setStartDate(candidate.reported_start_date || new Date().toISOString().split('T')[0]);
     setRetentionMonths(6);
     setIsStillEmployed(true);
     setVerifyStatus('confirmed');
@@ -259,15 +274,19 @@ export const Employers: React.FC = () => {
     setIsSubmitting(true);
     setSubmitSuccess(null);
 
-    const activeEmployerObj = employers.find((e) => e.id === selectedEmployerId) || employers[0];
-    const employerName = activeEmployerObj ? activeEmployerObj.name : selectedCandidate.current_employer;
+    const activeEmployerObj = employers.find((e) => e.id === selectedEmployerId)
+      || (user?.employer_id ? employers.find((e) => e.id === user.employer_id) : undefined)
+      || employers[0];
+    const employerName = (user?.role === 'EMPLOYER' && user?.details?.company_name)
+      ? user.details.company_name
+      : (activeEmployerObj ? activeEmployerObj.name : selectedCandidate.current_employer);
 
     const payload: EmployerVerificationCreatePayload = {
-      employer_id: activeEmployerObj?.id,
+      employer_id: (user?.role === 'EMPLOYER' && user.employer_id) ? user.employer_id : activeEmployerObj?.id,
       employer_name: employerName,
-      reviewer_name: reviewerName,
-      reviewer_role: reviewerRole,
-      reviewer_email: reviewerEmail,
+      reviewer_name: reviewerName || user?.full_name || 'Authorized Employer Reviewer',
+      reviewer_role: reviewerRole || 'Hiring Lead',
+      reviewer_email: reviewerEmail || user?.email || 'employer@example.com',
       trainee_id: selectedCandidate.trainee_id,
       trainee_name: selectedCandidate.trainee_name,
       verification_status: verifyStatus,
@@ -306,11 +325,17 @@ export const Employers: React.FC = () => {
   };
 
   // Filtering
-  const filteredCandidates = candidates.filter((c) =>
-    c.trainee_name.toLowerCase().includes(search.toLowerCase()) ||
-    c.current_role.toLowerCase().includes(search.toLowerCase()) ||
-    c.program.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCandidates = candidates.filter((c) => {
+    const matchesSearch =
+      c.trainee_name.toLowerCase().includes(search.toLowerCase()) ||
+      c.current_role.toLowerCase().includes(search.toLowerCase()) ||
+      c.program.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (candidateFilter === 'pending') return c.has_pending;
+    if (candidateFilter === 'verified') return c.is_verified;
+    return true;
+  });
 
   const filteredVerifications = verifications.filter((v) =>
     v.trainee_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -558,11 +583,47 @@ export const Employers: React.FC = () => {
       ) : activeTab === 'candidates' ? (
         /* Candidates to Verify */
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-            <span className="font-semibold">
-              Showing candidates awaiting or completed for verification ({filteredCandidates.length})
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCandidateFilter('all')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  candidateFilter === 'all'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                All Candidates ({candidates.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCandidateFilter('pending')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  candidateFilter === 'pending'
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Awaiting Verification ({candidates.filter((c) => c.has_pending).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCandidateFilter('verified')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  candidateFilter === 'verified'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Verified by Employer ({candidates.filter((c) => c.is_verified).length})
+              </button>
+            </div>
+            <span className="text-xs text-slate-400 font-medium">
+              Showing {filteredCandidates.length} candidate{filteredCandidates.length === 1 ? '' : 's'}
             </span>
-            <span>Click 'Verify & Rate' to submit direct employer evaluation</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -583,7 +644,20 @@ export const Employers: React.FC = () => {
                       <p className="text-xs text-slate-500 font-medium">{c.program} • {c.cohort}</p>
                     </div>
 
-                    {getEvidenceBadge(c.evidence_level)}
+                    <div className="flex flex-col items-end gap-1.5">
+                      {getEvidenceBadge(c.evidence_level)}
+                      {c.is_verified ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-sm">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Verified by Employer
+                        </span>
+                      ) : c.has_pending ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 shadow-sm animate-pulse">
+                          <Sparkles className="w-3 h-3 text-amber-600" />
+                          Awaiting Verification
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   {/* Employer & Compensation details */}
@@ -596,6 +670,12 @@ export const Employers: React.FC = () => {
                       <span className="text-slate-400 font-bold uppercase text-[10px]">Compensation:</span>
                       <span className="font-bold text-emerald-600">{c.placement_salary}</span>
                     </div>
+                    {c.reported_start_date && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 font-bold uppercase text-[10px]">Start Date:</span>
+                        <span className="font-bold text-slate-700">{c.reported_start_date}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400 font-bold uppercase text-[10px]">Status:</span>
                       <Badge variant={c.status === 'placed' ? 'success' : 'brand'} size="sm">
@@ -626,12 +706,12 @@ export const Employers: React.FC = () => {
                 <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-3">
                   <Button
                     size="sm"
-                    variant="primary"
+                    variant={c.has_pending ? "primary" : "outline"}
                     onClick={() => handleOpenVerifyModal(c)}
                     className="flex-1 font-bold text-xs"
                     icon={<FileCheck className="w-3.5 h-3.5" />}
                   >
-                    Verify & Submit Feedback
+                    {c.has_pending ? 'Verify Pending Outcome' : (c.is_verified ? 'Update Verification & Feedback' : 'Verify & Submit Feedback')}
                   </Button>
 
                   <Button

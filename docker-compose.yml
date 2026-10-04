@@ -54,7 +54,25 @@ services:
       redis:
         condition: service_healthy
 
-  # 4. React + TypeScript + Tailwind CSS Frontend
+  # 4. Celery Asynchronous Longitudinal Worker
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: skilltrace_celery_worker
+    restart: always
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/skilltrace
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=production
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 5. React + TypeScript + Tailwind CSS Frontend
   frontend:
     build:
       context: ./frontend

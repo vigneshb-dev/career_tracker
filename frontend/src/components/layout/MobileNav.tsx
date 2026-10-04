@@ -15,7 +15,9 @@ import {
   ShieldCheck,
   FileText,
   UserCheck,
-  LogOut
+  LogOut,
+  Sliders,
+  ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -39,6 +41,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onOpenDra
   if (userRole === 'TRAINEE') {
     drawerItems = [
       { label: 'My Passport', path: traineePassportPath, icon: UserCheck },
+      { label: 'What-If Simulator', path: '/career-simulator', icon: Sliders },
+      { label: 'My Outcome Risks', path: '/outcome-risks', icon: ShieldAlert },
       { label: 'Resume & Extraction', path: '/my-resume', icon: FileText },
       { label: 'Skills & Badges', path: '/skills', icon: Award },
       { label: 'Skill Gaps & Goals', path: '/skill-gaps', icon: GitCompare },
@@ -47,13 +51,15 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onOpenDra
     ];
     primaryItems = [
       { label: 'Passport', path: traineePassportPath, icon: UserCheck },
-      { label: 'Resume', path: '/my-resume', icon: FileText },
-      { label: 'Skills', path: '/skills', icon: Award },
+      { label: 'Simulator', path: '/career-simulator', icon: Sliders },
+      { label: 'Risks', path: '/outcome-risks', icon: ShieldAlert },
       { label: 'Jobs', path: '/jobs', icon: Briefcase },
     ];
   } else if (userRole === 'COACH') {
     drawerItems = [
       { label: 'Trainees', path: '/trainees', icon: Users },
+      { label: 'What-If Simulator', path: '/career-simulator', icon: Sliders },
+      { label: 'Outcome Risk Engine', path: '/outcome-risks', icon: ShieldAlert },
       { label: 'Skill Assessments', path: '/skills', icon: Award },
       { label: 'Skill Gaps', path: '/skill-gaps', icon: GitCompare },
       { label: 'Career Trajectories', path: '/career-path', icon: TrendingUp },
@@ -62,8 +68,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onOpenDra
     ];
     primaryItems = [
       { label: 'Trainees', path: '/trainees', icon: Users },
-      { label: 'Skills', path: '/skills', icon: Award },
-      { label: 'Gaps', path: '/skill-gaps', icon: GitCompare },
+      { label: 'Simulator', path: '/career-simulator', icon: Sliders },
+      { label: 'Risks', path: '/outcome-risks', icon: ShieldAlert },
       { label: 'Follow-ups', path: '/follow-ups', icon: CalendarCheck, badge: 4 },
     ];
   } else if (userRole === 'EMPLOYER') {
@@ -79,6 +85,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onOpenDra
     // ADMIN
     drawerItems = [
       { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+      { label: 'What-If Simulator', path: '/career-simulator', icon: Sliders },
+      { label: 'Outcome Risk Engine', path: '/outcome-risks', icon: ShieldAlert },
       { label: 'Trainees Directory', path: '/trainees', icon: Users },
       { label: 'Skills & Competencies', path: '/skills', icon: Award },
       { label: 'Job Opportunities', path: '/jobs', icon: Briefcase },

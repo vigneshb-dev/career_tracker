@@ -74,6 +74,8 @@ class TraineeBase(BaseModel):
     placement_date: Optional[str] = None
     placement_salary: Optional[str] = None
     primary_outcome_type: Optional[str] = "employment"
+    evidence_level: Optional[str] = "self_reported"
+    outcome_verification_level: Optional[str] = None
     overall_score: int = 80
     match_score: int = 75
     notes: Optional[str] = None
@@ -343,6 +345,11 @@ class OutcomeUpdateRequest(BaseModel):
     location: Optional[str] = None
     work_arrangement: Optional[str] = None
     description: Optional[str] = None
+    verification_status: Optional[str] = None
+    verification_notes: Optional[str] = None
+
+class CertificationVerifyRequest(BaseModel):
+    verification_status: str = "verified"
     verification_notes: Optional[str] = None
 
 
@@ -923,7 +930,7 @@ class CompleteLongitudinalFollowUpRequest(BaseModel):
     retention_confirmed: bool
     pathway: str
     metrics: Dict[str, Any] = {}
-    notes: str
+    notes: Optional[str] = None
 
 
 # ========================================================
@@ -1030,6 +1037,591 @@ class ComprehensiveAnalyticsResponse(BaseModel):
     district_trends: List[Dict[str, Any]]
     occupation_demand: List[Dict[str, Any]]
     non_placement_reasons: List[Dict[str, Any]]
+    longitudinal_intelligence: Optional[Dict[str, Any]] = None
+    data_quality_summary: Optional[Dict[str, Any]] = None
+
+
+# ========================================================
+# Longitudinal Outcome Intelligence & Data Quality Schemas
+# ========================================================
+
+class OutcomeConfidenceRead(BaseModel):
+    trainee_id: str
+    trainee_name: str
+    status: str
+    verification_level: str
+    confidence: float
+    last_verified_at: Optional[str] = None
+    source: Optional[str] = None
+    is_synthetic: bool = False
+    data_source: str = "LIVE_PRODUCTION"
+
+    class Config:
+        from_attributes = True
+
+
+class DataQualityAuditRecord(BaseModel):
+    trainee_id: str
+    trainee_name: str
+    program: str
+    cohort: str
+    outcome_state: str
+    verification_level: str
+    quality_score: float
+    completeness: float
+    freshness: float
+    verification: float
+    consistency: float
+    deductions: List[str]
+    is_stale: bool
+    has_missing_wages: bool
+    has_missing_employer_verification: bool
+    days_since_active: Optional[int] = None
+    data_source: str = "LIVE_PRODUCTION"
+
+
+class DataQualityDashboardResponse(BaseModel):
+    total_records: int
+    verified_records: int
+    verified_pct: float
+    self_reported_records: int
+    self_reported_pct: float
+    unknown_outcomes: int
+    unknown_pct: float
+    unreachable_trainees: int
+    unreachable_pct: float
+    stale_records: int
+    stale_pct: float
+    missing_wages: int
+    missing_wages_pct: float
+    missing_employer_verification: int
+    missing_employer_verification_pct: float
+    missing_follow_ups: int
+    missing_follow_ups_pct: float
+    overall_quality_score: float
+    score_breakdown: Dict[str, float]
+    record_audits: List[DataQualityAuditRecord]
+
+
+class LongitudinalMetricsResponse(BaseModel):
+    placement_rate: Optional[float] = None
+    employment_rate: Optional[float] = None
+    self_employment_rate: Optional[float] = None
+    apprenticeship_rate: Optional[float] = None
+    freelancing_rate: Optional[float] = None
+    higher_studies_rate: Optional[float] = None
+    unemployed_rate: Optional[float] = None
+    unknown_rate: Optional[float] = None
+    unreachable_rate: Optional[float] = None
+    withdrawn_consent_rate: Optional[float] = None
+    retention_30d: Optional[float] = None
+    retention_90d: Optional[float] = None
+    retention_180d: Optional[float] = None
+    retention_365d: Optional[float] = None
+    wage_progression: Optional[float] = None
+    median_wage: Optional[float] = None
+    average_placement_wage: Optional[float] = None
+    average_current_wage: Optional[float] = None
+    training_to_job_relevance: Optional[float] = None
+    skill_gap_frequency: List[Dict[str, Any]] = []
+    attrition_reasons: List[Dict[str, Any]] = []
+    follow_up_response_rate: Optional[float] = None
+    cohort_filters_applied: Dict[str, Any] = {}
+
+
+class CohortFilterOptions(BaseModel):
+    courses: List[str]
+    providers: List[str]
+    districts: List[str]
+    batches: List[str]
+    outcome_states: List[str]
+    verification_levels: List[str]
+    data_sources: List[str]
+
+
+# ========================================================
+# Career Outcome Digital Twin Schemas
+# ========================================================
+
+class DigitalTwinEvidenceItem(BaseModel):
+    attribute: str
+    value: Any
+    evidence_type: str
+    source: str
+    verified_by: Optional[str] = None
+    date: Optional[str] = None
+    confidence: float
+    explanation: str
+
+
+class DigitalTwinRead(BaseModel):
+    id: str
+    trainee_id: str
+    trainee_name: Optional[str] = None
+    current_outcome: str
+    current_role: Optional[str] = None
+    current_employer: Optional[str] = None
+    employment_status: str
+    employment_start_date: Optional[str] = None
+    current_income_range: Optional[str] = None
+    current_income_numeric: Optional[float] = None
+    placement_wage_numeric: Optional[float] = None
+    training_relevance: Optional[float] = None
+    retention_state: Optional[str] = None
+    skill_readiness: float = 0.0
+    job_readiness: float = 0.0
+    skill_gap_count: int = 0
+    high_priority_gaps: List[Dict[str, Any]] = []
+    last_verified_at: Optional[str] = None
+    data_quality: float = 0.0
+    data_quality_breakdown: Dict[str, Any] = {}
+    confidence: float = 0.0
+    uncertainty_state: str = "UNKNOWN"
+    risk_state: str = "LOW"
+    risk_factors: List[str] = []
+    skill_dna: List[Dict[str, Any]] = []
+    skill_evolution: List[Dict[str, Any]] = []
+    outcome_evolution: List[Dict[str, Any]] = []
+    evidence_traceability: List[DigitalTwinEvidenceItem] = []
+    updated_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class DigitalTwinTimelineResponse(BaseModel):
+    trainee_id: str
+    total_events: int
+    timeline_events: List[Dict[str, Any]]
+
+
+class DigitalTwinSkillEvolutionResponse(BaseModel):
+    trainee_id: str
+    stages: List[Dict[str, Any]]
+
+
+class DigitalTwinOutcomeEvolutionResponse(BaseModel):
+    trainee_id: str
+    current_outcome: str
+    journey: List[Dict[str, Any]]
+
+
+class DigitalTwinDataQualityResponse(BaseModel):
+    trainee_id: str
+    quality_score: float
+    completeness: float
+    freshness: float
+    verification: float
+    consistency: float
+    deductions: List[str]
+    is_stale: bool
+    has_missing_wages: bool
+    has_missing_employer_verification: bool
+    days_since_active: Optional[int] = None
+
+
+# ========================================================
+# What-If Career Simulator Schemas
+# ========================================================
+
+class AdditionalSkillInput(BaseModel):
+    name: str
+    level: Optional[str] = "strong" # weak, moderate, strong, beginner, intermediate, advanced
+    proficiency_score: Optional[float] = None # 0.0 to 5.0
+
+class ScenarioInput(BaseModel):
+    trainee_id: Optional[str] = None
+    baseline_skills: Optional[List[Dict[str, Any]]] = None
+    additional_skills: List[AdditionalSkillInput] = []
+    certification: Optional[str] = None
+    target_role: Optional[str] = None
+    target_location: Optional[str] = None
+    intervention_id: Optional[str] = None
+    intervention_name: Optional[str] = None
+    scenario_name: Optional[str] = "Career Upskill Simulation"
+
+class JobImpactItem(BaseModel):
+    job_id: str
+    title: str
+    employer_name: str
+    location: str
+    employment_type: str = "Full-time"
+    salary_range: str
+    current_match_score: float
+    simulated_match_score: float
+    score_change: float
+    is_newly_matched: bool
+    status: str # NEWLY_MATCHED, IMPROVED_MATCH, UNCHANGED
+    explanation: str
+
+class RemainingGapItem(BaseModel):
+    skill_name: str
+    category: str = "hard"
+    current_level: float
+    target_level: float
+    gap: float
+    priority: str = "HIGH"
+    importance_label: str = "Core Qualification"
+
+class NewlyEligiblePathway(BaseModel):
+    pathway_id: str
+    title: str
+    track: str
+    current_readiness: float
+    simulated_readiness: float
+    readiness_delta: float
+    status: str # NEWLY_ELIGIBLE, READINESS_IMPROVED, IN_PROGRESS
+    unlocked_milestones: List[str] = []
+
+class RequiredTrainingIntervention(BaseModel):
+    intervention_id: str
+    title: str
+    type: str
+    domain: str
+    target_skills: List[str] = []
+    estimated_effort: str
+    provider_or_platform: str
+    description: str
+    why_it_matters: Optional[str] = None
+
+class ReadinessEstimation(BaseModel):
+    output_type: str = "ESTIMATION"
+    current_readiness: float
+    simulated_readiness: float
+    readiness_delta: float
+    benchmark_basis: str
+    disclaimer: str = "Simulation based on available profile and job requirement data."
+
+class SimulationResponse(BaseModel):
+    status: str = "SIMULATION" # SIMULATION, INSUFFICIENT_DATA
+    trainee_id: Optional[str] = None
+    trainee_name: Optional[str] = None
+    scenario_name: str
+    output_label: str = "SIMULATION"
+    estimation_label: str = "ESTIMATION"
+    simulation_disclaimer: str = "Simulation based on available profile and job requirement data."
+    guarantee_clause: str = "Predictions are not guaranteed. No employment probability or salary estimates are fabricated."
+    
+    current_profile: Dict[str, Any]
+    simulated_profile: Dict[str, Any]
+    skill_changes: List[Dict[str, Any]]
+    
+    newly_matched_jobs: List[JobImpactItem]
+    changed_job_matches: List[JobImpactItem]
+    remaining_skill_gaps: List[RemainingGapItem]
+    newly_eligible_pathways: List[NewlyEligiblePathway]
+    required_training_interventions: List[RequiredTrainingIntervention]
+    estimated_readiness: ReadinessEstimation
+    
+    data_sufficiency: Dict[str, Any]
+    insufficient_data_reasons: List[str] = []
+
+
+# ========================================================
+# Outcome Risk Engine Schemas
+# ========================================================
+
+class OutcomeRiskRead(BaseModel):
+    id: str
+    trainee_id: str
+    trainee_name: Optional[str] = None
+    risk_type: str
+    severity: str
+    signals: List[str]
+    evidence: Dict[str, Any]
+    status: str
+    recommended_intervention: Optional[Dict[str, Any]] = None
+    reassessment_record: Optional[Dict[str, Any]] = None
+    created_at: str
+    updated_at: str
+    risk_signal_label: str = "RISK SIGNAL"
+    why_explanation: Dict[str, Any] = {}
+
+    class Config:
+        from_attributes = True
+
+class OutcomeRiskSummaryResponse(BaseModel):
+    total_risks: int
+    by_severity: Dict[str, int]
+    by_type: Dict[str, int]
+    by_status: Dict[str, int]
+    critical_trainees_count: int
+    high_trainees_count: int
+    active_interventions_count: int
+
+class OutcomeRiskActionRequest(BaseModel):
+    reason_or_notes: Optional[str] = None
+
+class OutcomeRiskReassessmentRequest(BaseModel):
+    assessment_score: float # 0.0 to 100.0 or 0.0 to 5.0
+    evaluator_name: str
+    evaluator_role: str = "Career Coach"
+    notes: Optional[str] = None
+    verified_evidence_url: Optional[str] = None
+
+
+# ========================================================
+# Skill Gap Intelligence & Outcome Cause Intelligence Schemas
+# ========================================================
+
+class TraineeSkillGapItem(BaseModel):
+    skill_id: str
+    skill_name: str
+    canonical_name: str
+    category: str
+    required_level: float
+    current_level: float
+    gap_level: float
+    gap_category: str # NO_GAP, LOW, MEDIUM, HIGH, CRITICAL
+    status_icon: str = "check" # check, warn, cross
+    status_flag: str = "VALID" # VALID, WARNING, CRITICAL_GAP
+    source: str = "ASSESSMENT" # ASSESSMENT, TRAINING, SELF_DECLARED, EMPLOYER, VERIFIED
+    flag_reason: str = ""
+    explanation: Optional[str] = None
+
+
+class TraineeSkillGapDetailResponse(BaseModel):
+    trainee_id: str
+    trainee_name: str
+    target_role: Optional[str] = None
+    target_job_id: Optional[str] = None
+    target_job_title: Optional[str] = None
+    target_domain: Optional[str] = None
+    enrolled_course: Optional[str] = None
+    course_title: Optional[str] = None
+    overall_readiness_score: float
+    employment_relevance_score: float
+    current_skills: List[Dict[str, Any]] = []
+    required_job_skills: List[Dict[str, Any]] = []
+    current_skills_summary: List[TraineeSkillGapItem] = []
+    required_skills_summary: List[TraineeSkillGapItem] = []
+    skill_gaps: List[TraineeSkillGapItem] = []
+    suggested_learning_areas: List[Any] = []
+    available_roles: List[Dict[str, Any]] = []
+    sample_size_context: Optional[str] = None
+    estimation_label: str = "ESTIMATION / DETECTED ASSOCIATION"
+    disclaimer: str = "Simulation based on available profile and job requirement data. Detected association or gap — does not prove causation."
+
+
+class CourseSkillCoverageItem(BaseModel):
+    skill_id: str
+    skill_name: str
+    category: str
+    is_covered_in_course: bool
+    proficiency_taught: float
+    job_demand_frequency: float # % of jobs demanding this skill
+    average_trainee_proficiency: float
+    skill_gap_frequency: float # % of trainees in course with a gap
+    average_skill_gap: float
+    status_badge: str # HIGH_DEMAND_LOW_COVERAGE, GOOD_COVERAGE, MODERATE_GAP, EMERGING
+
+
+class CourseSkillAnalysisResponse(BaseModel):
+    course_id: str
+    course_code: str
+    course_title: str
+    provider: str
+    domain: str
+    duration_weeks: int
+    training_coverage_rate: float # % of in-demand skills covered
+    total_enrolled_trainees: int
+    sample_size: int
+    high_demand_low_coverage: List[CourseSkillCoverageItem]
+    good_coverage: List[CourseSkillCoverageItem]
+    skills_taught: List[Dict[str, Any]]
+    skills_demanded: List[Dict[str, Any]]
+    frequently_missing_skills: List[Dict[str, Any]]
+    emerging_skills: List[Dict[str, Any]]
+    outcome_associations: List[Dict[str, Any]]
+    suggested_curriculum_additions: List[str]
+    formula_explanations: Dict[str, str]
+
+
+class TopSkillGapItem(BaseModel):
+    skill_id: str
+    skill_name: str
+    category: str
+    domain: str
+    demand_frequency: float
+    affected_trainees_count: int
+    total_trainees_analyzed: int
+    gap_frequency: float
+    average_gap_level: float
+    critical_gaps_count: int
+    sample_size: int
+    top_demanding_occupations: List[str]
+    recommended_interventions: List[str]
+
+
+class TopSkillGapsResponse(BaseModel):
+    top_gaps: List[TopSkillGapItem]
+    total_gaps_detected: int
+    sample_size: int
+    filter_context: Dict[str, Any]
+    metric_definition: str = "Aggregated gap level = requiredLevel - traineeProficiency across active jobs and enrolled cohorts."
+
+
+class EmergingSkillQuarterItem(BaseModel):
+    quarter: str # e.g. "2026 Q1", "2026 Q2", "2026 Q3", "2026 Q4"
+    frequency_pct: float # e.g. 15.0, 27.0, 42.0
+    jobs_count: int
+    total_jobs_in_quarter: int
+
+
+class EmergingSkillItem(BaseModel):
+    skill_id: str
+    skill_name: str
+    category: str
+    domain: str
+    current_demand_pct: float
+    previous_demand_pct: float
+    growth_rate_pct: float
+    is_emerging: bool
+    emerging_flag: str # "EMERGING_SKILL" or "STABLE"
+    quarterly_trend: List[EmergingSkillQuarterItem]
+    sample_size: int
+    sample_size_sufficient: bool
+    explanation: str
+
+
+class EmergingSkillsResponse(BaseModel):
+    emerging_skills: List[EmergingSkillItem]
+    total_tracked_skills: int
+    min_sample_size_threshold: int
+    sample_size_warning: Optional[str] = None
+    date_range: str
+
+
+class JobSkillDemandItem(BaseModel):
+    skill_id: str
+    skill_name: str
+    category: str
+    domain: str
+    demand_frequency_pct: float
+    mandatory_count: int
+    preferred_count: int
+    total_postings: int
+    top_employers: List[str]
+    sample_size: int
+
+
+class JobSkillDemandResponse(BaseModel):
+    demands: List[JobSkillDemandItem]
+    total_jobs_analyzed: int
+    sample_size: int
+    filter_context: Dict[str, Any]
+    metric_definition: str
+
+
+class OutcomeReasonConfigRead(BaseModel):
+    id: str
+    category: str
+    code: str
+    label: str
+    description: Optional[str] = None
+    is_active: bool
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class OutcomeReasonDistributionItem(BaseModel):
+    reason_code: str
+    label: str
+    category: str
+    count: int
+    percentage: float
+    sample_size: int
+    description: Optional[str] = None
+
+
+class NonPlacementResponse(BaseModel):
+    total_unemployed_or_seeking: int
+    sample_size: int
+    date_range: str
+    filter_context: Dict[str, Any]
+    metric_definition: str = "Distribution of reported factors contributing to non-placement among unemployed/seeking trainees. Labeled as observed associations."
+    reasons_distribution: List[OutcomeReasonDistributionItem]
+    recommendations: List[str]
+
+
+class AttritionResponse(BaseModel):
+    total_attrition_events: int
+    sample_size: int
+    left_within_6_months_count: int
+    left_within_6_months_pct: float
+    date_range: str
+    filter_context: Dict[str, Any]
+    metric_definition: str = "Distribution of reported reasons among trainees who exited employment within 6 months of placement."
+    reasons_distribution: List[OutcomeReasonDistributionItem]
+    tenure_distribution: Dict[str, int]
+    recommendations: List[str]
+
+
+class SelfEmploymentResponse(BaseModel):
+    total_self_employed_analyzed: int
+    sample_size: int
+    date_range: str
+    filter_context: Dict[str, Any]
+    challenges_distribution: List[OutcomeReasonDistributionItem]
+    active_business_rate: float
+    recommendations: List[str]
+
+
+class OutcomeIntelligenceSummaryResponse(BaseModel):
+    total_trainees: int
+    sample_size: int
+    date_range: str
+    filter_context: Dict[str, Any]
+    outcome_distribution: Dict[str, int]
+    top_non_placement_reasons: List[OutcomeReasonDistributionItem]
+    top_attrition_reasons: List[OutcomeReasonDistributionItem]
+    top_self_employment_challenges: List[OutcomeReasonDistributionItem]
+    associations: List[Dict[str, Any]]
+    data_quality_signals: Dict[str, Any]
+    notice: str = "All causal statements avoided. Findings represent detected associations and reported survey distributions."
+
+
+class OutcomeReasonCreateRequest(BaseModel):
+    outcome_id: Optional[str] = None
+    outcome_type: str # EMPLOYED, UNEMPLOYED, EMPLOYMENT_LOST, etc.
+    reason_category: str # NON_PLACEMENT, ATTRITION, SELF_EMPLOYMENT
+    reason_code: str
+    reason_text: Optional[str] = None
+    tenure_months: Optional[int] = None
+    metadata_json: Optional[Dict[str, Any]] = None
+
+
+class FollowUpQuestionItem(BaseModel):
+    question_key: str
+    question_text: str
+    question_type: str = "single_choice"
+    options: Optional[List[str]] = None
+    required: bool = True
+    context_rationale: str
+
+
+class FollowUpGenerateRequest(BaseModel):
+    trainee_id: str
+    current_employment_status: Optional[str] = None
+
+
+class FollowUpGenerateResponse(BaseModel):
+    trainee_id: str
+    trainee_name: str
+    employment_status: str
+    status_is_stale: bool
+    days_since_confirmation: Optional[int] = None
+    questions: List[FollowUpQuestionItem]
+
+
+class FollowUpSubmitAnswersRequest(BaseModel):
+    trainee_id: str
+    employment_status: str
+    responses: List[Dict[str, Any]]
+
+
 
 
 

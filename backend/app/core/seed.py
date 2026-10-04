@@ -19,6 +19,17 @@ from app.models.entities import (
     SkillAlias,
     JobExtractedSkill,
     TraineeSkillEvidence,
+    CareerTimelineEvent,
+    LongitudinalFollowUp,
+    EmployerFeedbackVerification,
+    DigitalTwinState,
+    OutcomeState,
+    VerificationStatus,
+    TimelineStage,
+    calculate_trainee_data_quality,
+    calculate_outcome_confidence,
+    normalize_outcome_state,
+    normalize_verification_status
 )
 from app.core.security import get_password_hash
 from app.core.ontology_data import (
@@ -36,6 +47,32 @@ logger = logging.getLogger("skilltrace.seed")
 
 def seed_competency_ontology(db: Session, force_reseed: bool = False):
     """Seeds Course -> Competency -> Skill -> Occupation ontology across 7 domains."""
+    # Always ensure soft skills are present in the skills table
+    from app.core.soft_skill_rubrics import SOFT_SKILL_SCENARIOS
+    for cat_name, sc_data in SOFT_SKILL_SCENARIOS.items():
+        s_id = sc_data["skill_id"]
+        existing = db.query(Skill).filter(Skill.id == s_id).first()
+        if not existing:
+            s_name = sc_data["name"]
+            if s_id == "sk-comm-01":
+                s_name = "Workplace Technical Communication"
+            elif db.query(Skill).filter(Skill.name == s_name).first():
+                s_name = f"{s_name} (Cross-Functional)"
+            db.add(Skill(
+                id=s_id,
+                code=s_id.upper(),
+                name=s_name,
+                canonical_name=sc_data.get("canonical_name", sc_data["name"]),
+                category="soft",
+                domain="Cross-Functional Workplace Competencies",
+                description=sc_data.get("description", ""),
+                status="ACTIVE",
+                demand_score=85,
+                growth_trend="+15% YoY",
+                aliases=[sc_data["name"].lower(), cat_name.lower()]
+            ))
+    db.commit()
+
     if not force_reseed and db.query(Course).first():
         logger.info("Competency ontology already seeded. Skipping.")
         return
@@ -84,6 +121,7 @@ def seed_competency_ontology(db: Session, force_reseed: bool = False):
 
     # 5. Seed Skill Aliases for rapid canonical normalization
     db.query(SkillAlias).delete()
+    seen_aliases = set()
     for s_data in SKILLS_DATA:
         canonical_id = s_data["id"]
         canonical_name = s_data["name"]
@@ -98,7 +136,8 @@ def seed_competency_ontology(db: Session, force_reseed: bool = False):
             alias_set.update(["python programming", "python development", "python", "py", "python 3", "cpython", "python scripting"])
 
         for clean_al in alias_set:
-            if clean_al:
+            if clean_al and clean_al not in seen_aliases:
+                seen_aliases.add(clean_al)
                 db.add(SkillAlias(
                     alias=clean_al,
                     canonical_skill_id=canonical_id,
@@ -107,55 +146,14 @@ def seed_competency_ontology(db: Session, force_reseed: bool = False):
     db.commit()
     logger.info("Competency Intelligence ontology successfully seeded.")
 
-def seed_jobs_dataset(db: Session, force_reseed: bool = False):
-    """Seeds 35 synthetic job postings with AI skill extraction, normalization, and occupation mappings."""
+def seed_employers_dataset(db: Session, force_reseed: bool = False):
+    """Seeds primary workforce partner employers (EMP-01 through EMP-04) if not already present."""
     if force_reseed:
-        logger.info("Force reseed enabled for jobs dataset. Clearing existing jobs...")
-        db.query(JobExtractedSkill).delete()
-        db.query(Job).delete()
-        db.commit()
-    else:
-        current_job_count = db.query(Job).count()
-        if current_job_count >= 30:
-            logger.info(f"Jobs dataset already seeded ({current_job_count} jobs). Skipping.")
-            return
-
-    logger.info("Seeding 35 AI-analyzed synthetic job descriptions across 7 domains...")
-    for j_data in SYNTHETIC_JOBS_DATA:
-        try:
-            JobIntelligenceService.process_and_save_job(db, j_data)
-        except Exception as e:
-            logger.error(f"Error analyzing and saving job {j_data.get('id')}: {e}")
-    logger.info("Successfully seeded synthetic job descriptions and extracted skills.")
-
-def seed_database(db: Session, force_reseed: bool = False):
-    # 1. Always ensure ontology is seeded
-    seed_competency_ontology(db, force_reseed)
-
-    # 2. Always ensure synthetic jobs dataset is seeded & analyzed
-    seed_jobs_dataset(db, force_reseed)
-
-    if force_reseed:
-        logger.info("Force reseed enabled. Clearing old seed records...")
-        db.query(TraineeSkillEvidence).delete()
-        db.query(TraineeSkill).delete()
-        db.query(Trainee).delete()
         db.query(Employer).delete()
-        db.query(FollowUp).delete()
-        db.query(SkillGap).delete()
-        db.query(CareerPath).delete()
         db.commit()
-    elif db.query(Trainee).first():
-        logger.info("Trainee records already exist. Verifying skill evidence and users...")
-        seed_trainee_skill_evidence(db)
-        seed_users(db, force_reseed)
+    elif db.query(Employer).first():
         return
 
-
-    logger.info("Seeding complete Trainee Outcome Passport workforce dataset...")
-
-
-    # 2. Employers
     employers_data = [
         Employer(
             id="EMP-01",
@@ -214,8 +212,75 @@ def seed_database(db: Session, force_reseed: bool = False):
             website_url="https://vanguardhealth.example.in",
         ),
     ]
-    db.add_all(employers_data)
+    for emp in employers_data:
+        if not db.query(Employer).filter(Employer.id == emp.id).first():
+            db.add(emp)
     db.commit()
+    logger.info("Employers dataset successfully seeded.")
+
+def seed_jobs_dataset(db: Session, force_reseed: bool = False):
+    """Seeds 35 synthetic job postings with AI skill extraction, normalization, and occupation mappings."""
+    # Ensure employers exist first to prevent foreign key violations
+    seed_employers_dataset(db, force_reseed)
+
+    if force_reseed:
+        logger.info("Force reseed enabled for jobs dataset. Clearing existing jobs...")
+        db.query(JobExtractedSkill).delete()
+        db.query(Job).delete()
+        db.commit()
+    else:
+        current_job_count = db.query(Job).count()
+        if current_job_count >= 30:
+            logger.info(f"Jobs dataset already seeded ({current_job_count} jobs). Skipping.")
+            return
+
+    logger.info("Seeding 35 AI-analyzed synthetic job descriptions across 7 domains...")
+    for j_data in SYNTHETIC_JOBS_DATA:
+        try:
+            JobIntelligenceService.process_and_save_job(db, j_data)
+        except Exception as e:
+            logger.error(f"Error analyzing and saving job {j_data.get('id')}: {e}")
+            db.rollback()
+    logger.info("Successfully seeded synthetic job descriptions and extracted skills.")
+
+def seed_database(db: Session, force_reseed: bool = False):
+    # 1. Always ensure ontology is seeded
+    seed_competency_ontology(db, force_reseed)
+
+    # 2. Always ensure employers are seeded before jobs dataset
+    seed_employers_dataset(db, force_reseed)
+
+    # 3. Always ensure synthetic jobs dataset is seeded & analyzed
+    seed_jobs_dataset(db, force_reseed)
+
+    if force_reseed:
+        logger.info("Force reseed enabled. Clearing old seed records...")
+        db.query(DigitalTwinState).delete()
+        db.query(CareerTimelineEvent).delete()
+        db.query(LongitudinalFollowUp).delete()
+        db.query(EmployerFeedbackVerification).delete()
+        db.query(TraineeSkillEvidence).delete()
+        db.query(TraineeSkill).delete()
+        db.query(Trainee).delete()
+        db.query(Employer).delete()
+        db.query(FollowUp).delete()
+        db.query(SkillGap).delete()
+        db.query(CareerPath).delete()
+        db.commit()
+    elif db.query(Trainee).first():
+        logger.info("Trainee records already exist. Verifying skill evidence, longitudinal intelligence, and users...")
+        seed_longitudinal_outcome_intelligence(db, force_reseed)
+        seed_trainee_skill_evidence(db)
+        seed_digital_twins(db, force_reseed)
+        seed_users(db, force_reseed)
+        return
+
+
+    logger.info("Seeding complete Trainee Outcome Passport workforce dataset...")
+
+
+    # 2. Employers
+    seed_employers_dataset(db, force_reseed)
 
     # 4. Comprehensive Synthetic Trainees Representing All 6 Outcome Pathways:
     # 1) Employment, 2) Self-Employment, 3) Freelancing, 4) Apprenticeship, 5) Entrepreneurship, 6) Further Education
@@ -1034,12 +1099,136 @@ def seed_database(db: Session, force_reseed: bool = False):
                 },
             ],
         ),
+        CareerPath(
+            id="CP-02",
+            title="Business Intelligence & Data Analytics",
+            track="Analytics",
+            description="Progression from junior data reporting specialist to lead enterprise analytics architect.",
+            projected_growth="+28% Demand across next 5 years",
+            target_industries=["FinTech", "E-Commerce", "Healthcare", "Consulting"],
+            milestones=[
+                {
+                    "stage": "Entry / Junior Analyst",
+                    "role": "Associate BI & SQL Analyst",
+                    "typicalTimeframe": "0 - 18 months",
+                    "expectedSalary": "₹5,00,000 - ₹8,50,000",
+                    "competencies": ["SQL Querying & Data Modeling", "Power BI / Tableau Dashboards", "Data Cleansing & ETL"]
+                },
+                {
+                    "stage": "Mid-Level / Senior Analyst",
+                    "role": "Lead Analytics Consultant",
+                    "typicalTimeframe": "18 - 36 months",
+                    "expectedSalary": "₹11,00,000 - ₹19,00,000",
+                    "competencies": ["Data Storytelling & Executive Presentation", "Predictive Modeling", "Data Warehouse Governance"]
+                }
+            ],
+        ),
+        CareerPath(
+            id="CP-03",
+            title="Cloud Infrastructure & DevOps Engineering",
+            track="Cloud & Infrastructure",
+            description="Evolution from infrastructure apprentice to principal cloud reliability engineer.",
+            projected_growth="+25% Demand across next 5 years",
+            target_industries=["Cloud Computing", "Telecom", "Financial Services", "SaaS"],
+            milestones=[
+                {
+                    "stage": "Junior DevOps Engineer",
+                    "role": "Junior Cloud Operations Engineer",
+                    "typicalTimeframe": "0 - 18 months",
+                    "expectedSalary": "₹6,00,000 - ₹9,50,000",
+                    "competencies": ["Docker & Containerization", "CI/CD Pipelines", "Linux Administration"]
+                },
+                {
+                    "stage": "Cloud Architect",
+                    "role": "Senior Site Reliability Engineer (SRE)",
+                    "typicalTimeframe": "18 - 42 months",
+                    "expectedSalary": "₹14,00,000 - ₹24,00,000",
+                    "competencies": ["Kubernetes Cluster Orchestration", "Multi-Cloud Security", "Infrastructure-as-Code (Terraform)"]
+                }
+            ],
+        ),
+        CareerPath(
+            id="CP-04",
+            title="AI Solutions & Applied Data Science",
+            track="Artificial Intelligence",
+            description="Career trajectory from ML model assistant to enterprise AI architect.",
+            projected_growth="+34% Demand across next 5 years",
+            target_industries=["Artificial Intelligence", "HealthTech", "Automotive", "Cybersecurity"],
+            milestones=[
+                {
+                    "stage": "Associate ML Engineer",
+                    "role": "Junior Data Scientist",
+                    "typicalTimeframe": "0 - 18 months",
+                    "expectedSalary": "₹7,00,000 - ₹11,00,000",
+                    "competencies": ["Python Data Science Stack", "Supervised / Unsupervised ML", "Model Evaluation & Metrics"]
+                },
+                {
+                    "stage": "AI Systems Lead",
+                    "role": "Staff AI Solutions Architect",
+                    "typicalTimeframe": "24 - 48 months",
+                    "expectedSalary": "₹18,00,000 - ₹32,00,000",
+                    "competencies": ["LLM Finetuning & RAG Architecture", "Vector Search & Embeddings", "High-Throughput ML Serving"]
+                }
+            ],
+        ),
+        CareerPath(
+            id="CP-05",
+            title="Cybersecurity Operations & Defense",
+            track="Cybersecurity",
+            description="Progression from SOC tier-1 analyst to security operations manager.",
+            projected_growth="+31% Demand across next 5 years",
+            target_industries=["Defense", "Banking & Finance", "Critical Infrastructure", "Healthcare"],
+            milestones=[
+                {
+                    "stage": "Junior Security Analyst",
+                    "role": "SOC Analyst Tier 1",
+                    "typicalTimeframe": "0 - 18 months",
+                    "expectedSalary": "₹5,50,000 - ₹9,00,000",
+                    "competencies": ["Network & Cloud Security", "SIEM Log Monitoring", "Incident Triage & Response"]
+                },
+                {
+                    "stage": "Senior Security Consultant",
+                    "role": "Information Security Lead",
+                    "typicalTimeframe": "24 - 48 months",
+                    "expectedSalary": "₹15,00,000 - ₹26,00,000",
+                    "competencies": ["Penetration Testing", "Cloud Compliance & Audits", "Threat Hunting & Cryptography"]
+                }
+            ],
+        ),
+        CareerPath(
+            id="CP-06",
+            title="Digital Healthcare Informatics",
+            track="Healthcare Technology",
+            description="Advancement from clinical data assistant to healthcare technology director.",
+            projected_growth="+20% Demand across next 5 years",
+            target_industries=["Hospitals & Health Systems", "MedTech", "Pharmaceuticals", "Health Insurance"],
+            milestones=[
+                {
+                    "stage": "Clinical Informatics Assistant",
+                    "role": "Healthcare Data Specialist",
+                    "typicalTimeframe": "0 - 18 months",
+                    "expectedSalary": "₹4,80,000 - ₹7,80,000",
+                    "competencies": ["Electronic Health Records (EHR)", "Clinical Triage Standards", "HIPAA / Data Privacy"]
+                },
+                {
+                    "stage": "Healthcare Informatics Lead",
+                    "role": "Director of Health Information Systems",
+                    "typicalTimeframe": "24 - 48 months",
+                    "expectedSalary": "₹12,00,000 - ₹22,00,000",
+                    "competencies": ["Healthcare Analytics & Outcomes", "Telehealth Systems Integration", "Regulatory Compliance"]
+                }
+            ],
+        ),
     ]
-    db.add_all(paths_data)
+    for p in paths_data:
+        if not db.query(CareerPath).filter(CareerPath.id == p.id).first():
+            db.add(p)
     db.commit()
 
     logger.info("Complete Trainee Outcome Passport database seeding successfully completed.")
+    seed_longitudinal_outcome_intelligence(db, force_reseed=force_reseed)
     seed_trainee_skill_evidence(db, force_reseed=force_reseed)
+    seed_digital_twins(db, force_reseed=force_reseed)
     seed_users(db, force_reseed=force_reseed)
 
 
@@ -1634,6 +1823,33 @@ def seed_users(db: Session, force_reseed: bool = False):
         authorized_candidate_ids=["TRN-2024-001", "TRN-2024-004"]
     ))
 
+    # 3b. Verification Authority & Auditor
+    verifier_user = User(
+        id="USR-VA-001",
+        email="verifier@skilltrace.gov",
+        hashed_password=get_password_hash("Verifier@123456"),
+        role="VERIFICATION_AUTHORITY",
+        full_name="Dr. Kavitha Ramanathan",
+        phone="+91 80 4912 3344",
+        is_active=True,
+        is_verified=True,
+        created_at="2024-01-10T09:00:00"
+    )
+    db.add(verifier_user)
+
+    auditor_user = User(
+        id="USR-AUD-001",
+        email="auditor@skilltrace.org",
+        hashed_password=get_password_hash("Auditor@123456"),
+        role="AUDITOR",
+        full_name="Vikramaditya Sen",
+        phone="+91 80 4912 5566",
+        is_active=True,
+        is_verified=True,
+        created_at="2024-01-12T09:00:00"
+    )
+    db.add(auditor_user)
+
     # 4. Trainees
     t1_user = User(
         id="USR-TRN-001",
@@ -1699,5 +1915,730 @@ def seed_users(db: Session, force_reseed: bool = False):
 
     db.commit()
     logger.info("Successfully seeded multi-role users and role profiles.")
+
+
+def seed_longitudinal_outcome_intelligence(db: Session, force_reseed: bool = False):
+    """
+    Seeds comprehensive Longitudinal Outcome Intelligence records:
+    1. Canonical Outcome States across all 11 standardized categories:
+       EMPLOYED, SELF_EMPLOYED, APPRENTICESHIP, FREELANCING, ENTREPRENEURSHIP,
+       HIGHER_STUDIES, UNEMPLOYED, SEEKING_EMPLOYMENT, UNKNOWN, UNREACHABLE, WITHDRAWN_CONSENT.
+    2. Real chronological append-only career timelines:
+       TRAINING -> COMPLETION -> PLACEMENT -> EMPLOYMENT -> JOB_CHANGE -> SALARY_CHANGE -> RETENTION -> SKILL_DEVELOPMENT.
+    3. Longitudinal milestone follow-ups (30d, 90d, 180d, 365d) with retention confirmations and overdue tracking.
+    4. Multi-source EmployerFeedbackVerification with ratings, relevance, and skill gaps.
+    5. Calculates and persists objective confidence and data quality scores (completeness, freshness, verification, consistency).
+    All demo records are strictly tagged with is_synthetic=True and data_source="DEMO/SYNTHETIC".
+    """
+    logger.info("Seeding Longitudinal Outcome Intelligence records & audit trail...")
+
+    # 1. Trainee Metadata & 11 Canonical States Mapping
+    trainee_updates = {
+        "TRN-2024-001": {
+            "outcome_state": OutcomeState.EMPLOYED.value,
+            "outcome_verification_level": VerificationStatus.EMPLOYER_VERIFIED.value,
+            "outcome_last_verified_at": "2024-09-12",
+            "outcome_source": "Apex Cloud Technologies India Pvt. Ltd. (EPFO & Offer Letter)",
+            "district": "Bengaluru",
+            "provider_name": "Bengaluru Institute of Technology & Advanced Skills",
+            "batch": "Cohort 2024-B",
+            "placement_wage_numeric": 840000.0,
+            "current_wage_numeric": 920000.0,
+        },
+        "TRN-2024-002": {
+            "outcome_state": OutcomeState.SELF_EMPLOYED.value,
+            "outcome_verification_level": VerificationStatus.DOCUMENT_VERIFIED.value,
+            "outcome_last_verified_at": "2024-09-12",
+            "outcome_source": "Ministry of Corporate Affairs (MCA) Incorporation & GST Invoices",
+            "district": "Hyderabad",
+            "provider_name": "IIIT Bangalore Data Academy",
+            "batch": "Cohort 2024-B",
+            "placement_wage_numeric": 1450000.0,
+            "current_wage_numeric": 1600000.0,
+        },
+        "TRN-2024-003": {
+            "outcome_state": OutcomeState.FREELANCING.value,
+            "outcome_verification_level": VerificationStatus.EMPLOYER_VERIFIED.value,
+            "outcome_last_verified_at": "2024-08-10",
+            "outcome_source": "Upwork Enterprise Escrow & Client Statements",
+            "district": "Pune",
+            "provider_name": "Western India Tech Academy, Pune",
+            "batch": "Cohort 2024-A",
+            "placement_wage_numeric": 1250000.0,
+            "current_wage_numeric": 1400000.0,
+        },
+        "TRN-2024-004": {
+            "outcome_state": OutcomeState.APPRENTICESHIP.value,
+            "outcome_verification_level": VerificationStatus.EMPLOYER_VERIFIED.value,
+            "outcome_last_verified_at": "2024-09-01",
+            "outcome_source": "Vanguard Healthcare Networks & NAPS Portal",
+            "district": "Chennai",
+            "provider_name": "National Skill Training Institute (NSTI) Chennai",
+            "batch": "Cohort 2024-B",
+            "placement_wage_numeric": 480000.0,
+            "current_wage_numeric": 540000.0,
+        },
+        "TRN-2024-005": {
+            "outcome_state": OutcomeState.ENTREPRENEURSHIP.value,
+            "outcome_verification_level": VerificationStatus.DOCUMENT_VERIFIED.value,
+            "outcome_last_verified_at": "2024-08-01",
+            "outcome_source": "DPIIT Startup Recognition & Seed Grant Agreement",
+            "district": "Mumbai",
+            "provider_name": "Mumbai Institute of Artificial Intelligence & Data Science",
+            "batch": "Cohort 2024-A",
+            "placement_wage_numeric": 1000000.0,
+            "current_wage_numeric": 1200000.0,
+        },
+        "TRN-2024-006": {
+            "outcome_state": OutcomeState.HIGHER_STUDIES.value,
+            "outcome_verification_level": VerificationStatus.DOCUMENT_VERIFIED.value,
+            "outcome_last_verified_at": "2024-09-15",
+            "outcome_source": "IIT Delhi Fellowship & Admission Letter",
+            "district": "New Delhi",
+            "provider_name": "Delhi AI & Deep Learning Academy",
+            "batch": "Cohort 2024-A",
+            "placement_wage_numeric": 600000.0,
+            "current_wage_numeric": 600000.0,
+        }
+    }
+
+    # Apply updates to existing 6 trainees
+    for t_id, data in trainee_updates.items():
+        trn = db.query(Trainee).filter(Trainee.id == t_id).first()
+        if trn:
+            for k, v in data.items():
+                setattr(trn, k, v)
+            trn.is_synthetic = True
+            trn.data_source = "DEMO/SYNTHETIC"
+
+    db.commit()
+
+    # 2. Add Additional Trainees for Canonical States: UNEMPLOYED, SEEKING_EMPLOYMENT, UNKNOWN, UNREACHABLE, WITHDRAWN_CONSENT
+    additional_trainees = [
+        # --- 7. UNEMPLOYED ---
+        Trainee(
+            id="TRN-2024-007",
+            full_name="Deepa Menon",
+            email="deepa.menon@example.in",
+            phone="+91 98450 77112",
+            avatar_url="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
+            location="Mysuru, KA",
+            district="Mysuru",
+            bio="Data intelligence graduate seeking entry-level analyst position. Completed capstone on exploratory data analysis.",
+            program="Data Intelligence & AI Integration",
+            cohort="Cohort 2024-A",
+            batch="Cohort 2024-A",
+            provider_name="Western India Tech Academy, Pune",
+            status="graduated",
+            primary_outcome_type="unemployed",
+            outcome_state=OutcomeState.UNEMPLOYED.value,
+            outcome_verification_level=VerificationStatus.SELF_REPORTED.value,
+            outcome_last_verified_at="2024-08-15",
+            outcome_source="Graduate Longitudinal Self-Reported Survey",
+            enrollment_date="2023-10-10",
+            graduation_date="2024-04-12",
+            training_details={
+                "provider_name": "Western India Tech Academy, Pune",
+                "course_title": "Data Intelligence & Analytics",
+                "attendance_rate": "92.0%",
+                "hours_completed": 640
+            },
+            overall_score=78,
+            match_score=68,
+            last_follow_up="2024-08-15",
+            next_follow_up="2024-11-15",
+            is_synthetic=True,
+            data_source="DEMO/SYNTHETIC",
+            consent_status={"status": "ACTIVE", "consent_status": "granted"}
+        ),
+        # --- 8. SEEKING EMPLOYMENT ---
+        Trainee(
+            id="TRN-2024-008",
+            full_name="Rohan Joshi",
+            email="rohan.joshi@example.in",
+            phone="+91 97230 44551",
+            avatar_url="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80",
+            location="Coimbatore, TN",
+            district="Coimbatore",
+            bio="Full-stack engineer actively attending technical interviews with enterprise SaaS startups in Bengaluru and Chennai.",
+            program="Full-Stack Software Engineering",
+            cohort="Cohort 2024-B",
+            batch="Cohort 2024-B",
+            provider_name="Bengaluru Institute of Technology & Advanced Skills",
+            status="seeking_job",
+            primary_outcome_type="seeking_employment",
+            outcome_state=OutcomeState.SEEKING_EMPLOYMENT.value,
+            outcome_verification_level=VerificationStatus.SELF_REPORTED.value,
+            outcome_last_verified_at="2024-09-01",
+            outcome_source="Placement Assistance Log",
+            enrollment_date="2024-01-15",
+            graduation_date="2024-06-30",
+            training_details={
+                "provider_name": "Bengaluru Institute of Technology & Advanced Skills",
+                "course_title": "Full-Stack Enterprise React & Cloud Web Services",
+                "attendance_rate": "94.5%",
+                "hours_completed": 700
+            },
+            overall_score=85,
+            match_score=79,
+            last_follow_up="2024-09-01",
+            next_follow_up="2024-10-15",
+            is_synthetic=True,
+            data_source="DEMO/SYNTHETIC",
+            consent_status={"status": "ACTIVE", "consent_status": "granted"}
+        ),
+        # --- 9. UNKNOWN (Not assumed unemployed!) ---
+        Trainee(
+            id="TRN-2024-009",
+            full_name="Amit Sengupta",
+            email="amit.sengupta@example.in",
+            phone="+91 98301 22883",
+            avatar_url="https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80",
+            location="Ahmedabad, GJ",
+            district="Ahmedabad",
+            bio="DevOps graduate from Cohort 2024-B. Recent status survey pending response.",
+            program="Backend & Cloud DevOps",
+            cohort="Cohort 2024-B",
+            batch="Cohort 2024-B",
+            provider_name="IIIT Bangalore Data Academy",
+            status="unknown",
+            primary_outcome_type="unknown",
+            outcome_state=OutcomeState.UNKNOWN.value,
+            outcome_verification_level=VerificationStatus.UNVERIFIED.value,
+            outcome_last_verified_at=None,
+            outcome_source="Pending Longitudinal Response",
+            enrollment_date="2024-02-01",
+            graduation_date="2024-07-15",
+            training_details={
+                "provider_name": "IIIT Bangalore Data Academy",
+                "course_title": "Enterprise Cloud Architecture",
+                "attendance_rate": "89.0%",
+                "hours_completed": 620
+            },
+            overall_score=80,
+            match_score=70,
+            is_synthetic=True,
+            data_source="DEMO/SYNTHETIC",
+            consent_status={"status": "ACTIVE", "consent_status": "granted"}
+        ),
+        # --- 10. UNREACHABLE ---
+        Trainee(
+            id="TRN-2024-010",
+            full_name="Farzana Parveen",
+            email="farzana.p@example.in",
+            phone="+91 98311 00992",
+            avatar_url="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+            location="Kolkata, WB",
+            district="Kolkata",
+            bio="Cybersecurity graduate. Contact details unverified; phone disconnected and email notifications undelivered.",
+            program="Cybersecurity & Infrastructure",
+            cohort="Cohort 2024-A",
+            batch="Cohort 2024-A",
+            provider_name="National Skill Training Institute (NSTI) Chennai",
+            status="at_risk",
+            primary_outcome_type="unreachable",
+            outcome_state=OutcomeState.UNREACHABLE.value,
+            outcome_verification_level=VerificationStatus.UNVERIFIED.value,
+            outcome_last_verified_at=None,
+            outcome_source="Unreachable (3 Failed Contact Attempts)",
+            enrollment_date="2023-10-15",
+            graduation_date="2024-03-30",
+            training_details={
+                "provider_name": "National Skill Training Institute (NSTI) Chennai",
+                "course_title": "Healthcare Cyber Defense",
+                "attendance_rate": "85.0%",
+                "hours_completed": 600
+            },
+            overall_score=72,
+            match_score=60,
+            is_synthetic=True,
+            data_source="DEMO/SYNTHETIC",
+            consent_status={"status": "ACTIVE", "consent_status": "granted"}
+        ),
+        # --- 11. WITHDRAWN CONSENT ---
+        Trainee(
+            id="TRN-2024-011",
+            full_name="Vikram Malhotra",
+            email="vikram.m@example.in",
+            phone="+91 94140 12398",
+            avatar_url="https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=150&auto=format&fit=crop&q=80",
+            location="Jaipur, RJ",
+            district="Jaipur",
+            bio="Data Intelligence graduate. Exercised DPDP Act Section 6(4) right to withdraw consent.",
+            program="Data Intelligence & AI Integration",
+            cohort="Cohort 2024-A",
+            batch="Cohort 2024-A",
+            provider_name="Mumbai Institute of Artificial Intelligence & Data Science",
+            status="unknown",
+            primary_outcome_type="withdrawn_consent",
+            outcome_state=OutcomeState.WITHDRAWN_CONSENT.value,
+            outcome_verification_level=VerificationStatus.UNVERIFIED.value,
+            outcome_last_verified_at="2024-05-10",
+            outcome_source="DPDP Section 6(4) Consent Revocation Notice",
+            enrollment_date="2023-10-10",
+            graduation_date="2024-04-12",
+            training_details={
+                "provider_name": "Mumbai Institute of Artificial Intelligence & Data Science",
+                "course_title": "Applied AI Engineering",
+                "attendance_rate": "95.0%",
+                "hours_completed": 700
+            },
+            overall_score=86,
+            match_score=80,
+            is_synthetic=True,
+            data_source="DEMO/SYNTHETIC",
+            consent_status={"status": "WITHDRAWN", "consent_status": "withdrawn", "revoked_at": "2024-05-10"}
+        )
+    ]
+
+    for at in additional_trainees:
+        if not db.query(Trainee).filter(Trainee.id == at.id).first():
+            db.add(at)
+    db.commit()
+
+    # 3. Real Append-Only Career Timeline Events (Never overwrite historical events)
+    # TRAINING -> COMPLETION -> PLACEMENT -> EMPLOYMENT -> JOB_CHANGE -> SALARY_CHANGE -> RETENTION -> SKILL_DEVELOPMENT
+    timeline_events = [
+        # Priya Sharma (TRN-2024-001) Complete 8-Stage Canonical Progression
+        CareerTimelineEvent(
+            id="CTE-001-1",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            stage=TimelineStage.TRAINING.value,
+            pathway="employment",
+            title="Enrolled in Full-Stack Enterprise React & Cloud Web Services",
+            organization="Bengaluru Institute of Technology & Advanced Skills",
+            event_date="2024-01-15",
+            metrics={"modality": "Hybrid", "hours_target": 720},
+            verification_status="verified",
+            verification_notes="Enrolled under NSDC sponsored scholarship program.",
+            is_current=False,
+            sequence_order=1
+        ),
+        CareerTimelineEvent(
+            id="CTE-001-2",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            stage=TimelineStage.COMPLETION.value,
+            pathway="employment",
+            title="Graduated Full-Stack Software Engineering Bootcamp (A+ Capstone)",
+            organization="Bengaluru Institute of Technology & Advanced Skills",
+            event_date="2024-06-30",
+            metrics={"capstone_score": 96, "attendance_rate": "98.4%"},
+            verification_status="verified",
+            verification_notes="Passed formal Capstone Technical Defense.",
+            is_current=False,
+            sequence_order=2
+        ),
+        CareerTimelineEvent(
+            id="CTE-001-3",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            stage=TimelineStage.PLACEMENT.value,
+            pathway="employment",
+            title="Accepted Offer as Junior Frontend Engineer",
+            organization="Apex Cloud Technologies India Pvt. Ltd.",
+            event_date="2024-07-22",
+            metrics={"placement_salary": 840000.0, "currency": "INR"},
+            verification_status="verified",
+            verification_notes="Offer letter and joining declaration countersigned.",
+            is_current=False,
+            sequence_order=3
+        ),
+        CareerTimelineEvent(
+            id="CTE-001-4",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            stage=TimelineStage.EMPLOYMENT.value,
+            pathway="employment",
+            title="Completed Probation & Joined Core Web Platform Team",
+            organization="Apex Cloud Technologies India Pvt. Ltd.",
+            event_date="2024-08-01",
+            metrics={"employment_type": "Full-Time Salaried"},
+            verification_status="verified",
+            verification_notes="Confirmed permanent employee status with EPF & medical cover.",
+            is_current=False,
+            sequence_order=4
+        ),
+        CareerTimelineEvent(
+            id="CTE-001-5",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            stage=TimelineStage.JOB_CHANGE.value,
+            pathway="employment",
+            title="Transitioned from Apprentice to Junior Frontend Engineer II",
+            organization="Apex Cloud Technologies India Pvt. Ltd.",
+            event_date="2024-08-15",
+            metrics={"role_level": "L2 Software Engineer"},
+            verification_status="verified",
+            verification_notes="Promotion memo approved by VP of Talent Sunita Rao.",
+            is_current=False,
+            sequence_order=5
+        ),
+        CareerTimelineEvent(
+            id="CTE-001-6",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            stage=TimelineStage.SALARY_CHANGE.value,
+            pathway="employment",
+            title="Annualized Wage Revision (+9.5% Merit Progression)",
+            organization="Apex Cloud Technologies India Pvt. Ltd.",
+            event_date="2024-08-25",
+            metrics={"previous_wage": 840000.0, "new_wage": 920000.0, "wage_growth_pct": 9.5},
+            verification_status="verified",
+            verification_notes="Audited against EPFO electronic monthly challan wage slip.",
+            is_current=False,
+            sequence_order=6
+        ),
+        CareerTimelineEvent(
+            id="CTE-001-7",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            stage=TimelineStage.RETENTION.value,
+            pathway="employment",
+            title="90-Day & 180-Day Continuous Retention Verified",
+            organization="Apex Cloud Technologies India Pvt. Ltd.",
+            event_date="2024-09-12",
+            metrics={"retention_days": 180, "is_retained": True},
+            verification_status="verified",
+            verification_notes="Active employment verified directly via employer portal review.",
+            is_current=False,
+            sequence_order=7
+        ),
+        CareerTimelineEvent(
+            id="CTE-001-8",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            stage=TimelineStage.SKILL_DEVELOPMENT.value,
+            pathway="employment",
+            title="Attained AWS Certified Cloud Practitioner & Advanced State Management",
+            organization="Amazon Web Services & Apex Internal Tech Academy",
+            event_date="2024-09-20",
+            metrics={"credential_id": "AWS-CCP-98231", "score": 94},
+            verification_status="verified",
+            verification_notes="Digital credential verified through AWS verification portal.",
+            is_current=True,
+            sequence_order=8
+        ),
+
+        # Rajesh Kumar (TRN-2024-002) Self-Employment Timeline
+        CareerTimelineEvent(
+            id="CTE-002-1",
+            trainee_id="TRN-2024-002",
+            trainee_name="Rajesh Kumar",
+            stage=TimelineStage.TRAINING.value,
+            pathway="self_employment",
+            title="Enrolled in Enterprise Cloud Architecture & Distributed Systems",
+            organization="IIIT Bangalore Data Academy",
+            event_date="2024-02-01",
+            metrics={"attendance_rate": "97.1%"},
+            verification_status="verified",
+            verification_notes="Endorsed by TSCHE.",
+            is_current=False,
+            sequence_order=1
+        ),
+        CareerTimelineEvent(
+            id="CTE-002-2",
+            trainee_id="TRN-2024-002",
+            trainee_name="Rajesh Kumar",
+            stage=TimelineStage.COMPLETION.value,
+            pathway="self_employment",
+            title="Completed Distributed Cloud Architecture Diploma",
+            organization="IIIT Bangalore Data Academy",
+            event_date="2024-07-15",
+            metrics={"capstone_grade": "A"},
+            verification_status="verified",
+            verification_notes="Certified Kubernetes Administrator exam cleared.",
+            is_current=False,
+            sequence_order=2
+        ),
+        CareerTimelineEvent(
+            id="CTE-002-3",
+            trainee_id="TRN-2024-002",
+            trainee_name="Rajesh Kumar",
+            stage=TimelineStage.PLACEMENT.value,
+            pathway="self_employment",
+            title="Registered Kumar Cloud Architecture LLP with MCA India",
+            organization="Ministry of Corporate Affairs / Self-Venture",
+            event_date="2024-08-01",
+            metrics={"projected_retainers": 1450000.0},
+            verification_status="verified",
+            verification_notes="Certificate of Incorporation & GST portal verified.",
+            is_current=False,
+            sequence_order=3
+        ),
+        CareerTimelineEvent(
+            id="CTE-002-4",
+            trainee_id="TRN-2024-002",
+            trainee_name="Rajesh Kumar",
+            stage=TimelineStage.RETENTION.value,
+            pathway="self_employment",
+            title="Retained 3 Enterprise Retainers Beyond 90 Days",
+            organization="Kumar Cloud Architecture LLP",
+            event_date="2024-09-12",
+            metrics={"monthly_retainer_net": 135000.0, "retention_confirmed": True},
+            verification_status="verified",
+            verification_notes="Current account bank statements and GST filings audited.",
+            is_current=True,
+            sequence_order=4
+        )
+    ]
+
+    for ev in timeline_events:
+        if not db.query(CareerTimelineEvent).filter(CareerTimelineEvent.id == ev.id).first():
+            db.add(ev)
+    db.commit()
+
+    # 4. Longitudinal Milestone Follow-ups (30d, 90d, 180d, 365d)
+    longitudinal_fus = [
+        # Priya Sharma (TRN-2024-001)
+        LongitudinalFollowUp(
+            id="LFU-001-30",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            milestone_days=30,
+            scheduled_date="2024-08-22",
+            due_date="2024-08-25",
+            completed_date="2024-08-25",
+            status="completed",
+            pathway="employment",
+            retention_confirmed=True,
+            metrics_recorded={"retention": True, "wage": 840000.0, "employer": "Apex Cloud Technologies India Pvt. Ltd."},
+            notes="30-day onboarding audit completed. Candidate thriving in sprint workflow."
+        ),
+        LongitudinalFollowUp(
+            id="LFU-001-90",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            milestone_days=90,
+            scheduled_date="2024-10-20",
+            due_date="2024-10-25",
+            completed_date="2024-10-22",
+            status="completed",
+            pathway="employment",
+            retention_confirmed=True,
+            metrics_recorded={"retention": True, "wage": 920000.0, "employer": "Apex Cloud Technologies India Pvt. Ltd."},
+            notes="90-day retention verified with employer VP of Talent. Merit salary revision active."
+        ),
+        LongitudinalFollowUp(
+            id="LFU-001-180",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            milestone_days=180,
+            scheduled_date="2025-01-20",
+            due_date="2025-01-25",
+            completed_date="2025-01-22",
+            status="completed",
+            pathway="employment",
+            retention_confirmed=True,
+            metrics_recorded={"retention": True, "wage": 920000.0},
+            notes="180-day retention confirmed."
+        ),
+        LongitudinalFollowUp(
+            id="LFU-001-365",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            milestone_days=365,
+            scheduled_date="2025-07-20",
+            due_date="2025-07-25",
+            status="scheduled",
+            pathway="employment",
+            retention_confirmed=False,
+            notes="Scheduled 1-year annual retention benchmark."
+        ),
+
+        # Karthik Venkataraman (TRN-2024-004) - Includes overdue follow-up
+        LongitudinalFollowUp(
+            id="LFU-004-30",
+            trainee_id="TRN-2024-004",
+            trainee_name="Karthik Venkataraman",
+            milestone_days=30,
+            scheduled_date="2024-09-01",
+            due_date="2024-09-05",
+            completed_date="2024-09-02",
+            status="completed",
+            pathway="apprenticeship",
+            retention_confirmed=True,
+            metrics_recorded={"retention": True, "wage": 480000.0},
+            notes="Apprentice active in Vanguard Healthcare SOC."
+        ),
+        LongitudinalFollowUp(
+            id="LFU-004-90",
+            trainee_id="TRN-2024-004",
+            trainee_name="Karthik Venkataraman",
+            milestone_days=90,
+            scheduled_date="2024-11-01",
+            due_date="2024-11-05",
+            completed_date="2024-11-02",
+            status="completed",
+            pathway="apprenticeship",
+            retention_confirmed=True,
+            metrics_recorded={"retention": True, "wage": 540000.0},
+            notes="90-day apprenticeship milestone verified with clinical mentor."
+        ),
+        LongitudinalFollowUp(
+            id="LFU-004-180",
+            trainee_id="TRN-2024-004",
+            trainee_name="Karthik Venkataraman",
+            milestone_days=180,
+            scheduled_date="2025-02-01",
+            due_date="2025-02-05",
+            status="overdue",
+            pathway="apprenticeship",
+            retention_confirmed=False,
+            notes="Overdue follow-up check with clinical apprentice supervisor."
+        ),
+
+        # Deepa Menon (TRN-2024-007) - Unemployed
+        LongitudinalFollowUp(
+            id="LFU-007-30",
+            trainee_id="TRN-2024-007",
+            trainee_name="Deepa Menon",
+            milestone_days=30,
+            scheduled_date="2024-05-15",
+            due_date="2024-05-20",
+            completed_date="2024-05-18",
+            status="completed",
+            pathway="unemployed",
+            retention_confirmed=False,
+            metrics_recorded={"seeking_job": True, "interviews_attended": 2},
+            notes="Graduate actively looking for data analyst openings. Needs interview practice intervention."
+        ),
+
+        # Farzana Parveen (TRN-2024-010) - Unreachable
+        LongitudinalFollowUp(
+            id="LFU-010-30",
+            trainee_id="TRN-2024-010",
+            trainee_name="Farzana Parveen",
+            milestone_days=30,
+            scheduled_date="2024-04-30",
+            due_date="2024-05-05",
+            status="unreachable",
+            pathway="unreachable",
+            retention_confirmed=False,
+            notes="Phone disconnected, email returned 550 bounce. Contact attempts logged."
+        )
+    ]
+
+    for fu in longitudinal_fus:
+        if not db.query(LongitudinalFollowUp).filter(LongitudinalFollowUp.id == fu.id).first():
+            db.add(fu)
+    db.commit()
+
+    # 5. Employer Feedback Verification Records
+    employer_verifs = [
+        EmployerFeedbackVerification(
+            id="EFV-001",
+            employer_id="EMP-01",
+            employer_name="Apex Cloud Technologies India Pvt. Ltd.",
+            reviewer_name="Sunita Rao",
+            reviewer_role="VP of Talent & Apprenticeship Programs",
+            reviewer_email="sunita.rao@apexcloud.co.in",
+            trainee_id="TRN-2024-001",
+            trainee_name="Priya Sharma",
+            verification_status="confirmed",
+            confirmed_role="Junior Frontend Engineer",
+            confirmed_department="Core UI Platform",
+            employment_type="Full-time",
+            confirmed_start_date="2024-07-22",
+            salary_range="₹8,40,000 - ₹9,50,000 / yr",
+            is_still_employed=True,
+            retention_months=9,
+            skill_ratings={"React.js": 4.8, "TypeScript": 4.5, "Git": 4.6},
+            average_skill_score=4.63,
+            missing_technical_skills=["Docker containerization", "CI/CD automated testing"],
+            missing_soft_skills=["Executive Stakeholder Communication"],
+            training_relevance_rating=4.8,
+            training_relevance_notes="Trainee arrived day-1 productive in React component architecture.",
+            curriculum_recommendations="Add 1 week of containerization and GitHub Actions workflow modules.",
+            would_hire_from_provider_again=True,
+            evidence_level="multi_source_verified",
+            verified_artifacts=["appointment_letter_signed.pdf", "epfo_electronic_challan_receipt.pdf"],
+            submission_date="2024-09-12"
+        ),
+        EmployerFeedbackVerification(
+            id="EFV-002",
+            employer_id="EMP-04",
+            employer_name="Vanguard Healthcare Networks India",
+            reviewer_name="Dr. Mohanarangam Pillai",
+            reviewer_role="Operations Director",
+            reviewer_email="mpillai@vanguardhealth.co.in",
+            trainee_id="TRN-2024-004",
+            trainee_name="Karthik Venkataraman",
+            verification_status="confirmed",
+            confirmed_role="Healthcare Cybersecurity Systems Apprentice",
+            confirmed_department="Clinical Informatics SOC",
+            employment_type="Apprenticeship",
+            confirmed_start_date="2024-08-01",
+            salary_range="₹4,80,000 / yr",
+            is_still_employed=True,
+            retention_months=6,
+            skill_ratings={"Network Security": 4.6, "CompTIA Protocols": 4.4},
+            average_skill_score=4.5,
+            missing_technical_skills=["Forensic Packet Analysis", "HL7/FHIR Security"],
+            missing_soft_skills=["Emergency Clinical Escalation Protocol"],
+            training_relevance_rating=4.6,
+            training_relevance_notes="Very strong fundamentals in network hardening and access control.",
+            would_hire_from_provider_again=True,
+            evidence_level="employer_confirmed",
+            verified_artifacts=["naps_contract_signed.pdf"],
+            submission_date="2024-09-01"
+        )
+    ]
+
+    for ev in employer_verifs:
+        if not db.query(EmployerFeedbackVerification).filter(EmployerFeedbackVerification.id == ev.id).first():
+            db.add(ev)
+    db.commit()
+
+    # 6. Synchronize Objective Confidence and Transparent Data Quality Scores for ALL Trainees
+    all_trainees = db.query(Trainee).all()
+    all_fus = db.query(LongitudinalFollowUp).all()
+    all_vers = db.query(EmployerFeedbackVerification).all()
+    all_evts = db.query(CareerTimelineEvent).all()
+
+    fu_map: Dict[str, List[LongitudinalFollowUp]] = {}
+    for f in all_fus:
+        fu_map.setdefault(f.trainee_id, []).append(f)
+
+    ver_map: Dict[str, List[EmployerFeedbackVerification]] = {}
+    for v in all_vers:
+        ver_map.setdefault(v.trainee_id, []).append(v)
+
+    evt_map: Dict[str, List[CareerTimelineEvent]] = {}
+    for e in all_evts:
+        evt_map.setdefault(e.trainee_id, []).append(e)
+
+    for trn in all_trainees:
+        v_lvl = getattr(trn, "outcome_verification_level", None) or "UNVERIFIED"
+        v_date = trn.outcome_last_verified_at or trn.placement_date
+        src = trn.outcome_source or trn.current_employer or "Trainee Submission"
+        conf = calculate_outcome_confidence(v_lvl, source=src, verified_at=v_date)
+        trn.outcome_confidence = conf
+
+        t_fus = fu_map.get(trn.id, [])
+        t_vers = ver_map.get(trn.id, [])
+        t_evts = evt_map.get(trn.id, [])
+
+        dq = calculate_trainee_data_quality(trn, t_fus, t_vers, t_evts)
+        trn.data_quality_score = dq["score"]
+        trn.data_quality_breakdown = dq
+
+    db.commit()
+    logger.info("Successfully synchronized Longitudinal Outcome Intelligence & Data Quality audit layer.")
+
+
+def seed_digital_twins(db: Session, force_reseed: bool = False):
+    """Generates persistent Career Outcome Digital Twin representations for all seeded trainees."""
+    from app.services.digital_twin_service import DigitalTwinService
+    trainees = db.query(Trainee).all()
+    logger.info(f"Computing Career Outcome Digital Twin states for {len(trainees)} trainees...")
+    for t in trainees:
+        try:
+            DigitalTwinService.get_or_compute_twin(db, t.id, force_refresh=force_reseed)
+        except Exception as e:
+            logger.warning(f"Error computing digital twin for trainee {t.id}: {e}")
+    logger.info("Successfully seeded all Career Outcome Digital Twin representations.")
+
 
 

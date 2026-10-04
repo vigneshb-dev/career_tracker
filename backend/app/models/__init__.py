@@ -22,6 +22,18 @@ from app.models.entities import (
     ResumeAnalysisRecord,
     TrainingRecord,
     PassportEvent,
+    OutcomeRisk,
+    OutcomeRiskType,
+    OutcomeRiskSeverity,
+    OutcomeRiskStatus,
+    CareerSimulationRecord,
+    TrainingCourseSkill,
+    JobSkillRequirement,
+    EmploymentOutcomeSkill,
+    CourseSkillGap,
+    OutcomeReasonConfig,
+    TraineeOutcomeReason,
+    FollowUpQuestionResponse,
 )
 
 __all__ = [
@@ -48,5 +60,17 @@ __all__ = [
     "ResumeAnalysisRecord",
     "TrainingRecord",
     "PassportEvent",
+    "OutcomeRisk",
+    "OutcomeRiskType",
+    "OutcomeRiskSeverity",
+    "OutcomeRiskStatus",
+    "CareerSimulationRecord",
+    "TrainingCourseSkill",
+    "JobSkillRequirement",
+    "EmploymentOutcomeSkill",
+    "CourseSkillGap",
+    "OutcomeReasonConfig",
+    "TraineeOutcomeReason",
+    "FollowUpQuestionResponse",
 ]
 

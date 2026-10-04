@@ -1,4 +1,4 @@
-export type UserRole = 'TRAINEE' | 'COACH' | 'EMPLOYER' | 'ADMIN';
+export type UserRole = 'TRAINEE' | 'COACH' | 'EMPLOYER' | 'ADMIN' | 'VERIFICATION_AUTHORITY' | 'AUDITOR';
 
 export interface UserProfileDetails {
   headline?: string;

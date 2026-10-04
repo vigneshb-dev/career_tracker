@@ -47,6 +47,7 @@ import { Button } from '../components/common/Button';
 import { LoadingState } from '../components/common/LoadingState';
 import { SkillGapExplanationModal } from '../components/gaps/SkillGapExplanationModal';
 import { InterventionReassessmentModal } from '../components/interventions/InterventionReassessmentModal';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import {
   SkillGapAnalysis,
@@ -64,6 +65,8 @@ import {
 
 export const SkillGaps: React.FC = () => {
   const navigate = useNavigate();
+  const { user, role } = useAuth();
+  const isTrainee = role === 'TRAINEE';
 
   // State
   const [trainees, setTrainees] = useState<Trainee[]>([]);
@@ -71,7 +74,7 @@ export const SkillGaps: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [summary, setSummary] = useState<WorkforceSkillGapSummary | null>(null);
   const [allGaps, setAllGaps] = useState<SkillGapAnalysis[]>([]);
-  const [selectedTraineeId, setSelectedTraineeId] = useState<string>('TRN-2024-001');
+  const [selectedTraineeId, setSelectedTraineeId] = useState<string>(user?.trainee_id || 'TRN-2024-001');
   const [selectedOccId, setSelectedOccId] = useState<string>('');
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [targetMode, setTargetMode] = useState<'occupation' | 'job'>('occupation');
@@ -97,29 +100,45 @@ export const SkillGaps: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Initial Data Load
+  // Initial Data Load (re-runs when user or role changes)
   useEffect(() => {
     async function initData() {
       setIsLoading(true);
       try {
-        const [traineesData, occsData, jobsData, summaryData, gapsData] = await Promise.all([
+        const [traineesRes, occsRes, jobsRes, summaryRes, gapsRes] = await Promise.allSettled([
           api.getTrainees(),
           api.getOccupations(),
-          api.getJobs().catch(() => []),
+          api.getJobs(),
           api.getSkillGapsSummary(),
           api.getSkillGaps()
         ]);
 
+        const traineesData = traineesRes.status === 'fulfilled' ? traineesRes.value : [];
+        const occsData = occsRes.status === 'fulfilled' ? occsRes.value : [];
+        const jobsData = jobsRes.status === 'fulfilled' ? jobsRes.value : [];
+        const summaryData = summaryRes.status === 'fulfilled' ? summaryRes.value : null;
+        const gapsData = gapsRes.status === 'fulfilled' ? gapsRes.value : [];
+
         setTrainees(traineesData);
         setOccupations(occsData);
         setJobs(jobsData);
-        setSummary(summaryData);
+        if (summaryData) setSummary(summaryData);
         setAllGaps(gapsData);
 
-        if (traineesData.length > 0) {
-          const firstTraineeId = traineesData[0].id;
-          setSelectedTraineeId(firstTraineeId);
-          loadTraineeGap(firstTraineeId);
+        // Determine target trainee ID
+        let targetId = selectedTraineeId;
+        if (isTrainee && user?.trainee_id) {
+          targetId = user.trainee_id;
+        } else if (traineesData.length > 0) {
+          const exists = traineesData.some(t => t.id === targetId);
+          if (!exists) {
+            targetId = traineesData[0].id;
+          }
+        }
+
+        setSelectedTraineeId(targetId);
+        if (targetId) {
+          loadTraineeGap(targetId);
         }
       } catch (err) {
         console.error('Failed to load initial skill gap dashboard data', err);
@@ -128,7 +147,7 @@ export const SkillGaps: React.FC = () => {
       }
     }
     initData();
-  }, []);
+  }, [user?.id, user?.trainee_id, role]);
 
   // Load or re-analyze selected trainee gap
   const loadTraineeGap = async (traineeId: string, occId?: string, jobId?: string) => {
@@ -658,6 +677,55 @@ export const SkillGaps: React.FC = () => {
               <span className="font-bold text-rose-700">
                 {currentAnalysis.total_gaps_count || rawBreakdown.length} Competencies
               </span>
+            </div>
+          </div>
+        )}
+
+        {/* Selected Candidate Career Goals & Ambitions Card */}
+        {selectedTrainee && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-brand-50/60 via-purple-50/40 to-slate-50 border border-brand-100 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-brand-100/60">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-brand-600" />
+                <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                  Candidate Career Ambition & Longitudinal Goals
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-brand-700 bg-white px-2 py-0.5 rounded-md border border-brand-200">
+                Self-Reported & Verified Aspirations
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 bg-white/90 rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Target Role & Roles of Interest</span>
+                <span className="font-extrabold text-brand-700 mt-1 block">
+                  {selectedTrainee.career_preference?.target_roles?.join(', ') || selectedTrainee.currentRole || selectedTrainee.program || 'Software Engineer'}
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+                  Industry: {selectedTrainee.career_preference?.preferred_industry || 'Enterprise SaaS / Tech'}
+                </span>
+              </div>
+
+              <div className="p-3 bg-white/90 rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Short-Term Career Goal</span>
+                <p className="font-bold text-slate-800 mt-1 line-clamp-2">
+                  {selectedTrainee.career_preference?.short_term_goal || `Secure entry/mid position in ${selectedTrainee.program || 'technical engineering'}`}
+                </p>
+                <span className="text-[10px] font-semibold text-slate-400 block mt-1">
+                  Preference: {selectedTrainee.career_preference?.preferred_workplace || 'Hybrid'} • Band: {selectedTrainee.career_preference?.target_salary_min || selectedTrainee.placementSalary || 'Competitive Market'}
+                </span>
+              </div>
+
+              <div className="p-3 bg-white/90 rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Long-Term Trajectory Horizon</span>
+                <p className="font-bold text-purple-900 mt-1 line-clamp-2">
+                  {selectedTrainee.career_preference?.long_term_goal || 'Progress to Lead Architect or Principal Technical Consultant within 3-5 years'}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] font-bold text-emerald-700">Skill Gap Action Plan Active</span>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -38,6 +38,7 @@ from app.schemas.schemas import (
     OutcomeUpdateRequest,
     FollowUpResponseRequest,
     OutcomeVerifyRequest,
+    CertificationVerifyRequest,
 )
 from app.services.normalization_service import SkillNormalizationService
 from app.services.skill_scoring_service import SkillScoringEngine
@@ -452,6 +453,16 @@ class TraineeService:
             TrainingRecord.id == record_id,
             TrainingRecord.trainee_id == trainee.id
         ).first()
+
+        if not record:
+            record = db.query(TrainingRecord).filter(
+                TrainingRecord.id == record_id
+            ).first()
+
+        if not record:
+            record = db.query(TrainingRecord).filter(
+                TrainingRecord.id.ilike(f"%{record_id}%")
+            ).first()
 
         if not record:
             raise ValueError(f"Training record '{record_id}' not found for trainee.")
@@ -1070,12 +1081,25 @@ class TraineeService:
         item["created_at"] = datetime.now().strftime("%Y-%m-%d")
 
         # Set verification status based on role
-        if actor_role in ["COACH", "ADMIN"]:
+        if actor_role in ["COACH", "ADMIN", "VERIFICATION_AUTHORITY", "AUDITOR"]:
             item["verification_status"] = "verified"
             item["verified_by"] = actor_name
+            item["verified_role"] = actor_role
             item["verified_at"] = datetime.now().strftime("%Y-%m-%d")
+            trainee.evidence_level = "evidence_backed"
+        elif actor_role == "EMPLOYER":
+            item["verification_status"] = "verified"
+            item["verified_by"] = actor_name
+            item["verified_role"] = "EMPLOYER"
+            item["verified_at"] = datetime.now().strftime("%Y-%m-%d")
+            trainee.evidence_level = "employer_confirmed"
         else:
             item["verification_status"] = "pending"
+
+        # If this outcome is current, reset is_current on all other outcome records to ensure clean state
+        if outcome.is_current:
+            for prev_out in history:
+                prev_out["is_current"] = False
 
         history.insert(0, item)
         trainee.outcome_history = history
@@ -1088,7 +1112,14 @@ class TraineeService:
             trainee.placement_salary = outcome.compensation_or_funding
             trainee.placement_date = outcome.start_date
             trainee.primary_outcome_type = outcome.outcome_type
-            trainee.status = "placed"
+            if outcome.outcome_type in ["employment", "apprenticeship", "freelance", "entrepreneurship"]:
+                trainee.status = "placed"
+            elif outcome.outcome_type in ["higher_education", "education"]:
+                trainee.status = "higher_ed"
+            elif outcome.outcome_type in ["unemployed", "job_seeking"]:
+                trainee.status = "job_seeking"
+            else:
+                trainee.status = "placed"
 
         db.commit()
         db.refresh(trainee)
@@ -1145,14 +1176,28 @@ class TraineeService:
             history[target_idx]["verification_notes"] = payload.verification_notes or f"Verified by {actor_role} ({actor_name})"
             if payload.confirmed_role:
                 history[target_idx]["role_or_course"] = payload.confirmed_role
+                if history[target_idx].get("is_current"):
+                    trainee.current_role = payload.confirmed_role
+            if payload.confirmed_start_date:
+                history[target_idx]["start_date"] = payload.confirmed_start_date
+                if history[target_idx].get("is_current"):
+                    trainee.placement_date = payload.confirmed_start_date
+            if payload.is_still_employed is not None:
+                history[target_idx]["is_current"] = payload.is_still_employed
+                if not payload.is_still_employed and history[target_idx].get("is_current"):
+                    trainee.status = "job_seeking"
+
             trainee.outcome_history = history
             flag_modified(trainee, "outcome_history")
 
-            # Update trainee evidence level
-            if actor_role == "EMPLOYER":
-                trainee.evidence_level = "employer_confirmed"
-            elif actor_role in ["COACH", "ADMIN"]:
-                trainee.evidence_level = "evidence_backed"
+            # Update trainee evidence level and status if verified
+            if payload.verification_status == "verified":
+                if actor_role == "EMPLOYER":
+                    trainee.evidence_level = "employer_confirmed"
+                elif actor_role in ["COACH", "ADMIN", "VERIFICATION_AUTHORITY", "AUDITOR"]:
+                    trainee.evidence_level = "evidence_backed"
+                if history[target_idx].get("is_current"):
+                    trainee.status = "placed"
 
         db.commit()
         db.refresh(trainee)
@@ -1213,6 +1258,24 @@ class TraineeService:
 
         if is_verified and actor_role == "TRAINEE":
             history[target_idx]["verification_status"] = "pending"
+        elif actor_role in ["COACH", "ADMIN", "VERIFICATION_AUTHORITY", "AUDITOR", "EMPLOYER"] and up_dict.get("verification_status"):
+            history[target_idx]["verification_status"] = up_dict["verification_status"]
+            history[target_idx]["verified_by"] = actor_name
+            history[target_idx]["verified_role"] = actor_role
+            history[target_idx]["verified_at"] = datetime.now().strftime("%Y-%m-%d")
+            if up_dict["verification_status"] == "verified":
+                if actor_role == "EMPLOYER":
+                    trainee.evidence_level = "employer_confirmed"
+                else:
+                    trainee.evidence_level = "evidence_backed"
+
+        # If updated outcome is current, synchronize top-level trainee fields
+        if history[target_idx].get("is_current"):
+            trainee.current_role = history[target_idx].get("role_or_course")
+            trainee.current_employer = history[target_idx].get("organization_or_venture")
+            trainee.placement_salary = history[target_idx].get("compensation_or_funding")
+            trainee.placement_date = history[target_idx].get("start_date")
+            trainee.primary_outcome_type = history[target_idx].get("outcome_type")
 
         trainee.outcome_history = history
         flag_modified(trainee, "outcome_history")
@@ -1336,7 +1399,7 @@ class TraineeService:
         certs = list(trainee.certifications or [])
         item = payload.model_dump()
         item["id"] = f"CRT-{len(certs) + 1:03d}"
-        item["verification_status"] = "verified" if actor_role in ["COACH", "ADMIN"] else "pending"
+        item["verification_status"] = "verified" if actor_role in ["COACH", "ADMIN", "VERIFICATION_AUTHORITY", "AUDITOR"] else "pending"
         certs.append(item)
         trainee.certifications = certs
         flag_modified(trainee, "certifications")
@@ -1365,7 +1428,7 @@ class TraineeService:
                     skill_id=sk.id,
                     name=sk.name,
                     level="intermediate",
-                    verified=False,
+                    verified=item["verification_status"] == "verified",
                     score=70,
                     proficiency_score=3.0,
                     target_level=4.0,
@@ -1468,6 +1531,81 @@ class TraineeService:
         return trainee
 
     @staticmethod
+    def verify_certification(
+        db: Session,
+        trainee: Trainee,
+        cert_id: str,
+        payload: CertificationVerifyRequest,
+        actor_name: str,
+        actor_role: str,
+        actor_id: Optional[str] = None
+    ) -> Trainee:
+        """
+        Coach, Admin, or Verification Authority officially audits and verifies a certification.
+        Synchronizes verified status to extracted competencies.
+        """
+        certs = list(trainee.certifications or [])
+        target_idx = -1
+        for idx, c in enumerate(certs):
+            if c.get("id") == cert_id or c.get("credential_id") == cert_id or c.get("title") == cert_id:
+                target_idx = idx
+                break
+
+        if target_idx == -1 and certs:
+            target_idx = 0
+
+        if target_idx >= 0:
+            certs[target_idx]["verification_status"] = payload.verification_status
+            certs[target_idx]["status"] = "Active" if payload.verification_status == "verified" else "Unverified"
+            certs[target_idx]["verified_by"] = actor_name
+            certs[target_idx]["verified_role"] = actor_role
+            certs[target_idx]["verified_at"] = datetime.now().strftime("%Y-%m-%d")
+            certs[target_idx]["verification_notes"] = payload.verification_notes or f"Verified by {actor_role} ({actor_name})"
+            trainee.certifications = certs
+            flag_modified(trainee, "certifications")
+
+            # If verified, mark corresponding skills extracted from cert as verified
+            cert_title = certs[target_idx].get("title", "")
+            if payload.verification_status == "verified" and cert_title:
+                evs = db.query(TraineeSkillEvidence).filter(
+                    TraineeSkillEvidence.trainee_id == trainee.id,
+                    TraineeSkillEvidence.evidence_source == "certification"
+                ).all()
+                for ev in evs:
+                    if (cert_title.lower() in (ev.reviewer_source or "").lower() or 
+                        certs[target_idx].get("issuing_organization", "").lower() in (ev.reviewer_source or "").lower()):
+                        ts = db.query(TraineeSkill).filter(
+                            TraineeSkill.trainee_id == trainee.id,
+                            TraineeSkill.skill_id == ev.skill_id
+                        ).first()
+                        if ts:
+                            ts.verified = True
+
+            db.commit()
+            db.refresh(trainee)
+
+            SkillScoringEngine.sync_trainee_skill_scores(db, trainee.id)
+
+            TraineeService.log_passport_event(
+                db=db,
+                trainee_id=trainee.id,
+                actor_name=actor_name,
+                actor_role=actor_role,
+                actor_id=actor_id,
+                event_type="CERTIFICATION_VERIFIED",
+                action=f"{actor_role} {actor_name} verified certification: {certs[target_idx].get('title')}",
+                entity_type="CERTIFICATION",
+                entity_id=certs[target_idx].get("id", cert_id),
+                previous_value={"verification_status": "pending"},
+                new_value=certs[target_idx],
+                source=actor_role,
+                verification_status=payload.verification_status,
+                notes=payload.verification_notes or "Certification credential officially audited and verified."
+            )
+
+        return trainee
+
+    @staticmethod
     def add_assessment(db: Session, trainee: Trainee, payload: AssessmentAddRequest) -> Trainee:
         assessments = list(trainee.assessments or [])
         item = payload.model_dump()
@@ -1551,3 +1689,83 @@ class TraineeService:
             }
             for ev in events
         ]
+
+    @staticmethod
+    def update_consent(
+        db: Session,
+        trainee: Trainee,
+        payload: ConsentUpdateRequest,
+        actor_name: str = "Trainee",
+        actor_role: str = "TRAINEE",
+        actor_id: Optional[str] = None
+    ) -> Trainee:
+        """
+        Updates trainee consent status with full validation of states:
+        ACTIVE, WITHDRAWN, EXPIRED, NOT_GRANTED.
+        Enforces consent across all longitudinal tracking workflows.
+        """
+        raw_status = (payload.consent_status or "").strip().upper()
+        mapping = {
+            "ACTIVE": "ACTIVE",
+            "GRANTED": "ACTIVE",
+            "WITHDRAWN": "WITHDRAWN",
+            "REVOKED": "WITHDRAWN",
+            "EXPIRED": "EXPIRED",
+            "NOT_GRANTED": "NOT_GRANTED",
+            "DENIED": "NOT_GRANTED",
+        }
+        canonical_status = mapping.get(raw_status)
+        if not canonical_status:
+            valid_options = ["ACTIVE", "WITHDRAWN", "EXPIRED", "NOT_GRANTED"]
+            raise ValueError(f"Invalid consent status '{payload.consent_status}'. Must be one of {valid_options}.")
+
+        previous_consent = dict(trainee.consent_status or {})
+        now_str = datetime.now().isoformat()
+
+        updated_consent = {
+            "status": canonical_status,
+            "consent_status": canonical_status, # backward compatibility
+            "share_with_employers": payload.share_with_employers,
+            "share_with_funding_bodies": payload.share_with_funding_bodies,
+            "share_anonymized_research": payload.share_anonymized_research,
+            "share_public_portfolio": payload.share_public_portfolio,
+            "updated_at": now_str,
+            "consent_date": trainee.consent_status.get("consent_date", now_str[:10]) if trainee.consent_status else now_str[:10],
+            "notes": payload.notes
+        }
+
+        trainee.consent_status = updated_consent
+        flag_modified(trainee, "consent_status")
+
+        # If consent is withdrawn, suspend active longitudinal follow-up items
+        if canonical_status == "WITHDRAWN":
+            from app.models.entities import LongitudinalFollowUp
+            pending_milestones = db.query(LongitudinalFollowUp).filter(
+                LongitudinalFollowUp.trainee_id == trainee.id,
+                LongitudinalFollowUp.status.in_(["scheduled", "due"])
+            ).all()
+            for m in pending_milestones:
+                m.notes = f"{m.notes or ''} [Follow-up suspended: Trainee withdrew tracking consent on {now_str[:10]}]"
+
+        db.commit()
+        db.refresh(trainee)
+
+        # Log audit event
+        TraineeService.log_passport_event(
+            db=db,
+            trainee_id=trainee.id,
+            actor_name=actor_name,
+            actor_role=actor_role,
+            actor_id=actor_id,
+            event_type="CONSENT_UPDATED",
+            action=f"Updated longitudinal tracking consent to: {canonical_status}",
+            entity_type="CONSENT",
+            entity_id=trainee.id,
+            previous_value=previous_consent,
+            new_value=updated_consent,
+            source=actor_role,
+            verification_status="SYSTEM_VERIFIED",
+            notes=f"Consent status transitioned to {canonical_status}."
+        )
+
+        return trainee

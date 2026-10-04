@@ -23,6 +23,12 @@ import { CareerPathView } from './pages/CareerPath';
 import { FollowUps } from './pages/FollowUps';
 import { Employers } from './pages/Employers';
 import { Analytics } from './pages/Analytics';
+import { DigitalTwin } from './pages/DigitalTwin';
+import { CareerSimulator } from './pages/CareerSimulator';
+import { OutcomeRisks } from './pages/OutcomeRisks';
+import { AdminSkillIntelligence } from './pages/AdminSkillIntelligence';
+import { TraineeSkillGapDashboard } from './pages/TraineeSkillGapDashboard';
+import { CourseSkillAnalysis } from './pages/CourseSkillAnalysis';
 import { NotFound } from './pages/NotFound';
 
 const RootRedirect: React.FC = () => {
@@ -55,7 +61,7 @@ export const App: React.FC = () => {
             {/* Admin / Coach Executive Views */}
             <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['ADMIN', 'COACH']}><Dashboard /></ProtectedRoute>} />
             <Route path="/trainees" element={<ProtectedRoute allowedRoles={['ADMIN', 'COACH']}><Trainees /></ProtectedRoute>} />
-            <Route path="/analytics" element={<ProtectedRoute allowedRoles={['ADMIN']}><Analytics /></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute allowedRoles={['ADMIN', 'COACH']}><Analytics /></ProtectedRoute>} />
             <Route path="/follow-ups" element={<ProtectedRoute allowedRoles={['ADMIN', 'COACH']}><FollowUps /></ProtectedRoute>} />
 
             {/* Trainee Self-Service Resume Portal */}
@@ -67,6 +73,15 @@ export const App: React.FC = () => {
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/skill-gaps" element={<SkillGaps />} />
             <Route path="/career-path" element={<CareerPathView />} />
+            <Route path="/digital-twin" element={<DigitalTwin />} />
+            <Route path="/digital-twin/:id" element={<DigitalTwin />} />
+            <Route path="/career-simulator" element={<CareerSimulator />} />
+            <Route path="/outcome-risks" element={<OutcomeRisks />} />
+
+            {/* Skill & Outcome Intelligence Innovation Modules */}
+            <Route path="/admin/skill-intelligence" element={<ProtectedRoute allowedRoles={['ADMIN', 'COACH']}><AdminSkillIntelligence /></ProtectedRoute>} />
+            <Route path="/trainee/skill-gap" element={<TraineeSkillGapDashboard />} />
+            <Route path="/admin/courses/:courseId/skill-analysis" element={<ProtectedRoute allowedRoles={['ADMIN', 'COACH']}><CourseSkillAnalysis /></ProtectedRoute>} />
             
             {/* Employer Views */}
             <Route path="/employers" element={<ProtectedRoute allowedRoles={['EMPLOYER', 'ADMIN']}><Employers /></ProtectedRoute>} />

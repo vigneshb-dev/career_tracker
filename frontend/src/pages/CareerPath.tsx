@@ -45,6 +45,7 @@ import {
   CreateCareerEventPayload,
   CompleteLongitudinalFollowUpPayload
 } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const PATHWAY_CONFIG: Record<
   CareerPathwayType,
@@ -110,9 +111,13 @@ const STAGES_ORDER: { key: CareerTimelineStage; title: string; subtitle: string 
 ];
 
 export const CareerPathView: React.FC = () => {
+  const { user, role } = useAuth();
+  const isTrainee = role === 'TRAINEE';
+  const defaultTraineeId = isTrainee ? (user?.trainee_id || 'TRN-2024-001') : 'TRN-2024-001';
+
   // Summary & Cohort State
   const [summary, setSummary] = useState<PathwaySummaryData | null>(null);
-  const [selectedTraineeId, setSelectedTraineeId] = useState<string>('TRN-2024-001');
+  const [selectedTraineeId, setSelectedTraineeId] = useState<string>(defaultTraineeId);
   const [timelineData, setTimelineData] = useState<CareerTimelineData | null>(null);
   const [selectedStageKey, setSelectedStageKey] = useState<CareerTimelineStage>('current_status');
   const [activePathwayFilter, setActivePathwayFilter] = useState<string>('all');
@@ -120,6 +125,21 @@ export const CareerPathView: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [sweepNotification, setSweepNotification] = useState<string | null>(null);
+
+  // Sync with auth user
+  useEffect(() => {
+    if (isTrainee && user?.trainee_id && user.trainee_id !== selectedTraineeId) {
+      setSelectedTraineeId(user.trainee_id);
+    } else if (!isTrainee && role === 'COACH' && user?.details?.assigned_trainee_ids?.length) {
+      if (!user.details.assigned_trainee_ids.includes(selectedTraineeId)) {
+        setSelectedTraineeId(user.details.assigned_trainee_ids[0]);
+      }
+    } else if (!isTrainee && role === 'EMPLOYER' && user?.details?.authorized_candidate_ids?.length) {
+      if (!user.details.authorized_candidate_ids.includes(selectedTraineeId)) {
+        setSelectedTraineeId(user.details.authorized_candidate_ids[0]);
+      }
+    }
+  }, [isTrainee, user?.id, user?.trainee_id, role]);
 
   // Modals
   const [isEventModalOpen, setIsEventModalOpen] = useState<boolean>(false);
@@ -157,8 +177,8 @@ export const CareerPathView: React.FC = () => {
     metrics: {}
   });
 
-  // Synthetic trainee list for selection
-  const traineesList = [
+  // Base synthetic trainee list for initial fallbacks
+  const baseTraineesList = [
     { id: 'TRN-2024-001', name: 'Priya Sharma', pathway: 'employment' as CareerPathwayType, role: 'Junior Frontend Engineer', org: 'Apex Cloud Technologies India Pvt. Ltd.' },
     { id: 'TRN-2024-002', name: 'Rajesh Kumar', pathway: 'self_employment' as CareerPathwayType, role: 'Cloud Architect & Principal Consultant', org: 'Kumar Cloud Architecture LLP' },
     { id: 'TRN-2024-003', name: 'Sneha Patel', pathway: 'freelancing' as CareerPathwayType, role: 'Senior Full-Stack Freelance Contractor', org: 'Independent Freelance (Top Rated)' },
@@ -167,6 +187,25 @@ export const CareerPathView: React.FC = () => {
     { id: 'TRN-2024-006', name: 'Ananya Iyer', pathway: 'further_education' as CareerPathwayType, role: 'M.Tech Research Fellow', org: 'IIT Delhi - School of AI' },
     { id: 'TRN-2024-007', name: 'Rohan Sen', pathway: 'unknown' as CareerPathwayType, role: 'Cloud DevOps Trainee', org: 'Apex Cloud Technologies India Pvt. Ltd.' }
   ];
+
+  // Dynamic trainees from database
+  const [dbTrainees, setDbTrainees] = useState<Array<{ id: string; name: string; pathway: CareerPathwayType; role: string; org: string }>>([]);
+
+  // Fetch real trainees on mount & user change
+  useEffect(() => {
+    api.getTrainees().then(res => {
+      if (res && res.length > 0) {
+        const mapped = res.map((t: any) => ({
+          id: t.id,
+          name: t.name || t.full_name || t.id,
+          pathway: (t.primary_outcome_type as CareerPathwayType) || 'employment',
+          role: t.current_role || t.program || 'Vocational Trainee',
+          org: t.current_employer || t.provider_name || 'Workforce Network Partner'
+        }));
+        setDbTrainees(mapped);
+      }
+    }).catch(() => {});
+  }, [user?.id, role]);
 
   const loadData = async (traineeId: string) => {
     setIsRefreshing(true);
@@ -181,11 +220,14 @@ export const CareerPathView: React.FC = () => {
         setNewEventPayload(prev => ({
           ...prev,
           trainee_id: traineeId,
-          pathway: timelineRes.primary_outcome_type
+          pathway: (timelineRes.primary_outcome_type as CareerPathwayType) || 'employment'
         }));
+      } else {
+        setTimelineData(null);
       }
     } catch (err) {
       console.error('Error loading career progression data:', err);
+      setTimelineData(null);
     } finally {
       setIsRefreshing(false);
       setIsLoading(false);
@@ -285,8 +327,38 @@ export const CareerPathView: React.FC = () => {
     }
   };
 
-  // Filtered trainees
-  const filteredTrainees = traineesList.filter(t => {
+  // Merge base list, DB trainees, and current loaded timeline candidate
+  const combinedTrainees = React.useMemo(() => {
+    const map = new Map<string, any>();
+    baseTraineesList.forEach(t => map.set(t.id, t));
+    dbTrainees.forEach(t => map.set(t.id, t));
+    if (timelineData) {
+      map.set(timelineData.trainee_id, {
+        id: timelineData.trainee_id,
+        name: timelineData.trainee_name,
+        pathway: (timelineData.primary_outcome_type as CareerPathwayType) || 'employment',
+        role: timelineData.current_role || timelineData.program || 'Vocational Trainee',
+        org: timelineData.current_employer || 'Workforce Partner'
+      });
+    }
+    return Array.from(map.values());
+  }, [baseTraineesList, dbTrainees, timelineData]);
+
+  const candidatePool = isTrainee
+    ? combinedTrainees.filter(t => t.id === (user?.trainee_id || selectedTraineeId))
+    : combinedTrainees;
+
+  const activeCandidateList = candidatePool.length > 0
+    ? candidatePool
+    : [{
+        id: selectedTraineeId,
+        name: timelineData?.trainee_name || user?.full_name || selectedTraineeId,
+        pathway: (timelineData?.primary_outcome_type as CareerPathwayType) || 'employment',
+        role: timelineData?.current_role || timelineData?.program || 'Trainee',
+        org: timelineData?.current_employer || 'Workforce Partner'
+      }];
+
+  const filteredTrainees = activeCandidateList.filter(t => {
     const matchesFilter = activePathwayFilter === 'all' || t.pathway === activePathwayFilter;
     const matchesSearch =
       t.name.toLowerCase().includes(traineeSearch.toLowerCase()) ||
@@ -295,12 +367,14 @@ export const CareerPathView: React.FC = () => {
     return matchesFilter && matchesSearch;
   });
 
-  // Selected stage content
-  const currentStageEvent = timelineData?.timeline_stages
+  // Selected stage events list
+  const currentStageEvents: CareerTimelineEventItem[] = timelineData?.timeline_stages
     ? selectedStageKey === 'career_event'
-      ? timelineData.timeline_stages.career_events[0] || null
+      ? (timelineData.timeline_stages.career_events || [])
       : timelineData.timeline_stages[selectedStageKey]
-    : null;
+      ? [timelineData.timeline_stages[selectedStageKey]]
+      : []
+    : [];
 
   return (
     <div className="space-y-6">
@@ -511,7 +585,7 @@ export const CareerPathView: React.FC = () => {
             <div className="space-y-2.5 max-h-[620px] overflow-y-auto pr-1">
               {filteredTrainees.map((t) => {
                 const isSelected = selectedTraineeId === t.id;
-                const cfg = PATHWAY_CONFIG[t.pathway] || PATHWAY_CONFIG.unknown;
+                const cfg = PATHWAY_CONFIG[(t.pathway as CareerPathwayType) || 'unknown'] || PATHWAY_CONFIG.unknown;
                 const Icon = cfg.icon;
 
                 return (
@@ -520,6 +594,9 @@ export const CareerPathView: React.FC = () => {
                     onClick={() => {
                       setSelectedTraineeId(t.id);
                       setSelectedStageKey('current_status');
+                      if (selectedTraineeId === t.id && !timelineData) {
+                        loadData(t.id);
+                      }
                     }}
                     className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
                       isSelected
@@ -534,7 +611,7 @@ export const CareerPathView: React.FC = () => {
                             isSelected ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-700'
                           }`}
                         >
-                          {t.name.split(' ').map((n) => n[0]).join('')}
+                          {t.name.split(' ').map((n: string) => n[0]).join('')}
                         </div>
                         <div>
                           <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
@@ -732,71 +809,77 @@ export const CareerPathView: React.FC = () => {
                 </div>
 
                 {/* Stage Detail Inspector Card */}
-                {currentStageEvent ? (
-                  <div className="mt-5 p-5 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-4 animate-fadeIn">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="brand" size="sm">
-                            {currentStageEvent.stage.toUpperCase().replace('_', ' ')}
-                          </Badge>
-                          <span className="text-xs font-bold text-slate-500">
-                            {currentStageEvent.event_date}
-                          </span>
-                        </div>
-                        <h4 className="text-base font-extrabold text-slate-900 mt-1">
-                          {currentStageEvent.title}
-                        </h4>
-                        <span className="text-xs font-bold text-brand-600 block">
-                          {currentStageEvent.organization}
-                        </span>
-                      </div>
-
-                      {/* Verification Status */}
-                      <div className="flex items-center gap-1.5 text-xs font-bold">
-                        <span
-                          className={`px-2.5 py-1 rounded-xl flex items-center gap-1.5 ${
-                            currentStageEvent.verification_status === 'verified'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : currentStageEvent.verification_status === 'unknown'
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          <ShieldCheck className="w-3.5 h-3.5" />
-                          {currentStageEvent.verification_status.toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Pathway Specific Metrics Display */}
-                    <div>
-                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-2">
-                        Pathway-Specific Recorded Metrics:
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                        {Object.entries(currentStageEvent.metrics || {}).map(([key, value], idx) => (
-                          <div
-                            key={idx}
-                            className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs"
-                          >
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                              {key.replace(/_/g, ' ')}
-                            </span>
-                            <span className="text-xs font-extrabold text-slate-900 mt-0.5 block truncate">
-                              {String(value)}
+                {currentStageEvents.length > 0 ? (
+                  <div className="mt-5 space-y-4">
+                    {currentStageEvents.map((ev, evIdx) => (
+                      <div key={evIdx} className="p-5 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-4 animate-fadeIn">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="brand" size="sm">
+                                {ev.stage.toUpperCase().replace('_', ' ')}
+                              </Badge>
+                              <span className="text-xs font-bold text-slate-500">
+                                {ev.event_date}
+                              </span>
+                            </div>
+                            <h4 className="text-base font-extrabold text-slate-900 mt-1">
+                              {ev.title}
+                            </h4>
+                            <span className="text-xs font-bold text-brand-600 block">
+                              {ev.organization}
                             </span>
                           </div>
-                        ))}
-                      </div>
-                    </div>
 
-                    {/* Verification Notes */}
-                    {currentStageEvent.verification_notes && (
-                      <div className="pt-2 text-xs text-slate-600 italic">
-                        <strong>Audit Trail:</strong> {currentStageEvent.verification_notes}
+                          {/* Verification Status */}
+                          <div className="flex items-center gap-1.5 text-xs font-bold">
+                            <span
+                              className={`px-2.5 py-1 rounded-xl flex items-center gap-1.5 ${
+                                ev.verification_status === 'verified'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : ev.verification_status === 'unknown'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              {ev.verification_status.toUpperCase()}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Pathway Specific Metrics Display */}
+                        {ev.metrics && Object.keys(ev.metrics).length > 0 && (
+                          <div>
+                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-2">
+                              Pathway-Specific Recorded Metrics:
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                              {Object.entries(ev.metrics || {}).map(([key, value], idx) => (
+                                <div
+                                  key={idx}
+                                  className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs"
+                                >
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                                    {key.replace(/_/g, ' ')}
+                                  </span>
+                                  <span className="text-xs font-extrabold text-slate-900 mt-0.5 block truncate">
+                                    {String(value)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Verification Notes */}
+                        {ev.verification_notes && (
+                          <div className="pt-2 text-xs text-slate-600 italic">
+                            <strong>Audit Trail:</strong> {ev.verification_notes}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
                 ) : (
                   <div className="mt-5 p-8 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center">
@@ -921,12 +1004,113 @@ export const CareerPathView: React.FC = () => {
                   })}
                 </div>
               </div>
+
+              {/* Comprehensive Chronological Career Trajectory Journey */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-card space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <TrendingUp className="w-4.5 h-4.5 text-brand-600" />
+                      Complete Longitudinal Career Trajectory
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Chronological progression of all affirmative milestones, verified outcomes, and longitudinal events
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-brand-600 bg-brand-50 px-3 py-1 rounded-xl">
+                    {timelineData.all_events.length} Historical Records
+                  </span>
+                </div>
+
+                {/* Vertical Timeline Stream */}
+                <div className="relative pl-6 sm:pl-8 space-y-6 before:absolute before:left-3 sm:before:left-4 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200">
+                  {timelineData.all_events.map((ev, idx) => {
+                    const cfg = PATHWAY_CONFIG[ev.pathway as CareerPathwayType] || PATHWAY_CONFIG.unknown;
+                    const Icon = cfg.icon;
+
+                    return (
+                      <div key={idx} className="relative group">
+                        {/* Timeline Node Circle */}
+                        <div className={`absolute -left-6 sm:-left-8 top-1.5 w-6 h-6 rounded-full border-2 bg-white flex items-center justify-center transition-all ${
+                          ev.is_current ? 'border-brand-500 ring-4 ring-brand-100' : 'border-slate-300'
+                        }`}>
+                          <div className={`w-2 h-2 rounded-full ${ev.is_current ? 'bg-brand-500' : 'bg-slate-400'}`} />
+                        </div>
+
+                        {/* Event Card */}
+                        <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 hover:bg-slate-50 hover:border-brand-300 transition-all space-y-2.5">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-slate-200 text-slate-700">
+                                {ev.stage.toUpperCase().replace('_', ' ')}
+                              </span>
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-lg border flex items-center gap-1 ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                                <Icon className="w-3 h-3" />
+                                <span>{cfg.label}</span>
+                              </span>
+                              {ev.is_current && (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-brand-500 text-white shadow-xs">
+                                  CURRENT STATUS
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                              {ev.event_date}
+                            </span>
+                          </div>
+
+                          <div>
+                            <h4 className="text-sm font-extrabold text-slate-900">
+                              {ev.title}
+                            </h4>
+                            <span className="text-xs font-semibold text-brand-600 block mt-0.5">
+                              {ev.organization}
+                            </span>
+                          </div>
+
+                          {/* Pathway Metrics Chips */}
+                          {ev.metrics && Object.keys(ev.metrics).length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {Object.entries(ev.metrics).map(([k, v], mIdx) => (
+                                <span key={mIdx} className="text-[11px] font-medium bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
+                                  <strong className="text-slate-900 font-bold">{k.replace(/_/g, ' ')}:</strong> {String(v)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Verification Notes */}
+                          {ev.verification_notes && (
+                            <div className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-200/60">
+                              Audit: {ev.verification_notes}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </>
           ) : (
-            <div className="bg-white rounded-3xl p-12 border border-slate-100 shadow-card text-center">
-              <p className="text-sm font-bold text-slate-500">
-                Select a candidate from the left directory to inspect longitudinal career progression.
+            <div className="bg-white rounded-3xl p-12 border border-slate-100 shadow-card text-center space-y-3">
+              <p className="text-sm font-bold text-slate-700">
+                {selectedTraineeId
+                  ? `Unable to load trajectory records for candidate ${selectedTraineeId}.`
+                  : 'Select a candidate from the left directory to inspect longitudinal career progression.'}
               </p>
+              {selectedTraineeId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadData(selectedTraineeId)}
+                  className="text-xs font-bold inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Retry Loading Trajectory</span>
+                </Button>
+              )}
             </div>
           )}
         </div>

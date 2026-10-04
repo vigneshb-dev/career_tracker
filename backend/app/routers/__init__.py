@@ -10,6 +10,15 @@ from app.routers.analytics import router as analytics_router
 from app.routers.competency import router as competency_router
 from app.routers.skill_scoring import router as skill_scoring_router
 from app.routers.interventions import router as interventions_router
+from app.routers.digital_twin import router as digital_twin_router
+from app.routers.career_simulator import router as career_simulator_router
+from app.routers.outcome_risks import router as outcome_risks_router
+from app.routers.skill_intelligence import router as skill_intelligence_router
+from app.routers.outcome_intelligence import (
+    router as outcome_intelligence_router,
+    outcomes_router,
+    followups_router,
+)
 
 __all__ = [
     "auth_router",
@@ -24,6 +33,13 @@ __all__ = [
     "competency_router",
     "skill_scoring_router",
     "interventions_router",
+    "digital_twin_router",
+    "career_simulator_router",
+    "outcome_risks_router",
+    "skill_intelligence_router",
+    "outcome_intelligence_router",
+    "outcomes_router",
+    "followups_router",
 ]
 
 

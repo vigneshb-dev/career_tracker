@@ -14,7 +14,15 @@ import {
   ResumeAnalysisResult, ResumeInfoResponse, UnifiedSkillProfile,
   TrainingRecord, PassportEvent, TraineePassportData, TraineeProfileUpdatePayload,
   TrainingRecordCreatePayload, CareerGoalsUpdatePayload, SkillAddPayload,
-  FollowUpResponsePayload, OutcomeVerifyPayload
+  FollowUpResponsePayload, OutcomeVerifyPayload,
+  LongitudinalMetricsData, DataQualityDashboardData, TraineeOutcomeRecord, CohortFilterOptionsData, CohortFilterParams,
+  DigitalTwinStateData, DigitalTwinTimelineResponse, DigitalTwinSkillEvolutionStage, DigitalTwinOutcomeMilestone,
+  DigitalTwinEvidenceItem, DigitalTwinDataQualityResponse,
+  SimulatorOptions, ScenarioInput, SimulationResponse, OutcomeRiskItem, OutcomeRiskSummary,
+  TraineeSkillGapResponse, CourseSkillAnalysisResponse, TopSkillGapsResponse,
+  EmergingSkillsResponse, JobSkillDemandResponse, OutcomeReasonItem,
+  OutcomeReasonBreakdownResponse, OutcomeSummaryAnalyticsResponse,
+  FollowUpGenerationResponse, FollowUpResponseSubmission
 } from '../types';
 import { AuthUser, AuthResponse, SignupPayload } from '../types/auth';
 
@@ -38,10 +46,22 @@ let localJobs: Job[] = [...mockJobs];
 let localEmployers: Employer[] = [...mockEmployers];
 let localSkills: Skill[] = [...mockSkills];
 
+function toQueryString(params?: Record<string, any>): string {
+  if (!params) return '';
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.append(key, String(value));
+    }
+  }
+  const qs = searchParams.toString();
+  return qs ? `?${qs}` : '';
+}
+
 async function fetchWithFallback<T>(endpoint: string, fallbackData: T, options?: RequestInit): Promise<T> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
@@ -467,7 +487,10 @@ export const api = {
     try {
       const res = await fetch(`${BASE_URL}/trainees/${id}/outcomes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
         body: JSON.stringify(outcome)
       });
       if (res.ok) return await res.json();
@@ -499,7 +522,10 @@ export const api = {
     try {
       const res = await fetch(`${BASE_URL}/trainees/${id}/follow-ups`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
         body: JSON.stringify(followUp)
       });
       if (res.ok) return await res.json();
@@ -524,7 +550,10 @@ export const api = {
     try {
       const res = await fetch(`${BASE_URL}/trainees/${id}/certifications`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
         body: JSON.stringify(cert)
       });
       if (res.ok) return await res.json();
@@ -539,11 +568,33 @@ export const api = {
     return t || null;
   },
 
+  async verifyTraineeCertification(id: string, certId: string, status: 'verified' | 'rejected', notes?: string): Promise<Trainee> {
+    const res = await fetch(`${BASE_URL}/trainees/${id}/certifications/${certId}/verify`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({
+        verification_status: status,
+        verification_notes: notes,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to verify certification' }));
+      throw new Error(err.detail || 'Failed to verify certification');
+    }
+    return await res.json();
+  },
+
   async addAssessment(id: string, assess: Partial<AssessmentRecord>): Promise<Trainee | null> {
     try {
       const res = await fetch(`${BASE_URL}/trainees/${id}/assessments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
         body: JSON.stringify(assess)
       });
       if (res.ok) return await res.json();
@@ -599,7 +650,10 @@ export const api = {
   }): Promise<JobAnalysisResult> {
     const res = await fetch(`${BASE_URL}/jobs/analyze`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -611,7 +665,10 @@ export const api = {
   async createJob(jobData: Partial<Job>): Promise<Job> {
     const res = await fetch(`${BASE_URL}/jobs`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
       body: JSON.stringify(jobData),
     });
     if (!res.ok) {
@@ -644,7 +701,9 @@ export const api = {
   },
 
   async getSkillGapsSummary(): Promise<WorkforceSkillGapSummary> {
-    const res = await fetch(`${BASE_URL}/skill-gaps/summary`);
+    const res = await fetch(`${BASE_URL}/skill-gaps/summary`, {
+      headers: { ...getAuthHeader() }
+    });
     if (!res.ok) {
       throw new Error('Failed to fetch workforce skill gap summary');
     }
@@ -660,7 +719,9 @@ export const api = {
     if (targetOccupationId) params.append('target_occupation_id', targetOccupationId);
     if (targetJobId) params.append('target_job_id', targetJobId);
     const qs = params.toString() ? `?${params.toString()}` : '';
-    const res = await fetch(`${BASE_URL}/skill-gaps/trainees/${traineeId}${qs}`);
+    const res = await fetch(`${BASE_URL}/skill-gaps/trainees/${traineeId}${qs}`, {
+      headers: { ...getAuthHeader() }
+    });
     if (!res.ok) {
       throw new Error(`Failed to fetch skill gap analysis for trainee ${traineeId}`);
     }
@@ -675,7 +736,7 @@ export const api = {
   }): Promise<SkillGapAnalysis> {
     const res = await fetch(`${BASE_URL}/skill-gaps/analyze`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(payload)
     });
     if (!res.ok) {
@@ -685,7 +746,9 @@ export const api = {
   },
 
   async getUnifiedSkillProfile(traineeId: string): Promise<UnifiedSkillProfile> {
-    const res = await fetch(`${BASE_URL}/skill-scoring/trainees/${traineeId}/unified-profile`);
+    const res = await fetch(`${BASE_URL}/skill-scoring/trainees/${traineeId}/unified-profile`, {
+      headers: { ...getAuthHeader() }
+    });
     if (!res.ok) {
       throw new Error(`Failed to fetch unified skill profile for trainee ${traineeId}`);
     }
@@ -694,7 +757,8 @@ export const api = {
 
   async batchSyncSkillGaps(): Promise<any> {
     const res = await fetch(`${BASE_URL}/skill-gaps/batch-sync`, {
-      method: 'POST'
+      method: 'POST',
+      headers: { ...getAuthHeader() }
     });
     if (!res.ok) {
       throw new Error('Failed to batch sync skill gaps');
@@ -818,7 +882,7 @@ export const api = {
   async updateScoringConfig(weights: Record<string, number>): Promise<ScoringConfiguration> {
     const res = await fetch(`${BASE_URL}/skill-scoring/config`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ source_weights: weights }),
     });
     if (!res.ok) {
@@ -829,7 +893,9 @@ export const api = {
 
   async getTraineeRadarProfile(traineeId: string): Promise<TraineeRadarProfile | null> {
     try {
-      const res = await fetch(`${BASE_URL}/skill-scoring/trainees/${traineeId}/radar`);
+      const res = await fetch(`${BASE_URL}/skill-scoring/trainees/${traineeId}/radar`, {
+        headers: { ...getAuthHeader() }
+      });
       if (res.ok) {
         return await res.json();
       }
@@ -850,7 +916,7 @@ export const api = {
   ): Promise<TraineeSkillEvidenceItem> {
     const res = await fetch(`${BASE_URL}/skill-scoring/trainees/${traineeId}/evidence`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({
         ...evidenceData,
         trainee_id: traineeId
@@ -864,7 +930,9 @@ export const api = {
 
   async getSoftSkillScenarios(): Promise<SoftSkillScenarioData | null> {
     try {
-      const res = await fetch(`${BASE_URL}/skill-scoring/soft-skills/scenarios`);
+      const res = await fetch(`${BASE_URL}/skill-scoring/soft-skills/scenarios`, {
+        headers: { ...getAuthHeader() }
+      });
       if (res.ok) {
         return await res.json();
       }
@@ -881,7 +949,7 @@ export const api = {
   }): Promise<TraineeRadarProfile> {
     const res = await fetch(`${BASE_URL}/skill-scoring/soft-skills/evaluate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(submission),
     });
     if (!res.ok) {
@@ -893,7 +961,7 @@ export const api = {
   async recalculateTraineeSkills(traineeId: string): Promise<any> {
     const res = await fetch(`${BASE_URL}/skill-scoring/trainees/${traineeId}/recalculate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     });
     if (!res.ok) {
       throw new Error('Failed to recalculate trainee skills');
@@ -935,7 +1003,7 @@ export const api = {
   async startIntervention(payload: StartInterventionPayload): Promise<TraineeInterventionItem> {
     const res = await fetch(`${BASE_URL}/interventions/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -951,7 +1019,7 @@ export const api = {
   ): Promise<TraineeInterventionItem> {
     const res = await fetch(`${BASE_URL}/interventions/${trackingId}/progress`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -967,7 +1035,7 @@ export const api = {
   ): Promise<ReassessmentResult> {
     const res = await fetch(`${BASE_URL}/interventions/${trackingId}/reassess`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -982,19 +1050,24 @@ export const api = {
   // ========================================================
   async getCareerTimeline(traineeId: string): Promise<CareerTimelineData | null> {
     try {
-      const res = await fetch(`${BASE_URL}/career-path/trainees/${traineeId}/timeline`);
+      const res = await fetch(`${BASE_URL}/career-path/trainees/${traineeId}/timeline`, {
+        headers: { ...getAuthHeader() }
+      });
       if (res.ok) {
         return await res.json();
       }
-    } catch {
-      // fallback
+      console.warn(`Failed to fetch career timeline for ${traineeId}: HTTP ${res.status}`);
+    } catch (err) {
+      console.error(`Error fetching career timeline for ${traineeId}:`, err);
     }
     return null;
   },
 
   async getPathwaysSummary(): Promise<PathwaySummaryData | null> {
     try {
-      const res = await fetch(`${BASE_URL}/career-path/pathways/summary`);
+      const res = await fetch(`${BASE_URL}/career-path/pathways/summary`, {
+        headers: { ...getAuthHeader() }
+      });
       if (res.ok) {
         return await res.json();
       }
@@ -1007,7 +1080,7 @@ export const api = {
   async recordCareerEvent(payload: CreateCareerEventPayload): Promise<CareerTimelineEventItem> {
     const res = await fetch(`${BASE_URL}/career-path/events`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -1039,7 +1112,7 @@ export const api = {
   ): Promise<LongitudinalFollowUpItem> {
     const res = await fetch(`${BASE_URL}/follow-ups/longitudinal/${id}/complete`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -1052,6 +1125,7 @@ export const api = {
   async scheduleLongitudinalMilestones(traineeId: string): Promise<any> {
     const res = await fetch(`${BASE_URL}/follow-ups/schedule-milestones/${traineeId}`, {
       method: 'POST',
+      headers: { ...getAuthHeader() },
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -1063,6 +1137,7 @@ export const api = {
   async runAutomatedFollowUpSweep(): Promise<any> {
     const res = await fetch(`${BASE_URL}/follow-ups/run-automated-sweep`, {
       method: 'POST',
+      headers: { ...getAuthHeader() },
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -1221,7 +1296,10 @@ export const api = {
   async submitEmployerVerification(payload: EmployerVerificationCreatePayload): Promise<EmployerFeedbackVerification> {
     const res = await fetch(`${BASE_URL}/employers/verify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
       body: JSON.stringify(payload)
     });
     if (!res.ok) {
@@ -1348,7 +1426,8 @@ export const api = {
   // Comprehensive Analytics API (10 Workforce Dimensions)
   // ========================================================
 
-  async getComprehensiveAnalytics(): Promise<ComprehensiveAnalyticsData> {
+  async getComprehensiveAnalytics(params?: CohortFilterParams): Promise<ComprehensiveAnalyticsData> {
+    const qs = toQueryString(params);
     const fallback: ComprehensiveAnalyticsData = {
       summary_kpis: {
         total_enrolled: 1248,
@@ -1675,7 +1754,81 @@ export const api = {
       ]
     };
 
-    return fetchWithFallback<ComprehensiveAnalyticsData>('/analytics/comprehensive', fallback);
+    return fetchWithFallback<ComprehensiveAnalyticsData>(`/analytics/comprehensive${qs}`, fallback);
+  },
+
+  async getLongitudinalMetrics(params?: CohortFilterParams): Promise<LongitudinalMetricsData> {
+    const qs = toQueryString(params);
+    const fallback: LongitudinalMetricsData = {
+      placement_rate: null,
+      employment_rate: null,
+      self_employment_rate: null,
+      apprenticeship_rate: null,
+      freelancing_rate: null,
+      higher_studies_rate: null,
+      unemployed_rate: null,
+      unknown_rate: null,
+      unreachable_rate: null,
+      withdrawn_consent_rate: null,
+      retention_30d: null,
+      retention_90d: null,
+      retention_180d: null,
+      retention_365d: null,
+      wage_progression: null,
+      median_wage: null,
+      average_placement_wage: null,
+      average_current_wage: null,
+      training_to_job_relevance: null,
+      skill_gap_frequency: [],
+      attrition_reasons: [],
+      follow_up_response_rate: null
+    };
+    return fetchWithFallback<LongitudinalMetricsData>(`/analytics/longitudinal-metrics${qs}`, fallback);
+  },
+
+  async getDataQualityDashboard(params?: CohortFilterParams): Promise<DataQualityDashboardData> {
+    const qs = toQueryString(params);
+    const fallback: DataQualityDashboardData = {
+      total_records: 0,
+      verified_records: 0,
+      verified_pct: 0,
+      self_reported_records: 0,
+      self_reported_pct: 0,
+      unknown_outcomes: 0,
+      unknown_pct: 0,
+      unreachable_trainees: 0,
+      unreachable_pct: 0,
+      stale_records: 0,
+      stale_pct: 0,
+      missing_wages: 0,
+      missing_wages_pct: 0,
+      missing_employer_verification: 0,
+      missing_employer_verification_pct: 0,
+      missing_follow_ups: 0,
+      missing_follow_ups_pct: 0,
+      overall_quality_score: 0,
+      score_breakdown: { completeness: 0, freshness: 0, verification: 0, consistency: 0 },
+      record_audits: []
+    };
+    return fetchWithFallback<DataQualityDashboardData>(`/analytics/data-quality${qs}`, fallback);
+  },
+
+  async getCohortFilterOptions(): Promise<CohortFilterOptionsData> {
+    const fallback: CohortFilterOptionsData = {
+      courses: [],
+      providers: [],
+      districts: [],
+      batches: [],
+      outcome_states: [],
+      verification_levels: [],
+      data_sources: []
+    };
+    return fetchWithFallback<CohortFilterOptionsData>('/analytics/cohort-filters', fallback);
+  },
+
+  async getTraineeOutcomes(params?: CohortFilterParams): Promise<TraineeOutcomeRecord[]> {
+    const qs = toQueryString(params);
+    return fetchWithFallback<TraineeOutcomeRecord[]>(`/analytics/trainee-outcomes${qs}`, []);
   },
 
   // ---------------------------------------------------------------------------
@@ -2010,7 +2163,457 @@ export const api = {
       throw new Error(err.detail || 'Failed to update profile');
     }
     return await res.json();
+  },
+
+  // Career Outcome Digital Twin APIs
+  async getDigitalTwin(traineeId: string): Promise<DigitalTwinStateData> {
+    const res = await fetch(`${BASE_URL}/digital-twin/${traineeId}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch digital twin' }));
+      throw new Error(err.detail || 'Failed to fetch digital twin');
+    }
+    return await res.json();
+  },
+
+  async getDigitalTwinTimeline(traineeId: string): Promise<DigitalTwinTimelineResponse> {
+    const res = await fetch(`${BASE_URL}/digital-twin/${traineeId}/timeline`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch digital twin timeline' }));
+      throw new Error(err.detail || 'Failed to fetch digital twin timeline');
+    }
+    return await res.json();
+  },
+
+  async getDigitalTwinSkillEvolution(traineeId: string): Promise<{ trainee_id: string; stages: DigitalTwinSkillEvolutionStage[] }> {
+    const res = await fetch(`${BASE_URL}/digital-twin/${traineeId}/skill-evolution`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch skill evolution' }));
+      throw new Error(err.detail || 'Failed to fetch skill evolution');
+    }
+    return await res.json();
+  },
+
+  async getDigitalTwinEmploymentEvolution(traineeId: string): Promise<{ trainee_id: string; current_outcome: string; journey: DigitalTwinOutcomeMilestone[] }> {
+    const res = await fetch(`${BASE_URL}/digital-twin/${traineeId}/employment-evolution`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch employment evolution' }));
+      throw new Error(err.detail || 'Failed to fetch employment evolution');
+    }
+    return await res.json();
+  },
+
+  async getDigitalTwinEvidence(traineeId: string): Promise<DigitalTwinEvidenceItem[]> {
+    const res = await fetch(`${BASE_URL}/digital-twin/${traineeId}/evidence`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch digital twin evidence' }));
+      throw new Error(err.detail || 'Failed to fetch digital twin evidence');
+    }
+    return await res.json();
+  },
+
+  async getDigitalTwinDataQuality(traineeId: string): Promise<DigitalTwinDataQualityResponse> {
+    const res = await fetch(`${BASE_URL}/digital-twin/${traineeId}/data-quality`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch digital twin data quality' }));
+      throw new Error(err.detail || 'Failed to fetch digital twin data quality');
+    }
+    return await res.json();
+  },
+
+  async refreshDigitalTwin(traineeId: string): Promise<DigitalTwinStateData> {
+    const res = await fetch(`${BASE_URL}/digital-twin/${traineeId}/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to refresh digital twin' }));
+      throw new Error(err.detail || 'Failed to refresh digital twin');
+    }
+    return await res.json();
   }
 };
+
+// ========================================================
+// What-If Career Simulator API Service
+// ========================================================
+
+export const careerSimulatorApi = {
+  async getSimulatorOptions(): Promise<SimulatorOptions> {
+    const res = await fetch(`${BASE_URL}/simulator/options`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch simulator options' }));
+      throw new Error(err.detail || 'Failed to fetch simulator options');
+    }
+    return await res.json();
+  },
+
+  async getTraineeBaseline(traineeId: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/simulator/trainee/${traineeId}/baseline`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch trainee baseline' }));
+      throw new Error(err.detail || 'Failed to fetch trainee baseline');
+    }
+    return await res.json();
+  },
+
+  async runSimulation(scenario: ScenarioInput): Promise<SimulationResponse> {
+    const res = await fetch(`${BASE_URL}/simulator/run`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(scenario),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to execute career simulation' }));
+      throw new Error(err.detail || 'Failed to execute career simulation');
+    }
+    return await res.json();
+  }
+};
+
+// ========================================================
+// Outcome Risk Engine & Intervention Loop API Service
+// ========================================================
+
+export const outcomeRisksApi = {
+  async getOutcomeRisks(params?: { trainee_id?: string; risk_type?: string; severity?: string; status?: string }): Promise<OutcomeRiskItem[]> {
+    const qs = toQueryString(params);
+    const res = await fetch(`${BASE_URL}/outcome-risks${qs}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch outcome risks' }));
+      throw new Error(err.detail || 'Failed to fetch outcome risks');
+    }
+    return await res.json();
+  },
+
+  async getOutcomeRisksSummary(): Promise<OutcomeRiskSummary> {
+    const res = await fetch(`${BASE_URL}/outcome-risks/summary`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch outcome risk summary' }));
+      throw new Error(err.detail || 'Failed to fetch outcome risk summary');
+    }
+    return await res.json();
+  },
+
+  async getOutcomeRiskDetail(riskId: string): Promise<OutcomeRiskItem> {
+    const res = await fetch(`${BASE_URL}/outcome-risks/${riskId}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch risk detail' }));
+      throw new Error(err.detail || 'Failed to fetch risk detail');
+    }
+    return await res.json();
+  },
+
+  async scanOutcomeRisks(traineeId?: string): Promise<{ scanned_trainees: number; risks_generated: number }> {
+    const qs = traineeId ? `?trainee_id=${traineeId}` : '';
+    const res = await fetch(`${BASE_URL}/outcome-risks/scan${qs}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to scan outcome risks' }));
+      throw new Error(err.detail || 'Failed to scan outcome risks');
+    }
+    return await res.json();
+  },
+
+  async acceptIntervention(riskId: string, notes?: string): Promise<OutcomeRiskItem> {
+    const res = await fetch(`${BASE_URL}/outcome-risks/${riskId}/accept`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ reason_or_notes: notes }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to accept intervention' }));
+      throw new Error(err.detail || 'Failed to accept intervention');
+    }
+    return await res.json();
+  },
+
+  async rejectIntervention(riskId: string, reason?: string): Promise<OutcomeRiskItem> {
+    const res = await fetch(`${BASE_URL}/outcome-risks/${riskId}/reject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ reason_or_notes: reason }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to reject intervention' }));
+      throw new Error(err.detail || 'Failed to reject intervention');
+    }
+    return await res.json();
+  },
+
+  async startIntervention(riskId: string): Promise<OutcomeRiskItem> {
+    const res = await fetch(`${BASE_URL}/outcome-risks/${riskId}/start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to start intervention' }));
+      throw new Error(err.detail || 'Failed to start intervention');
+    }
+    return await res.json();
+  },
+
+  async completeIntervention(riskId: string): Promise<OutcomeRiskItem> {
+    const res = await fetch(`${BASE_URL}/outcome-risks/${riskId}/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to complete intervention' }));
+      throw new Error(err.detail || 'Failed to complete intervention');
+    }
+    return await res.json();
+  },
+
+  async reassessRisk(
+    riskId: string,
+    payload: {
+      assessment_score: number;
+      evaluator_name: string;
+      evaluator_role?: string;
+      notes?: string;
+      verified_evidence_url?: string;
+    }
+  ): Promise<OutcomeRiskItem> {
+    const res = await fetch(`${BASE_URL}/outcome-risks/${riskId}/reassess`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to submit risk reassessment' }));
+      throw new Error(err.detail || 'Failed to submit risk reassessment');
+    }
+    return await res.json();
+  }
+};
+
+// ========================================================
+// Skill Gap Intelligence API Service
+// ========================================================
+
+export const skillIntelligenceApi = {
+  async getTraineeSkillGap(
+    traineeId: string,
+    params?: { target_role?: string; target_job_id?: string }
+  ): Promise<TraineeSkillGapResponse> {
+    const qs = params ? toQueryString(params) : '';
+    const res = await fetch(`${BASE_URL}/skill-intelligence/trainee/${traineeId}${qs}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch trainee skill gap intelligence');
+    return await res.json();
+  },
+
+  async getCourseSkillAnalysis(courseId: string): Promise<CourseSkillAnalysisResponse> {
+    const res = await fetch(`${BASE_URL}/skill-intelligence/course/${courseId}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch course skill analysis');
+    return await res.json();
+  },
+
+  async getTopSkillGaps(params?: Record<string, any>): Promise<TopSkillGapsResponse> {
+    const res = await fetch(`${BASE_URL}/skill-intelligence/top-gaps${toQueryString(params)}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch top skill gaps');
+    return await res.json();
+  },
+
+  async getEmergingSkills(params?: Record<string, any>): Promise<EmergingSkillsResponse> {
+    const res = await fetch(`${BASE_URL}/skill-intelligence/emerging-skills${toQueryString(params)}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch emerging skills');
+    return await res.json();
+  },
+
+  async getJobDemand(params?: Record<string, any>): Promise<JobSkillDemandResponse> {
+    const res = await fetch(`${BASE_URL}/skill-intelligence/job-demand${toQueryString(params)}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch job skill demand');
+    return await res.json();
+  },
+
+  async recalculate(): Promise<{ status: string; processed_trainees: number; processed_courses: number }> {
+    const res = await fetch(`${BASE_URL}/skill-intelligence/recalculate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
+      }
+    });
+    if (!res.ok) throw new Error('Failed to recalculate skill intelligence');
+    return await res.json();
+  }
+};
+
+// ========================================================
+// Outcome Cause & Attrition Intelligence API Service
+// ========================================================
+
+export const outcomeIntelligenceApi = {
+  async getReasons(category?: string): Promise<OutcomeReasonItem[]> {
+    const res = await fetch(`${BASE_URL}/outcome-intelligence/reasons${category ? `?category=${category}` : ''}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch outcome reasons');
+    return await res.json();
+  },
+
+  async getNonPlacement(params?: Record<string, any>): Promise<OutcomeReasonBreakdownResponse> {
+    const res = await fetch(`${BASE_URL}/outcome-intelligence/non-placement${toQueryString(params)}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch non-placement reasons');
+    return await res.json();
+  },
+
+  async getAttrition(params?: Record<string, any>): Promise<OutcomeReasonBreakdownResponse> {
+    const res = await fetch(`${BASE_URL}/outcome-intelligence/attrition${toQueryString(params)}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch attrition reasons');
+    return await res.json();
+  },
+
+  async getSelfEmployment(params?: Record<string, any>): Promise<OutcomeReasonBreakdownResponse> {
+    const res = await fetch(`${BASE_URL}/outcome-intelligence/self-employment${toQueryString(params)}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch self-employment challenges');
+    return await res.json();
+  },
+
+  async getSummary(params?: Record<string, any>): Promise<OutcomeSummaryAnalyticsResponse> {
+    const res = await fetch(`${BASE_URL}/outcome-intelligence/summary${toQueryString(params)}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch outcome summary intelligence');
+    return await res.json();
+  },
+
+  async recordOutcomeReason(outcomeId: string, payload: { reason_key: string; reason_label: string; notes?: string }): Promise<any> {
+    const res = await fetch(`${BASE_URL}/outcomes/${outcomeId}/reason`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to record outcome reason');
+    return await res.json();
+  },
+
+  async generateFollowUpQuestions(traineeId: string, employmentStatus: string): Promise<FollowUpGenerationResponse> {
+    const res = await fetch(`${BASE_URL}/followups/generate?trainee_id=${encodeURIComponent(traineeId)}&employment_status=${encodeURIComponent(employmentStatus)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
+      }
+    });
+    if (!res.ok) throw new Error('Failed to generate follow-up questions');
+    return await res.json();
+  },
+
+  async submitFollowUpResponse(payload: FollowUpResponseSubmission): Promise<any> {
+    const res = await fetch(`${BASE_URL}/followups/respond`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to submit follow-up response');
+    return await res.json();
+  }
+};
+
+
 
 

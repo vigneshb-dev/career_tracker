@@ -34,6 +34,7 @@ from app.schemas.schemas import (
     SkillVerifyRequest,
     FollowUpResponseRequest,
     OutcomeVerifyRequest,
+    CertificationVerifyRequest,
 )
 from app.services.trainee_service import TraineeService
 
@@ -74,6 +75,11 @@ def _build_passport_response(trainee: Trainee, db: Session) -> Dict[str, Any]:
     followups_count = len(trainee.follow_up_history or [])
     training_count = len(training_records)
 
+    verified_outcomes_count = len([o for o in (trainee.outcome_history or []) if o.get("verification_status") == "verified"])
+    verified_training_count = len([r for r in training_records if getattr(r, "verification_status", "") == "verified"])
+    verified_skills_count = len([s for s in trainee.skills if getattr(s, "verified", False)])
+    verified_certs_count = len([c for c in (trainee.certifications or []) if c.get("verification_status") == "verified" or c.get("status") in ["verified", "Active"]])
+
     return {
         "trainee": TraineeRead.from_orm(trainee),
         "passport_id": trainee.id,
@@ -86,6 +92,10 @@ def _build_passport_response(trainee: Trainee, db: Session) -> Dict[str, Any]:
             "outcomes": outcomes_count,
             "followups": followups_count,
             "training": training_count,
+            "verified_outcomes": verified_outcomes_count,
+            "verified_training": verified_training_count,
+            "verified_skills": verified_skills_count,
+            "verified_certifications": verified_certs_count,
         },
         "stats": {
             "skills_count": skills_count,
@@ -94,6 +104,10 @@ def _build_passport_response(trainee: Trainee, db: Session) -> Dict[str, Any]:
             "follow_ups_count": followups_count,
             "training_count": training_count,
             "events_count": len(timeline),
+            "verified_outcomes_count": verified_outcomes_count,
+            "verified_training_count": verified_training_count,
+            "verified_skills_count": verified_skills_count,
+            "verified_certifications_count": verified_certs_count,
         },
         "training_records": [
             TrainingRecordRead.from_orm(r) for r in training_records
@@ -778,10 +792,10 @@ def verify_training_record(
     trainee_id: str,
     record_id: str,
     payload: TrainingRecordVerifyRequest,
-    current_user: User = Depends(require_roles(["COACH", "ADMIN"])),
+    current_user: User = Depends(require_roles(["COACH", "ADMIN", "VERIFICATION_AUTHORITY", "AUDITOR"])),
     db: Session = Depends(get_db)
 ):
-    """Allows assigned Coach or Admin to officially verify a training record."""
+    """Allows assigned Coach, Admin, or Verification Authority to officially verify a training record."""
     trainee = verify_trainee_resource_access(trainee_id, current_user, db)
     try:
         record = TraineeService.verify_training_record(
@@ -871,7 +885,7 @@ def verify_trainee_skill(
     trainee_id: str,
     skill_id: str,
     payload: SkillVerifyRequest,
-    current_user: User = Depends(require_roles(["COACH", "ADMIN"])),
+    current_user: User = Depends(require_roles(["COACH", "ADMIN", "VERIFICATION_AUTHORITY", "AUDITOR"])),
     db: Session = Depends(get_db)
 ):
     """Coach assesses and officially verifies a trainee skill."""
@@ -990,7 +1004,7 @@ def verify_outcome(
     trainee_id: str,
     outcome_id: str,
     payload: OutcomeVerifyRequest,
-    current_user: User = Depends(require_roles(["EMPLOYER", "COACH", "ADMIN"])),
+    current_user: User = Depends(require_roles(["EMPLOYER", "COACH", "ADMIN", "VERIFICATION_AUTHORITY", "AUDITOR"])),
     db: Session = Depends(get_db)
 ):
     """
@@ -1028,7 +1042,7 @@ def get_trainee_followups(
 def add_follow_up(
     trainee_id: str,
     payload: FollowUpAddRequest,
-    current_user: User = Depends(require_roles(["ADMIN", "COACH"])),
+    current_user: User = Depends(require_roles(["ADMIN", "COACH", "VERIFICATION_AUTHORITY", "AUDITOR"])),
     db: Session = Depends(get_db)
 ):
     trainee = verify_trainee_resource_access(trainee_id, current_user, db)
@@ -1106,11 +1120,34 @@ def update_trainee_certification(
     )
 
 
+@router.patch("/{trainee_id}/certifications/{cert_id}/verify", response_model=TraineeRead)
+def verify_trainee_certification(
+    trainee_id: str,
+    cert_id: str,
+    payload: CertificationVerifyRequest,
+    current_user: User = Depends(require_roles(["COACH", "ADMIN", "VERIFICATION_AUTHORITY", "AUDITOR"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Allows Coach, Admin, or Verification Authority to officially verify a certification credential.
+    """
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
+    return TraineeService.verify_certification(
+        db=db,
+        trainee=trainee,
+        cert_id=cert_id,
+        payload=payload,
+        actor_name=current_user.full_name,
+        actor_role=current_user.role,
+        actor_id=current_user.id
+    )
+
+
 @router.post("/{trainee_id}/assessments", response_model=TraineeRead)
 def add_assessment(
     trainee_id: str,
     payload: AssessmentAddRequest,
-    current_user: User = Depends(require_roles(["ADMIN", "COACH"])),
+    current_user: User = Depends(require_roles(["ADMIN", "COACH", "VERIFICATION_AUTHORITY", "AUDITOR"])),
     db: Session = Depends(get_db)
 ):
     trainee = verify_trainee_resource_access(trainee_id, current_user, db)
@@ -1361,5 +1398,15 @@ def update_consent(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    trainee = verify_trainee_resource_access(trainee_id, current_user, db)
-    return TraineeService.update_consent(db, trainee, payload)
+    trainee = verify_trainee_resource_access(trainee_id, current_user, db, require_write=True)
+    try:
+        return TraineeService.update_consent(
+            db=db,
+            trainee=trainee,
+            payload=payload,
+            actor_name=current_user.full_name,
+            actor_role=current_user.role,
+            actor_id=current_user.id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

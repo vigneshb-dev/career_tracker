@@ -19,10 +19,19 @@ from app.routers import (
     competency_router,
     skill_scoring_router,
     interventions_router,
+    digital_twin_router,
+    career_simulator_router,
+    outcome_risks_router,
+    skill_intelligence_router,
+    outcome_intelligence_router,
+    outcomes_router,
+    followups_router,
 )
 from app.services.intervention_service import InterventionEngine
 from app.services.career_progression_service import CareerProgressionService
 from app.services.employer_verification_service import EmployerVerificationService
+from app.services.outcome_risk_service import OutcomeRiskService
+from app.core.skill_outcome_seed import seed_scale_workforce_data
 
 
 logging.basicConfig(level=logging.INFO)
@@ -41,13 +50,58 @@ async def lifespan(app: FastAPI):
     # Seed initial realistic workforce data if empty
     db = SessionLocal()
     try:
-        seed_database(db)
-        seed_users(db)
-        InterventionEngine.seed_catalogue(db)
-        CareerProgressionService.seed_career_data(db)
-        EmployerVerificationService.seed_employer_verifications(db)
-    except Exception as e:
-        logger.warning(f"Error during database seed: {e}")
+        try:
+            seed_database(db)
+            logger.info("Core database seed completed.")
+        except Exception as e:
+            logger.warning(f"Error during core database seed: {e}")
+            db.rollback()
+
+        try:
+            seed_users(db)
+            logger.info("Users and RBAC seed completed.")
+        except Exception as e:
+            logger.warning(f"Error during users seed: {e}")
+            db.rollback()
+
+        try:
+            InterventionEngine.seed_catalogue(db)
+        except Exception as e:
+            logger.warning(f"Error during intervention catalogue seed: {e}")
+            db.rollback()
+
+        try:
+            CareerProgressionService.seed_career_data(db)
+        except Exception as e:
+            logger.warning(f"Error during career data seed: {e}")
+            db.rollback()
+
+        try:
+            EmployerVerificationService.seed_employer_verifications(db)
+        except Exception as e:
+            logger.warning(f"Error during employer verifications seed: {e}")
+            db.rollback()
+
+        # Seed scale workforce dataset (courses, employers, 1000+ job reqs, trainees)
+        try:
+            seed_scale_workforce_data(db, target_trainee_count=520)
+        except Exception as seed_err:
+            logger.warning(f"Error seeding scale workforce data: {seed_err}")
+            db.rollback()
+
+        # Seed initial outcome risks across trainees if not already scanned
+        try:
+            from app.models.entities import Trainee, OutcomeRisk
+            if db.query(OutcomeRisk).count() == 0:
+                logger.info("Scanning trainees for initial explainable Outcome Risks...")
+                for trn in db.query(Trainee).limit(20).all():
+                    try:
+                        OutcomeRiskService.scan_trainee_risks(db, trn.id)
+                    except Exception as ex:
+                        logger.warning(f"Error scanning trainee {trn.id} for risks: {ex}")
+        except Exception as e:
+            logger.warning(f"Error checking/scanning outcome risks: {e}")
+            db.rollback()
     finally:
         db.close()
 
@@ -70,6 +124,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Health & Status Endpoint
@@ -97,6 +152,13 @@ app.include_router(analytics_router, prefix=settings.API_V1_STR)
 app.include_router(competency_router, prefix=settings.API_V1_STR)
 app.include_router(skill_scoring_router, prefix=settings.API_V1_STR)
 app.include_router(interventions_router, prefix=settings.API_V1_STR)
+app.include_router(digital_twin_router, prefix=settings.API_V1_STR)
+app.include_router(career_simulator_router, prefix=settings.API_V1_STR)
+app.include_router(outcome_risks_router, prefix=settings.API_V1_STR)
+app.include_router(skill_intelligence_router, prefix=settings.API_V1_STR)
+app.include_router(outcome_intelligence_router, prefix=settings.API_V1_STR)
+app.include_router(outcomes_router, prefix=settings.API_V1_STR)
+app.include_router(followups_router, prefix=settings.API_V1_STR)
 
 
 if __name__ == "__main__":

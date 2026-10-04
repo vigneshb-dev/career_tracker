@@ -41,18 +41,41 @@ celery_app.conf.update(
 
 
 @celery_app.task(name="schedule_longitudinal_milestones_task")
-def schedule_longitudinal_milestones_task(trainee_id: str, graduation_date_str: str, pathway: str = "employment"):
+def schedule_longitudinal_milestones_task(
+    trainee_id: str,
+    graduation_date_str: str,
+    pathway: str = "employment",
+    db_session: Optional[Any] = None
+):
     """
     Automated follow-up scheduling at 30 / 90 / 180 / 365 days post-graduation/placement.
     """
     from app.core.database import SessionLocal
     from app.models.entities import Trainee, LongitudinalFollowUp
 
-    db = SessionLocal()
+    owns_session = False
+    if db_session is not None:
+        db = db_session
+    else:
+        db = SessionLocal()
+        owns_session = True
+
     try:
         trainee = db.query(Trainee).filter(Trainee.id == trainee_id).first()
         if not trainee:
             return {"status": "error", "message": f"Trainee '{trainee_id}' not found"}
+
+        # Enforce consent compliance
+        consent_dict = trainee.consent_status or {}
+        consent_st = (consent_dict.get("status") or consent_dict.get("consent_status") or "ACTIVE").upper()
+        if consent_st in ["WITHDRAWN", "REVOKED", "EXPIRED", "NOT_GRANTED", "DENIED"]:
+            logger.info(f"Skipping longitudinal milestone scheduling for trainee '{trainee_id}' due to consent status '{consent_st}'.")
+            return {
+                "status": "blocked_by_consent",
+                "trainee_id": trainee_id,
+                "consent_status": consent_st,
+                "message": f"Longitudinal tracking blocked: Trainee consent is '{consent_st}'."
+            }
 
         try:
             base_date = datetime.strptime(graduation_date_str, "%Y-%m-%d").date()
@@ -105,7 +128,8 @@ def schedule_longitudinal_milestones_task(trainee_id: str, graduation_date_str: 
         logger.error(f"Error in schedule_longitudinal_milestones_task: {e}", exc_info=True)
         return {"status": "error", "detail": str(e)}
     finally:
-        db.close()
+        if owns_session:
+            db.close()
 
 
 @celery_app.task(name="automated_follow_up_sweep_task")

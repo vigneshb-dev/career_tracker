@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
+  ArrowRight,
   Mail,
   Phone,
   MapPin,
@@ -57,7 +58,8 @@ import { SkillRadarChart } from '../components/passport/SkillRadarChart';
 import { SkillScoringMatrix } from '../components/passport/SkillScoringMatrix';
 import { SoftSkillAssessmentModal } from '../components/passport/SoftSkillAssessmentModal';
 import { ScoringConfigModal } from '../components/passport/ScoringConfigModal';
-import { api } from '../services/api';
+import { api, outcomeIntelligenceApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import {
   Trainee,
   OutcomeType,
@@ -77,7 +79,7 @@ import {
   FollowUpResponsePayload,
   OutcomeVerifyPayload
 } from '../types';
-import { AuthUser } from '../types/auth';
+import { AuthUser, UserRole } from '../types/auth';
 
 const outcomeLabels: Record<string, { label: string; variant: BadgeVariant; icon: any }> = {
   employment: { label: 'Employed (Direct Hire)', variant: 'success', icon: Briefcase },
@@ -94,6 +96,7 @@ const outcomeLabels: Record<string, { label: string; variant: BadgeVariant; icon
 export const TraineeDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user: authUser, role: authRole } = useAuth();
 
   const [trainee, setTrainee] = useState<Trainee | null>(null);
   const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([]);
@@ -104,7 +107,8 @@ export const TraineeDetail: React.FC = () => {
 
   // Role & Notification State
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [userRole, setUserRole] = useState<'TRAINEE' | 'COACH' | 'EMPLOYER' | 'ADMIN'>('TRAINEE');
+  const [userRole, setUserRole] = useState<UserRole>('TRAINEE');
+  const [verifyStatusChoice, setVerifyStatusChoice] = useState<'verified' | 'rejected' | 'pending'>('verified');
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
   // Modals state
@@ -119,6 +123,10 @@ export const TraineeDetail: React.FC = () => {
   const [selectedSkillToVerify, setSelectedSkillToVerify] = useState<{ id: string; name: string; currentScore: number } | null>(null);
 
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+  const [isVerifyCertModalOpen, setIsVerifyCertModalOpen] = useState(false);
+  const [selectedCertToVerify, setSelectedCertToVerify] = useState<Certification | null>(null);
+  const [verifyCertNotes, setVerifyCertNotes] = useState('');
+
   const [isAnalyzeResumeModalOpen, setIsAnalyzeResumeModalOpen] = useState(false);
   const [isEditCareerGoalsModalOpen, setIsEditCareerGoalsModalOpen] = useState(false);
 
@@ -134,6 +142,24 @@ export const TraineeDetail: React.FC = () => {
 
   const [isAssessModalOpen, setIsAssessModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Outcome Timeline Stage Modal State
+  const [selectedTimelineStage, setSelectedTimelineStage] = useState<{
+    id: string;
+    stage: string;
+    title: string;
+    date: string;
+    source: string;
+    verification_status: string;
+    relevant_skills: string[];
+    outcome_reason?: string;
+    notes?: string;
+  } | null>(null);
+  const [isTimelineStageModalOpen, setIsTimelineStageModalOpen] = useState(false);
+  const [timelineReasonKey, setTimelineReasonKey] = useState('SKILL_MISMATCH');
+  const [timelineReasonLabel, setTimelineReasonLabel] = useState('Skill Mismatch');
+  const [timelineReasonNotes, setTimelineReasonNotes] = useState('');
+  const [isSavingTimelineReason, setIsSavingTimelineReason] = useState(false);
 
   // Skill Scoring Engine state
   const [radarProfile, setRadarProfile] = useState<TraineeRadarProfile | null>(null);
@@ -240,21 +266,36 @@ export const TraineeDetail: React.FC = () => {
     counselor_notes: '',
   });
 
-  // Load user role from session
+  // Load user role from AuthContext & session
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('skilltrace_user');
-      if (stored) {
-        const u = JSON.parse(stored);
-        setCurrentUser(u);
-        if (u.role) {
-          setUserRole(u.role.toUpperCase() as any);
-        }
-      }
-    } catch {
-      // fallback
+    if (authRole) {
+      setUserRole(authRole.toUpperCase() as any);
     }
-  }, []);
+    if (authUser) {
+      setCurrentUser(authUser);
+    } else {
+      try {
+        const stored = localStorage.getItem('skilltrace_auth_user') || localStorage.getItem('skilltrace_user');
+        if (stored) {
+          const u = JSON.parse(stored);
+          setCurrentUser(u);
+          if (u.role) {
+            setUserRole(u.role.toUpperCase() as any);
+          }
+        }
+      } catch {
+        // fallback
+      }
+    }
+  }, [authRole, authUser]);
+
+  const isVerifierOrAuditor = userRole === 'VERIFICATION_AUTHORITY' || userRole === 'AUDITOR';
+  const isVerificationAuthority = userRole === 'EMPLOYER' || userRole === 'COACH' || userRole === 'ADMIN' || isVerifierOrAuditor;
+  const canVerifyTrainingAndSkills = userRole === 'COACH' || userRole === 'ADMIN' || isVerifierOrAuditor;
+  const canVerifyOutcomes = userRole === 'EMPLOYER' || userRole === 'COACH' || userRole === 'ADMIN' || isVerifierOrAuditor;
+  const canManageOutcomes = userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN' || isVerifierOrAuditor;
+  const canManageTrainingAndAssessments = userRole === 'COACH' || userRole === 'ADMIN' || isVerifierOrAuditor;
+  const canEditProfileAndGoals = userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN' || isVerifierOrAuditor;
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setNotification({ type, message });
@@ -499,6 +540,32 @@ export const TraineeDetail: React.FC = () => {
     }
   };
 
+  const handleRecordTimelineReason = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTimelineStage || !trainee) return;
+    setIsSavingTimelineReason(true);
+    try {
+      await outcomeIntelligenceApi.recordOutcomeReason(
+        selectedTimelineStage.id || trainee.id,
+        {
+          reason_key: timelineReasonKey,
+          reason_label: timelineReasonLabel,
+          notes: timelineReasonNotes
+        }
+      );
+      setSelectedTimelineStage({
+        ...selectedTimelineStage,
+        outcome_reason: `${timelineReasonLabel} (${timelineReasonKey})`
+      });
+      showToast('Outcome reason recorded to Trainee Passport & Intelligence Engine.');
+      await loadTrainee();
+    } catch (err: any) {
+      showToast('Failed to record outcome reason: ' + (err?.message || 'Check connection'), 'error');
+    } finally {
+      setIsSavingTimelineReason(false);
+    }
+  };
+
   const handleAddCert = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!trainee || !certForm.title || !certForm.issuing_organization) return;
@@ -521,6 +588,25 @@ export const TraineeDetail: React.FC = () => {
       showToast(err.message || 'Failed to upload certificate.', 'error');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyCertification = async (status: 'verified' | 'rejected') => {
+    if (!trainee || !selectedCertToVerify) return;
+    try {
+      await api.verifyTraineeCertification(
+        trainee.id,
+        selectedCertToVerify.id || selectedCertToVerify.title,
+        status,
+        verifyCertNotes || `Officially ${status} by authorized verification body.`
+      );
+      setIsVerifyCertModalOpen(false);
+      setSelectedCertToVerify(null);
+      setVerifyCertNotes('');
+      await loadTrainee();
+      showToast(`Certification marked as ${status} successfully.`);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to verify certification.', 'error');
     }
   };
 
@@ -626,11 +712,15 @@ EDUCATION & CERTIFICATIONS:
     try {
       const res = await api.addOutcome(trainee.id, {
         ...outcomeForm,
-        verification_status: userRole === 'COACH' || userRole === 'ADMIN' ? 'verified' : 'unverified',
+        verification_status: (userRole === 'COACH' || userRole === 'ADMIN' || isVerifierOrAuditor) ? 'verified' : 'pending',
       });
       if (res) setTrainee(res);
       setIsOutcomeModalOpen(false);
-      showToast('Employment outcome submitted. Awaiting verification.');
+      showToast(
+        (userRole === 'COACH' || userRole === 'ADMIN' || isVerifierOrAuditor)
+          ? 'Outcome registered and officially verified in Trainee Passport.'
+          : 'Employment outcome submitted to Trainee Passport. Awaiting authority verification.'
+      );
       setOutcomeForm({
         outcome_type: 'employment',
         organization_or_venture: '',
@@ -842,6 +932,14 @@ EDUCATION & CERTIFICATIONS:
             <Lock className="w-3 h-3 text-slate-400" />
             PASSPORT ID: {trainee.id}
           </span>
+          <button
+            onClick={() => navigate(`/digital-twin/${trainee.id}`)}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 px-3 py-1 rounded-lg shadow-sm transition-all cursor-pointer"
+            title="Open Career Outcome Digital Twin"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Digital Twin</span>
+          </button>
           <Badge variant="brand" size="sm">
             WIOA Title I Verified ✓
           </Badge>
@@ -911,7 +1009,7 @@ EDUCATION & CERTIFICATIONS:
           {/* Action buttons & Outcome Match Card */}
           <div className="flex flex-col items-end gap-3 shrink-0">
             {/* Edit Profile Action Button */}
-            {(userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN') && (
+            {canEditProfileAndGoals && (
               <Button
                 variant="outline"
                 size="sm"
@@ -1211,7 +1309,7 @@ EDUCATION & CERTIFICATIONS:
                 </h3>
               </div>
 
-              {(userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN') && (
+              {canEditProfileAndGoals && (
                 <Button
                   size="sm"
                   variant="primary"
@@ -1310,8 +1408,8 @@ EDUCATION & CERTIFICATIONS:
                             </span>
                           )}
 
-                          {/* Trainee Edit Training Action */}
-                          {(userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN') && (
+                          {/* Edit Training Action */}
+                          {canEditProfileAndGoals && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -1352,8 +1450,8 @@ EDUCATION & CERTIFICATIONS:
                             </Button>
                           )}
 
-                          {/* Coach Verification Action */}
-                          {(userRole === 'COACH' || userRole === 'ADMIN') && isPending && (
+                          {/* Authority Verification Action */}
+                          {canVerifyTrainingAndSkills && isPending && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -1406,7 +1504,7 @@ EDUCATION & CERTIFICATIONS:
               title="Coursework Assessment & Evaluation History"
               subtitle="Rubric-scored examinations, lab practicals, and capstone presentations"
               action={
-                (userRole === 'COACH' || userRole === 'ADMIN') && (
+                canManageTrainingAndAssessments && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -1464,7 +1562,7 @@ EDUCATION & CERTIFICATIONS:
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {(userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN') && (
+                {canEditProfileAndGoals && (
                   <>
                     <Button
                       size="sm"
@@ -1533,7 +1631,7 @@ EDUCATION & CERTIFICATIONS:
                   title={`Professional Certifications (${certsCount})`}
                   subtitle="Vendor-issued and state-accredited credentials"
                   action={
-                    (userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN') && (
+                    canEditProfileAndGoals && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -1568,6 +1666,23 @@ EDUCATION & CERTIFICATIONS:
                               </span>
                             )}
                           </div>
+                          {canVerifyTrainingAndSkills && c.status !== 'verified' && c.verification_status !== 'verified' && (
+                            <div className="pt-2 border-t border-slate-200/60 flex justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedCertToVerify(c);
+                                  setVerifyCertNotes('');
+                                  setIsVerifyCertModalOpen(true);
+                                }}
+                                className="text-[11px] py-1 px-2.5 font-bold text-brand-700 border-brand-200 hover:bg-brand-50"
+                                icon={<CheckCircle2 className="w-3 h-3" />}
+                              >
+                                Verify Credential
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
@@ -1619,8 +1734,8 @@ EDUCATION & CERTIFICATIONS:
                           </span>
                         </div>
 
-                        {/* Coach verify skill button */}
-                        {(userRole === 'COACH' || userRole === 'ADMIN') && !isVerified && (
+                        {/* Assess & Verify Skill Button */}
+                        {canVerifyTrainingAndSkills && !isVerified && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1689,7 +1804,7 @@ EDUCATION & CERTIFICATIONS:
                 title="Career Ambition & Workplace Preferences"
                 subtitle="The trainee owns and directs these preferences"
                 action={
-                  (userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN') && (
+                  canEditProfileAndGoals && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1825,11 +1940,170 @@ EDUCATION & CERTIFICATIONS:
         {/* ======================================================== */}
         {activeTab === 'outcomes' && (
           <div className="space-y-6">
+            {/* 8-STAGE INTERACTIVE OUTCOME TIMELINE */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-white shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold uppercase tracking-wider">
+                    <Compass className="w-3 h-3 text-indigo-400" /> Longitudinal Outcome Timeline
+                  </div>
+                  <h3 className="text-base font-extrabold text-white mt-1">
+                    End-to-End Trainee Outcome & Retention Journey
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Click any timeline stage to view source, audit verification, relevant skills, and outcome reasons.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/trainee/skill-gap')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-indigo-300 border border-slate-700 transition"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  Skill Gap Diagnostic
+                </button>
+              </div>
+
+              {/* 8 Stages Stepper */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 pt-2">
+                {[
+                  {
+                    key: 'training',
+                    step: 1,
+                    label: 'Training',
+                    title: trainee.training_details?.course_title || 'Workforce Training',
+                    date: trainee.enrollment_date || '2024-01-15',
+                    source: trainee.training_details?.provider_name || 'TechSkill Institute',
+                    status: 'Verified ✓',
+                    skills: trainee.skills?.slice(0, 3).map(s => s.name) || ['Software Development', 'SQL'],
+                    reason: undefined,
+                    notes: 'Completed curriculum modules with 95% attendance'
+                  },
+                  {
+                    key: 'assessment',
+                    step: 2,
+                    label: 'Assessment',
+                    title: trainee.assessments?.[0]?.assessment_name || 'Standardized Capstone Practical',
+                    date: trainee.assessments?.[0]?.date || '2024-05-20',
+                    source: trainee.assessments?.[0]?.evaluator || 'Lead Evaluator',
+                    status: 'Verified ✓',
+                    skills: ['Practical Exam', 'System Design'],
+                    reason: undefined,
+                    notes: `Graded ${trainee.assessments?.[0]?.grade || 'A'} (${trainee.assessments?.[0]?.score || 92}/100)`
+                  },
+                  {
+                    key: 'certification',
+                    step: 3,
+                    label: 'Certification',
+                    title: trainee.certifications?.[0]?.title || 'Professional Certification',
+                    date: trainee.certifications?.[0]?.issue_date || '2024-06-01',
+                    source: trainee.certifications?.[0]?.issuing_organization || 'Accreditation Board',
+                    status: 'Verified ✓',
+                    skills: ['Certified Competency'],
+                    reason: undefined,
+                    notes: `Credential ID: ${trainee.certifications?.[0]?.credential_id || 'CERT-2024-9981'}`
+                  },
+                  {
+                    key: 'job_search',
+                    step: 4,
+                    label: 'Job Search',
+                    title: 'Active Job Transition',
+                    date: '2024-06-15',
+                    source: 'Workforce Portal Registry',
+                    status: 'Observed',
+                    skills: trainee.career_preference?.target_roles || ['Full Stack Developer'],
+                    reason: trainee.status === 'seeking_job' || trainee.status === 'at_risk' ? 'Candidate seeking competitive role' : undefined,
+                    notes: 'Applications submitted across regional tech sector'
+                  },
+                  {
+                    key: 'employment',
+                    step: 5,
+                    label: 'Employment',
+                    title: trainee.outcome_history?.[0]?.role_or_course || 'Junior Software Engineer',
+                    date: trainee.outcome_history?.[0]?.start_date || '2024-07-01',
+                    source: trainee.outcome_history?.[0]?.organization_or_venture || 'Apex Software Solutions',
+                    status: trainee.outcome_history?.[0]?.verification_status || 'Verified',
+                    skills: ['Spring Boot', 'SQL', 'Java'],
+                    reason: trainee.outcome_history?.[0]?.verification_notes,
+                    notes: `Compensation band: ${trainee.outcome_history?.[0]?.compensation_or_funding || 'Competitive'}`
+                  },
+                  {
+                    key: 'retention',
+                    step: 6,
+                    label: 'Retention',
+                    title: '90-Day Retention Checkpoint',
+                    date: trainee.follow_up_history?.[0]?.date || '2024-10-01',
+                    source: trainee.follow_up_history?.[0]?.counselor_name || 'Counseling Audit',
+                    status: trainee.follow_up_history?.[0]?.retention_confirmed ? 'Verified Retained' : 'Status Stale',
+                    skills: ['Workplace Stability', 'Skill Utilization'],
+                    reason: undefined,
+                    notes: trainee.follow_up_history?.[0]?.counselor_notes || 'Confirmed continued active employment'
+                  },
+                  {
+                    key: 'progression',
+                    step: 7,
+                    label: 'Wage/Change',
+                    title: trainee.follow_up_history?.[0]?.wage_progressed ? 'Wage Progression' : 'Milestone Wage Review',
+                    date: '2025-01-15',
+                    source: 'Longitudinal Wage Record',
+                    status: 'Audited',
+                    skills: ['Compensation Progression'],
+                    reason: undefined,
+                    notes: 'Annual compensation audit completed'
+                  },
+                  {
+                    key: 'current_status',
+                    step: 8,
+                    label: 'Current Status',
+                    title: `Status: ${(trainee.status || 'Active').toUpperCase().replace('_', ' ')}`,
+                    date: '2026-10-03',
+                    source: 'Digital Passport Registry',
+                    status: 'Active',
+                    skills: ['Portfolio Active'],
+                    reason: trainee.status === 'at_risk' ? 'Skill Mismatch / Role Discrepancy Flagged' : undefined,
+                    notes: 'Maintained longitudinal record'
+                  }
+                ].map((stageItem) => (
+                  <button
+                    key={stageItem.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTimelineStage({
+                        id: trainee.outcome_history?.[0]?.id || trainee.id,
+                        stage: stageItem.label,
+                        title: stageItem.title,
+                        date: stageItem.date,
+                        source: stageItem.source,
+                        verification_status: stageItem.status,
+                        relevant_skills: stageItem.skills,
+                        outcome_reason: stageItem.reason,
+                        notes: stageItem.notes
+                      });
+                      setIsTimelineStageModalOpen(true);
+                    }}
+                    className="p-3 rounded-xl bg-slate-800/80 hover:bg-indigo-950/60 border border-slate-700/80 hover:border-indigo-500 text-left transition group space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 group-hover:text-indigo-300">
+                        #{stageItem.step}
+                      </span>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    </div>
+                    <div className="text-xs font-bold text-white truncate group-hover:text-indigo-200">
+                      {stageItem.label}
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {stageItem.date}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
             <Card
               title={`Verified Longitudinal Outcome History (${outcomesCount})`}
               subtitle="Full chronological documentation of direct employment, self-employment, freelancing, apprenticeships, ventures, and higher education"
               action={
-                (userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN') && (
+                canManageOutcomes && (
                   <Button
                     size="sm"
                     variant="primary"
@@ -1903,8 +2177,8 @@ EDUCATION & CERTIFICATIONS:
                           </span>
 
                           <div className="flex flex-wrap items-center gap-2">
-                            {/* Trainee Edit Outcome Action */}
-                            {(userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN') && (
+                            {/* Trainee / Authority Edit Outcome Action */}
+                            {canManageOutcomes && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1933,8 +2207,8 @@ EDUCATION & CERTIFICATIONS:
                               </Button>
                             )}
 
-                            {/* Employer/Coach Verification Action */}
-                            {(userRole === 'EMPLOYER' || userRole === 'COACH' || userRole === 'ADMIN') && isPending && (
+                            {/* Employer / Coach / Authority Verification Action */}
+                            {canVerifyOutcomes && isPending && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1971,7 +2245,7 @@ EDUCATION & CERTIFICATIONS:
               title={`Retention Follow-Ups & Longitudinal Case Log (${trainee.follow_up_history?.length || 0})`}
               subtitle="Scheduled 30, 90, 180, and 365-day post-training retention check-ins and wage progression validations"
               action={
-                (userRole === 'COACH' || userRole === 'ADMIN') && (
+                canManageTrainingAndAssessments && (
                   <Button
                     size="sm"
                     variant="primary"
@@ -2025,7 +2299,7 @@ EDUCATION & CERTIFICATIONS:
                             )}
 
                             {/* Trainee "Respond" Action Button */}
-                            {isPending && (userRole === 'TRAINEE' || userRole === 'COACH' || userRole === 'ADMIN') && (
+                            {isPending && (userRole === 'TRAINEE' || canManageTrainingAndAssessments) && (
                               <Button
                                 size="sm"
                                 variant="primary"
@@ -3354,6 +3628,65 @@ EDUCATION & CERTIFICATIONS:
       </Modal>
 
       {/* ======================================================== */}
+      {/* MODAL: VERIFY CERTIFICATION */}
+      {/* ======================================================== */}
+      <Modal
+        isOpen={isVerifyCertModalOpen}
+        onClose={() => setIsVerifyCertModalOpen(false)}
+        title="Verify Professional Certification"
+        subtitle={`Audit and officially validate certification credentials for ${name}`}
+      >
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-1 text-xs">
+            <p><strong>Candidate:</strong> {name}</p>
+            <p><strong>Certification:</strong> {selectedCertToVerify?.title}</p>
+            <p><strong>Issuing Organization:</strong> {selectedCertToVerify?.issuing_organization}</p>
+            {selectedCertToVerify?.credential_id && (
+              <p><strong>Credential ID:</strong> <span className="font-mono text-slate-700">{selectedCertToVerify?.credential_id}</span></p>
+            )}
+            {selectedCertToVerify?.verification_url && (
+              <p><strong>Verification URL:</strong> <a href={selectedCertToVerify.verification_url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{selectedCertToVerify.verification_url}</a></p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Audit Notes & Verification Statement
+            </label>
+            <textarea
+              rows={3}
+              value={verifyCertNotes}
+              onChange={(e) => setVerifyCertNotes(e.target.value)}
+              placeholder="e.g. Credential verified against registry/issuing authority records."
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:border-brand-500"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setIsVerifyCertModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleVerifyCertification('rejected')}
+              className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold"
+            >
+              Reject Credential
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => handleVerifyCertification('verified')}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+            >
+              Verify Credential ✓
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ======================================================== */}
       {/* MODAL: RESPOND TO FOLLOW-UP (7 STANDARDIZED QUESTIONS) */}
       {/* ======================================================== */}
       <Modal
@@ -3840,11 +4173,155 @@ EDUCATION & CERTIFICATIONS:
       {/* ======================================================== */}
       {/* MODAL: CONFIGURABLE SCORING FORMULA WEIGHTS */}
       {/* ======================================================== */}
-      <ScoringConfigModal
-        isOpen={isConfigModalOpen}
-        onClose={() => setIsConfigModalOpen(false)}
-        onConfigUpdated={handleConfigUpdated}
-      />
+      {/* ======================================================== */}
+      {/* MODAL: OUTCOME TIMELINE STAGE DETAILS & REASON LOGGING */}
+      {/* ======================================================== */}
+      <Modal
+        isOpen={isTimelineStageModalOpen}
+        onClose={() => setIsTimelineStageModalOpen(false)}
+        title={selectedTimelineStage ? `${selectedTimelineStage.stage}: ${selectedTimelineStage.title}` : 'Timeline Stage Details'}
+        subtitle={selectedTimelineStage ? `Recorded on ${selectedTimelineStage.date} via ${selectedTimelineStage.source}` : ''}
+      >
+        {selectedTimelineStage && (
+          <div className="space-y-5 text-xs">
+            {/* Stage Attributes Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Verification Status</span>
+                <span className="font-bold text-emerald-700 mt-0.5 block flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  {selectedTimelineStage.verification_status}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Event Date</span>
+                <span className="font-bold text-slate-800 mt-0.5 block">{selectedTimelineStage.date}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Audit Source</span>
+                <span className="font-bold text-indigo-700 mt-0.5 block truncate">{selectedTimelineStage.source}</span>
+              </div>
+            </div>
+
+            {/* Relevant Skills */}
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                Relevant Skills Assessed or Used
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedTimelineStage.relevant_skills.map((sk, idx) => (
+                  <span key={idx} className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 font-semibold">
+                    {sk}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Stage Notes */}
+            {selectedTimelineStage.notes && (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                  Stage Documentation Notes
+                </span>
+                <p className="text-slate-600 leading-relaxed">{selectedTimelineStage.notes}</p>
+              </div>
+            )}
+
+            {/* Existing Outcome Reason Display */}
+            {selectedTimelineStage.outcome_reason && (
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900">
+                <span className="text-[10px] font-bold text-amber-700 uppercase block mb-0.5">
+                  Logged Outcome / Attrition Reason
+                </span>
+                <p className="font-semibold text-xs">{selectedTimelineStage.outcome_reason}</p>
+              </div>
+            )}
+
+            {/* Record / Update Outcome Reason Form */}
+            <form onSubmit={handleRecordTimelineReason} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                  Log / Update Outcome or Attrition Reason
+                </span>
+                <span className="text-[10px] text-slate-400">Syncs to Outcome Intelligence</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Canonical Reason Category
+                </label>
+                <select
+                  value={timelineReasonKey}
+                  onChange={(e) => {
+                    setTimelineReasonKey(e.target.value);
+                    const optText = e.target.options[e.target.selectedIndex].text;
+                    setTimelineReasonLabel(optText);
+                  }}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500 font-medium"
+                >
+                  <option value="SKILL_MISMATCH">Skill Mismatch</option>
+                  <option value="INSUFFICIENT_OPPORTUNITIES">Insufficient Local Job Opportunities</option>
+                  <option value="INTERVIEW_DIFFICULTY">Interview / Communication Difficulty</option>
+                  <option value="LOW_SALARY">Low Compensation / Below Wage Expectations</option>
+                  <option value="LOCATION_CONSTRAINT">Location / Commute Constraints</option>
+                  <option value="ROLE_MISMATCH">Role / Career Track Mismatch</option>
+                  <option value="RELOCATION">Relocation / Migration</option>
+                  <option value="FURTHER_EDUCATION">Higher Education / Continuing Studies</option>
+                  <option value="HEALTH_PERSONAL">Personal / Family Responsibilities</option>
+                  <option value="BETTER_OPPORTUNITY">Better Job Opportunity</option>
+                  <option value="BUSINESS_INACTIVE">Self-Employment Business Inactive</option>
+                  <option value="FUNDING_ISSUE">Self-Employment Funding / Cashflow Issue</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Specific Observations or Context
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Candidate required additional Spring Boot framework training..."
+                  value={timelineReasonNotes}
+                  onChange={(e) => setTimelineReasonNotes(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTimelineStageModalOpen(false);
+                    navigate('/trainee/skill-gap');
+                  }}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                >
+                  Open Skill Gap Diagnostic <ArrowRight className="w-3 h-3" />
+                </button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isSavingTimelineReason}
+                >
+                  Save Outcome Reason
+                </Button>
+              </div>
+            </form>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsTimelineStageModalOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

@@ -3,7 +3,323 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base, get_vector_type
 from app.core.config import settings
 
+from enum import Enum
+from typing import Optional
+
 vector_type = get_vector_type(settings.VECTOR_DIMENSION)
+
+class VerificationStatus(str, Enum):
+    SELF_REPORTED = "SELF_REPORTED"
+    PARTIALLY_VERIFIED = "PARTIALLY_VERIFIED"
+    EMPLOYER_VERIFIED = "EMPLOYER_VERIFIED"
+    DOCUMENT_VERIFIED = "DOCUMENT_VERIFIED"
+    SYSTEM_VERIFIED = "SYSTEM_VERIFIED"
+    UNVERIFIED = "UNVERIFIED"
+    UNKNOWN = "UNKNOWN"
+    REJECTED = "REJECTED"
+
+class ConsentStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    WITHDRAWN = "WITHDRAWN"
+    EXPIRED = "EXPIRED"
+    NOT_GRANTED = "NOT_GRANTED"
+
+class OutcomeState(str, Enum):
+    EMPLOYED = "EMPLOYED"
+    SELF_EMPLOYED = "SELF_EMPLOYED"
+    APPRENTICESHIP = "APPRENTICESHIP"
+    FREELANCING = "FREELANCING"
+    ENTREPRENEURSHIP = "ENTREPRENEURSHIP"
+    HIGHER_STUDIES = "HIGHER_STUDIES"
+    UNEMPLOYED = "UNEMPLOYED"
+    SEEKING_EMPLOYMENT = "SEEKING_EMPLOYMENT"
+    UNKNOWN = "UNKNOWN"
+    UNREACHABLE = "UNREACHABLE"
+    WITHDRAWN_CONSENT = "WITHDRAWN_CONSENT"
+
+class TimelineStage(str, Enum):
+    TRAINING = "TRAINING"
+    COMPLETION = "COMPLETION"
+    PLACEMENT = "PLACEMENT"
+    EMPLOYMENT = "EMPLOYMENT"
+    JOB_CHANGE = "JOB_CHANGE"
+    SALARY_CHANGE = "SALARY_CHANGE"
+    RETENTION = "RETENTION"
+    SKILL_DEVELOPMENT = "SKILL_DEVELOPMENT"
+
+def normalize_outcome_state(
+    state: Optional[str],
+    consent_status: Optional[str] = None,
+    is_reachable: bool = True
+) -> str:
+    if consent_status and consent_status.strip().upper() in ["WITHDRAWN", "REVOKED", "NOT_GRANTED"]:
+        return OutcomeState.WITHDRAWN_CONSENT.value
+    if not is_reachable:
+        return OutcomeState.UNREACHABLE.value
+    if not state:
+        return OutcomeState.UNKNOWN.value
+
+    s = state.strip().upper().replace("-", "_").replace(" ", "_")
+    mapping = {
+        "EMPLOYED": OutcomeState.EMPLOYED.value,
+        "EMPLOYMENT": OutcomeState.EMPLOYED.value,
+        "SALARIED": OutcomeState.EMPLOYED.value,
+        "SALARIED_EMPLOYMENT": OutcomeState.EMPLOYED.value,
+        "FULL_TIME": OutcomeState.EMPLOYED.value,
+        "PART_TIME": OutcomeState.EMPLOYED.value,
+        "PLACED": OutcomeState.EMPLOYED.value,
+        
+        "SELF_EMPLOYED": OutcomeState.SELF_EMPLOYED.value,
+        "SELF_EMPLOYMENT": OutcomeState.SELF_EMPLOYED.value,
+        "LLC": OutcomeState.SELF_EMPLOYED.value,
+        
+        "APPRENTICESHIP": OutcomeState.APPRENTICESHIP.value,
+        "INTERNSHIP": OutcomeState.APPRENTICESHIP.value,
+        "NAPS": OutcomeState.APPRENTICESHIP.value,
+        "APPRENTICE": OutcomeState.APPRENTICESHIP.value,
+        
+        "FREELANCING": OutcomeState.FREELANCING.value,
+        "FREELANCE": OutcomeState.FREELANCING.value,
+        "CONTRACTOR": OutcomeState.FREELANCING.value,
+        
+        "ENTREPRENEURSHIP": OutcomeState.ENTREPRENEURSHIP.value,
+        "STARTUP": OutcomeState.ENTREPRENEURSHIP.value,
+        "FOUNDER": OutcomeState.ENTREPRENEURSHIP.value,
+        
+        "HIGHER_STUDIES": OutcomeState.HIGHER_STUDIES.value,
+        "HIGHER_EDUCATION": OutcomeState.HIGHER_STUDIES.value,
+        "FURTHER_EDUCATION": OutcomeState.HIGHER_STUDIES.value,
+        "EDUCATION": OutcomeState.HIGHER_STUDIES.value,
+        
+        "UNEMPLOYED": OutcomeState.UNEMPLOYED.value,
+        
+        "SEEKING_EMPLOYMENT": OutcomeState.SEEKING_EMPLOYMENT.value,
+        "JOB_SEEKING": OutcomeState.SEEKING_EMPLOYMENT.value,
+        "SEEKING_JOB": OutcomeState.SEEKING_EMPLOYMENT.value,
+        "IN_TRAINING": OutcomeState.SEEKING_EMPLOYMENT.value,
+        
+        "UNREACHABLE": OutcomeState.UNREACHABLE.value,
+        "CONTACT_FAILED": OutcomeState.UNREACHABLE.value,
+        
+        "WITHDRAWN_CONSENT": OutcomeState.WITHDRAWN_CONSENT.value,
+        "WITHDRAWN": OutcomeState.WITHDRAWN_CONSENT.value,
+        
+        "UNKNOWN": OutcomeState.UNKNOWN.value,
+        "OUTCOME_UNKNOWN": OutcomeState.UNKNOWN.value,
+    }
+    return mapping.get(s, OutcomeState.UNKNOWN.value)
+
+def calculate_outcome_confidence(
+    verification_level: str,
+    source: Optional[str] = None,
+    verified_at: Optional[str] = None,
+    multi_corroborated: bool = False
+) -> float:
+    """
+    Calculates deterministic outcome confidence score (0.0 to 1.0) strictly from evidence.
+    Zero synthetic or invented confidence.
+    """
+    norm_v = normalize_verification_status(verification_level)
+    base_scores = {
+        VerificationStatus.DOCUMENT_VERIFIED.value: 0.95,
+        VerificationStatus.EMPLOYER_VERIFIED.value: 0.90,
+        VerificationStatus.SYSTEM_VERIFIED.value: 0.85,
+        VerificationStatus.PARTIALLY_VERIFIED.value: 0.70,
+        VerificationStatus.SELF_REPORTED.value: 0.50,
+        VerificationStatus.UNVERIFIED.value: 0.00,
+        VerificationStatus.UNKNOWN.value: 0.00,
+        VerificationStatus.REJECTED.value: 0.00,
+    }
+    score = base_scores.get(norm_v, 0.0)
+
+    # Multi-source corroboration check (explicit flag or multi-source indicators in source string)
+    is_multi = multi_corroborated
+    if source and not is_multi:
+        s_lower = source.lower()
+        if any(term in s_lower for term in [" and ", " & ", " + ", ", ", "epfo", "digilocker", "challan", "dual"]):
+            is_multi = True
+
+    if is_multi and score > 0:
+        score = min(1.0, score + 0.05)
+
+    # Decay if verified > 180 days ago (freshness penalty)
+    if verified_at and score > 0:
+        try:
+            from datetime import datetime, date
+            clean_date = str(verified_at)[:10]
+            v_date = datetime.strptime(clean_date, "%Y-%m-%d").date()
+            days_old = (date.today() - v_date).days
+            if days_old > 365:
+                score = max(0.20, score - 0.20)
+            elif days_old > 180:
+                score = max(0.30, score - 0.10)
+        except Exception:
+            pass
+
+    return round(score, 2)
+
+def calculate_trainee_data_quality(
+    trainee,
+    follow_ups: list = None,
+    verifications: list = None,
+    events: list = None
+) -> dict:
+    """
+    Calculates a transparent Data Quality Score (0-100) based strictly on:
+    - Completeness (25%)
+    - Freshness (25%)
+    - Verification (25%)
+    - Consistency (25%)
+    Includes explicit line-item reasons for any deductions.
+    """
+    from datetime import datetime, date
+    today = date.today()
+    deductions = []
+    follow_ups = follow_ups or []
+    verifications = verifications or []
+    events = events or []
+
+    # 1. Completeness (25 pts)
+    comp_score = 25.0
+    if not trainee.program:
+        comp_score -= 5.0
+        deductions.append("Missing training program affiliation (-5 pts)")
+    if not trainee.enrollment_date or not trainee.graduation_date:
+        comp_score -= 5.0
+        deductions.append("Missing training cohort date bounds (-5 pts)")
+    
+    is_placed = (
+        trainee.status == "placed" or 
+        normalize_outcome_state(trainee.primary_outcome_type) in [
+            OutcomeState.EMPLOYED.value,
+            OutcomeState.SELF_EMPLOYED.value,
+            OutcomeState.APPRENTICESHIP.value
+        ]
+    )
+    if is_placed:
+        if not trainee.current_employer:
+            comp_score -= 8.0
+            deductions.append("Missing employer name / organization for placed outcome (-8 pts)")
+        if not trainee.placement_salary and not trainee.current_wage_numeric:
+            comp_score -= 7.0
+            deductions.append("Missing verified placement wage / salary record (-7 pts)")
+    comp_score = max(0.0, comp_score)
+
+    # 2. Freshness (25 pts)
+    fresh_score = 25.0
+    latest_date = None
+    all_dates = []
+    if trainee.last_follow_up:
+        all_dates.append(trainee.last_follow_up)
+    if getattr(trainee, "outcome_last_verified_at", None):
+        all_dates.append(trainee.outcome_last_verified_at)
+    for f in follow_ups:
+        if f.completed_date:
+            all_dates.append(f.completed_date)
+    for v in verifications:
+        if v.submission_date:
+            all_dates.append(v.submission_date)
+    for e in events:
+        if e.event_date:
+            all_dates.append(e.event_date)
+
+    days_since_active = 999
+    if all_dates:
+        for d_str in all_dates:
+            try:
+                dt = datetime.strptime(d_str[:10], "%Y-%m-%d").date()
+                if latest_date is None or dt > latest_date:
+                    latest_date = dt
+            except Exception:
+                pass
+        if latest_date:
+            days_since_active = (today - latest_date).days
+
+    if days_since_active > 365:
+        fresh_score -= 20.0
+        deductions.append(f"Stale record: No activity recorded for {days_since_active} days (> 1 year) (-20 pts)")
+    elif days_since_active > 180:
+        fresh_score -= 12.0
+        deductions.append(f"Aging record: No activity recorded for {days_since_active} days (> 180 days) (-12 pts)")
+    elif days_since_active > 90:
+        fresh_score -= 5.0
+        deductions.append(f"Quarterly review pending: Inactive for {days_since_active} days (-5 pts)")
+    fresh_score = max(0.0, fresh_score)
+
+    # 3. Verification (25 pts)
+    verif_score = 0.0
+    v_norm = normalize_verification_status(getattr(trainee, "evidence_level", None) or getattr(trainee, "outcome_verification_level", None))
+    if v_norm in [VerificationStatus.DOCUMENT_VERIFIED.value, VerificationStatus.EMPLOYER_VERIFIED.value]:
+        verif_score = 25.0
+    elif v_norm == VerificationStatus.SYSTEM_VERIFIED.value:
+        verif_score = 22.0
+    elif v_norm == VerificationStatus.PARTIALLY_VERIFIED.value:
+        verif_score = 15.0
+        deductions.append("Partially verified evidence lacking formal employer/document backing (-10 pts)")
+    elif v_norm == VerificationStatus.SELF_REPORTED.value:
+        verif_score = 8.0
+        deductions.append("Self-reported claim with zero external corroboration (-17 pts)")
+    else:
+        verif_score = 0.0
+        deductions.append("Unverified or unknown outcome evidence (-25 pts)")
+
+    # 4. Consistency (25 pts)
+    cons_score = 25.0
+    has_overdue_fu = any(f.status == "overdue" for f in follow_ups)
+    if has_overdue_fu:
+        cons_score -= 10.0
+        deductions.append("Contains uncompleted overdue longitudinal follow-up milestone (-10 pts)")
+    
+    if is_placed and not follow_ups:
+        cons_score -= 8.0
+        deductions.append("Missing scheduled longitudinal retention milestones (-8 pts)")
+
+    has_placement_event = any(e.stage in ["first_outcome", "PLACEMENT", "EMPLOYMENT"] for e in events)
+    if is_placed and not has_placement_event:
+        cons_score -= 7.0
+        deductions.append("Placed outcome discrepancy: Missing corresponding timeline event (-7 pts)")
+
+    cons_score = max(0.0, cons_score)
+
+    total_score = round(comp_score + fresh_score + verif_score + cons_score, 1)
+
+    return {
+        "score": total_score,
+        "completeness": round(comp_score, 1),
+        "freshness": round(fresh_score, 1),
+        "verification": round(verif_score, 1),
+        "consistency": round(cons_score, 1),
+        "deductions": deductions,
+        "is_stale": days_since_active > 180,
+        "has_missing_wages": is_placed and (not trainee.placement_salary and not getattr(trainee, "current_wage_numeric", None)),
+        "has_missing_employer_verification": is_placed and len(verifications) == 0,
+        "days_since_active": days_since_active if days_since_active < 900 else None
+    }
+
+def normalize_verification_status(status: Optional[str]) -> str:
+    if not status:
+        return VerificationStatus.UNVERIFIED.value
+    s = status.strip().upper().replace("-", "_").replace(" ", "_")
+    mapping = {
+        "SELF_REPORTED": VerificationStatus.SELF_REPORTED.value,
+        "PARTIALLY_VERIFIED": VerificationStatus.PARTIALLY_VERIFIED.value,
+        "EMPLOYER_VERIFIED": VerificationStatus.EMPLOYER_VERIFIED.value,
+        "EMPLOYER_CONFIRMED": VerificationStatus.EMPLOYER_VERIFIED.value,
+        "DOCUMENT_VERIFIED": VerificationStatus.DOCUMENT_VERIFIED.value,
+        "EVIDENCE_BACKED": VerificationStatus.DOCUMENT_VERIFIED.value,
+        "MULTI_SOURCE_VERIFIED": VerificationStatus.PARTIALLY_VERIFIED.value,
+        "SYSTEM_VERIFIED": VerificationStatus.SYSTEM_VERIFIED.value,
+        "AI_EXTRACTED": VerificationStatus.SYSTEM_VERIFIED.value,
+        "UNVERIFIED": VerificationStatus.UNVERIFIED.value,
+        "PENDING": VerificationStatus.UNVERIFIED.value,
+        "PENDING_AUDIT": VerificationStatus.UNVERIFIED.value,
+        "UNKNOWN": VerificationStatus.UNKNOWN.value,
+        "REJECTED": VerificationStatus.REJECTED.value,
+        "DISPUTED": VerificationStatus.REJECTED.value,
+        "VERIFIED": VerificationStatus.DOCUMENT_VERIFIED.value,
+        "CONFIRMED": VerificationStatus.EMPLOYER_VERIFIED.value,
+    }
+    return mapping.get(s, VerificationStatus.UNKNOWN.value)
 
 class User(Base):
     __tablename__ = "users"
@@ -98,7 +414,7 @@ class Trainee(Base):
     current_role = Column(String(150), nullable=True)
     current_employer = Column(String(150), nullable=True)
     placement_date = Column(String(50), nullable=True)
-    placement_salary = Column(String(50), nullable=True)
+    placement_salary = Column(String(200), nullable=True)
     primary_outcome_type = Column(String(50), default="employment", index=True)
     evidence_level = Column(String(50), default="self_reported", index=True) # self_reported, employer_confirmed, evidence_backed, multi_source_verified
 
@@ -117,6 +433,27 @@ class Trainee(Base):
     outcome_history = Column(JSON, default=list)
     follow_up_history = Column(JSON, default=list)
     consent_status = Column(JSON, default=dict)
+    # Longitudinal Outcome Intelligence & Verification Fields
+    outcome_state = Column(String(50), default="UNKNOWN", index=True)
+    outcome_verification_level = Column(String(50), default="UNVERIFIED", index=True)
+    outcome_confidence = Column(Float, default=0.0)
+    outcome_last_verified_at = Column(String(50), nullable=True)
+    outcome_source = Column(String(150), nullable=True)
+    
+    # Cohort & Geographic Dimensions
+    district = Column(String(100), nullable=True, index=True)
+    provider_name = Column(String(150), nullable=True, index=True)
+    batch = Column(String(100), nullable=True, index=True)
+    
+    # Wage Metrics
+    current_wage_numeric = Column(Float, nullable=True)
+    placement_wage_numeric = Column(Float, nullable=True)
+    
+    # Data Quality & Synthetic Isolation
+    is_synthetic = Column(Boolean, default=False, index=True)
+    data_source = Column(String(50), default="LIVE_PRODUCTION", index=True) # DEMO/SYNTHETIC vs LIVE_PRODUCTION
+    data_quality_score = Column(Float, default=0.0)
+    data_quality_breakdown = Column(JSON, default=dict)
 
     embedding = Column(vector_type, nullable=True)
 
@@ -163,6 +500,7 @@ class Skill(Base):
     category = Column(String(50), nullable=False, index=True) # hard or soft
     domain = Column(String(100), nullable=False, default="Software Development", index=True)
     description = Column(Text, nullable=True)
+    status = Column(String(50), default="ACTIVE", index=True) # ACTIVE, RETIRED, DRAFT
     demand_score = Column(Integer, default=70)
     trainees_proficient = Column(Integer, default=0)
     open_job_demands = Column(Integer, default=0)
@@ -215,6 +553,7 @@ class TraineeSkill(Base):
     level = Column(String(50), default="intermediate")
     verified = Column(Boolean, default=False)
     score = Column(Integer, default=75) # 0-100 legacy scale
+    source = Column(String(50), default="ASSESSMENT", index=True) # TRAINING, ASSESSMENT, SELF_DECLARED, EMPLOYER, VERIFIED
 
     # 0-5 Proficiency Scoring Engine fields
     proficiency_score = Column(Float, default=3.0) # 0.0 to 5.0
@@ -287,8 +626,8 @@ class Job(Base):
 
     mapped_occupation_id = Column(String(50), nullable=True, index=True)
     mapped_occupation_title = Column(String(150), nullable=True)
-    experience_level = Column(String(100), nullable=True)
-    education_level = Column(String(100), nullable=True)
+    experience_level = Column(String(255), nullable=True)
+    education_level = Column(String(255), nullable=True)
     source = Column(String(50), default="direct_submission")
     extracted_metadata = Column(JSON, default=dict)
 
@@ -355,6 +694,17 @@ class SkillGap(Base):
     missing_skills = Column(JSON, default=list)
     acquired_skills = Column(JSON, default=list)
     recommendation = Column(Text, nullable=False)
+
+    # Granular Skill-Gap Intelligence Fields
+    course_id = Column(String(50), nullable=True, index=True)
+    skill_id = Column(String(50), nullable=True, index=True)
+    skill_name = Column(String(100), nullable=True, index=True)
+    required_level = Column(Float, default=0.0)
+    current_level = Column(Float, default=0.0)
+    gap_level = Column(Float, default=0.0)
+    gap_category = Column(String(50), default="NO_GAP", index=True) # NO_GAP, LOW, MEDIUM, HIGH, CRITICAL
+    source = Column(String(50), default="JOB_REQUIREMENT", index=True) # JOB_REQUIREMENT, CURRICULUM, BENCHMARK
+    detected_at = Column(String(50), nullable=True)
 
 
 class CareerPath(Base):
@@ -609,4 +959,256 @@ class PassportEvent(Base):
     timestamp = Column(String(50), nullable=False, index=True)
 
     trainee = relationship("Trainee", backref="events")
+
+
+# ========================================================
+# Career Outcome Digital Twin State Model
+# ========================================================
+
+class UncertaintyState(str, Enum):
+    KNOWN = "KNOWN"
+    SELF_REPORTED = "SELF_REPORTED"
+    VERIFIED = "VERIFIED"
+    STALE = "STALE"
+    UNKNOWN = "UNKNOWN"
+
+
+class RiskState(str, Enum):
+    LOW = "LOW"
+    MODERATE = "MODERATE"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+    UNKNOWN = "UNKNOWN"
+
+
+class DigitalTwinState(Base):
+    __tablename__ = "digital_twin_states"
+
+    id = Column(String(50), primary_key=True, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id"), unique=True, nullable=False, index=True)
+
+    # Current Career State
+    current_outcome = Column(String(50), default="UNKNOWN") # Canonical OutcomeState
+    current_role = Column(String(150), nullable=True)
+    current_employer = Column(String(150), nullable=True)
+    employment_status = Column(String(50), default="UNKNOWN") # FULL_TIME, PART_TIME, CONTRACT, APPRENTICE, SEEKING, UNKNOWN
+    employment_start_date = Column(String(50), nullable=True)
+    current_income_range = Column(String(100), nullable=True)
+    current_income_numeric = Column(Float, nullable=True)
+    placement_wage_numeric = Column(Float, nullable=True)
+
+    # Intelligence & Readiness Metrics
+    training_relevance = Column(Float, nullable=True) # 0.0 to 100.0%
+    retention_state = Column(String(50), nullable=True) # 30D_CONFIRMED, 90D_CONFIRMED, 180D_CONFIRMED, 365D_CONFIRMED, PENDING, AT_RISK, UNKNOWN
+    skill_readiness = Column(Float, default=0.0) # 0.0 to 100.0%
+    job_readiness = Column(Float, default=0.0) # 0.0 to 100.0%
+    skill_gap_count = Column(Integer, default=0)
+    high_priority_gaps = Column(JSON, default=list) # [{skill_name, priority, current_level, target_level, gap}]
+
+    # Verification, Audit Quality & Risk
+    last_verified_at = Column(String(50), nullable=True)
+    data_quality = Column(Float, default=0.0) # 0 to 100
+    data_quality_breakdown = Column(JSON, default=dict)
+    confidence = Column(Float, default=0.0) # 0.0 to 1.0
+    uncertainty_state = Column(String(50), default="UNKNOWN") # KNOWN, SELF_REPORTED, VERIFIED, STALE, UNKNOWN
+    risk_state = Column(String(50), default="LOW") # LOW, MODERATE, HIGH, CRITICAL, UNKNOWN
+    risk_factors = Column(JSON, default=list) # ["Reason 1", "Reason 2"]
+
+    # Structured Evolutionary Dimensions & Evidence Traceability
+    skill_dna = Column(JSON, default=list) # [{skill_id, name, category, baseline_level, current_level, target_level, verified}]
+    skill_evolution = Column(JSON, default=list) # [{stage, timestamp, skills: [...]}]
+    outcome_evolution = Column(JSON, default=list) # [{month, stage, title, date, status, notes}]
+    evidence_traceability = Column(JSON, default=list) # [{attribute, value, evidence_type, source, verified_by, date, confidence, explanation}]
+
+    updated_at = Column(String(50), nullable=False)
+
+    trainee = relationship("Trainee", backref="digital_twin_state")
+
+
+# ========================================================
+# Feature A & B: Career Simulator & Outcome Risk Engine Models
+# ========================================================
+
+class OutcomeRiskType(str, Enum):
+    SKILL_GAP = "SKILL_GAP"
+    EMPLOYMENT_INSTABILITY = "EMPLOYMENT_INSTABILITY"
+    FOLLOWUP_FAILURE = "FOLLOWUP_FAILURE"
+    DATA_STALENESS = "DATA_STALENESS"
+    JOB_SEARCH_DIFFICULTY = "JOB_SEARCH_DIFFICULTY"
+    TRAINING_JOB_MISMATCH = "TRAINING_JOB_MISMATCH"
+
+
+class OutcomeRiskSeverity(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class OutcomeRiskStatus(str, Enum):
+    DETECTED = "DETECTED"
+    INTERVENTION_SUGGESTED = "INTERVENTION_SUGGESTED"
+    INTERVENTION_ACCEPTED = "INTERVENTION_ACCEPTED"
+    INTERVENTION_REJECTED = "INTERVENTION_REJECTED"
+    INTERVENTION_IN_PROGRESS = "INTERVENTION_IN_PROGRESS"
+    INTERVENTION_COMPLETED = "INTERVENTION_COMPLETED"
+    REASSESSED = "REASSESSED"
+    RESOLVED = "RESOLVED"
+    MONITORING = "MONITORING"
+
+
+class OutcomeRisk(Base):
+    __tablename__ = "outcome_risks"
+
+    id = Column(String(50), primary_key=True, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id"), nullable=False, index=True)
+    risk_type = Column(String(50), nullable=False, index=True) # SKILL_GAP, EMPLOYMENT_INSTABILITY, FOLLOWUP_FAILURE, DATA_STALENESS, JOB_SEARCH_DIFFICULTY, TRAINING_JOB_MISMATCH
+    severity = Column(String(50), nullable=False, default="MEDIUM", index=True) # LOW, MEDIUM, HIGH, CRITICAL
+    signals = Column(JSON, default=list) # List of explainable signal strings: ["Signal 1: ...", "Signal 2: ...", "Signal 3: ..."]
+    evidence = Column(JSON, default=dict) # Structured evidence dictionary with data points, dates, and threshold metrics
+    status = Column(String(50), default="DETECTED", index=True) # DETECTED, INTERVENTION_SUGGESTED, INTERVENTION_ACCEPTED, etc.
+    recommended_intervention = Column(JSON, default=dict) # Details of suggested remediation
+    reassessment_record = Column(JSON, nullable=True) # Reassessment scores, notes, outcome
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+
+    trainee = relationship("Trainee", backref="outcome_risks")
+
+
+class CareerSimulationRecord(Base):
+    __tablename__ = "career_simulations"
+
+    id = Column(String(50), primary_key=True, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id", ondelete="SET NULL"), nullable=True, index=True)
+    scenario_name = Column(String(150), nullable=False)
+    input_payload = Column(JSON, default=dict)
+    simulation_result = Column(JSON, default=dict)
+    created_at = Column(String(50), nullable=False)
+
+    trainee = relationship("Trainee", backref="career_simulations")
+
+
+# ========================================================
+# Skill Gap Intelligence & Course Demand Models
+# ========================================================
+
+class TrainingCourseSkill(Base):
+    __tablename__ = "training_course_skills"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    course_id = Column(String(50), ForeignKey("courses.id"), nullable=False, index=True)
+    skill_id = Column(String(50), ForeignKey("skills.id"), nullable=False, index=True)
+    proficiency_level = Column(Float, default=3.0) # Target level taught (0.0 - 5.0)
+    mandatory = Column(Boolean, default=True)
+
+    course = relationship("Course", backref="curriculum_skills")
+    skill = relationship("Skill")
+
+
+class JobSkillRequirement(Base):
+    __tablename__ = "job_skill_requirements"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_id = Column(String(50), ForeignKey("jobs.id"), nullable=False, index=True)
+    skill_id = Column(String(50), ForeignKey("skills.id"), nullable=False, index=True)
+    required_level = Column(Float, default=3.0) # Benchmark required level (0.0 - 5.0)
+    importance = Column(String(50), default="MANDATORY", index=True) # MANDATORY, PREFERRED
+
+    job = relationship("Job", backref="skill_requirements")
+    skill = relationship("Skill")
+
+
+class EmploymentOutcomeSkill(Base):
+    __tablename__ = "employment_outcome_skills"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employment_id = Column(String(50), nullable=False, index=True) # links to CareerTimelineEvent or Trainee
+    trainee_id = Column(String(50), ForeignKey("trainees.id"), nullable=True, index=True)
+    skill_id = Column(String(50), ForeignKey("skills.id"), nullable=False, index=True)
+    proficiency_required = Column(Float, default=3.0)
+    skill_used = Column(Boolean, default=True)
+
+    skill = relationship("Skill")
+
+
+class CourseSkillGap(Base):
+    __tablename__ = "course_skill_gaps"
+
+    id = Column(String(50), primary_key=True, index=True)
+    course_id = Column(String(50), ForeignKey("courses.id"), nullable=False, index=True)
+    skill_id = Column(String(50), ForeignKey("skills.id"), nullable=False, index=True)
+    skill_name = Column(String(100), nullable=False)
+    demand_frequency = Column(Float, default=0.0) # % of target jobs requiring this skill
+    training_coverage = Column(Float, default=0.0) # % coverage in curriculum (0 or >0)
+    average_trainee_proficiency = Column(Float, default=0.0)
+    gap_severity = Column(String(50), default="LOW", index=True) # NO_GAP, LOW, MEDIUM, HIGH, CRITICAL
+    gap_frequency = Column(Float, default=0.0) # % trainees with a gap in this skill
+    average_skill_gap = Column(Float, default=0.0)
+    employment_association = Column(String(100), default="neutral") # strong_positive, positive, neutral, negative
+    updated_at = Column(String(50), nullable=False)
+
+    course = relationship("Course", backref="course_gaps")
+    skill = relationship("Skill")
+
+
+# ========================================================
+# Outcome Failure & Attrition Cause Intelligence Models
+# ========================================================
+
+class OutcomeReasonConfig(Base):
+    """
+    Administrator-configurable reasons for non-placement, attrition, and self-employment hurdles.
+    Allows dynamic extension without modifying codebase.
+    """
+    __tablename__ = "outcome_reason_configs"
+
+    id = Column(String(50), primary_key=True, index=True)
+    category = Column(String(50), nullable=False, index=True) # NON_PLACEMENT, ATTRITION, SELF_EMPLOYMENT
+    code = Column(String(100), unique=True, nullable=False, index=True)
+    label = Column(String(150), nullable=False)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(String(50), nullable=False)
+
+
+class TraineeOutcomeReason(Base):
+    """
+    Structured outcome reason records explaining why a trainee did not achieve or retain employment.
+    Never relies on opaque AI decisions; stores transparent categories, reason codes, and explanatory text.
+    """
+    __tablename__ = "trainee_outcome_reasons"
+
+    id = Column(String(50), primary_key=True, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id"), nullable=False, index=True)
+    outcome_id = Column(String(50), nullable=True, index=True) # links to timeline event or outcome record
+    outcome_type = Column(String(50), nullable=False, index=True) # EMPLOYED, SELF_EMPLOYED, APPRENTICESHIP, FURTHER_EDUCATION, JOB_SEARCHING, UNEMPLOYED, DROPPED_OUT, EMPLOYMENT_LOST
+    reason_category = Column(String(50), nullable=False, index=True) # NON_PLACEMENT, ATTRITION, SELF_EMPLOYMENT
+    reason_code = Column(String(100), nullable=False, index=True)
+    reason_text = Column(Text, nullable=True)
+    reported_by = Column(String(50), default="TRAINEE") # TRAINEE, COACH, EMPLOYER, SYSTEM
+    tenure_months = Column(Integer, nullable=True) # For attrition: months before leaving (e.g., < 6 months)
+    metadata_json = Column(JSON, default=dict)
+    created_at = Column(String(50), nullable=False)
+
+    trainee = relationship("Trainee", backref="outcome_reasons")
+
+
+class FollowUpQuestionResponse(Base):
+    """
+    Longitudinal state-based follow-up questionnaire responses.
+    Generated dynamically based on current employment status (UNEMPLOYED, EMPLOYED, SELF_EMPLOYED, EMPLOYMENT_LOST).
+    """
+    __tablename__ = "follow_up_question_responses"
+
+    id = Column(String(50), primary_key=True, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id"), nullable=False, index=True)
+    employment_status = Column(String(50), nullable=False, index=True)
+    question_key = Column(String(100), nullable=False)
+    question_text = Column(String(255), nullable=False)
+    answer_value = Column(String(255), nullable=False)
+    notes = Column(Text, nullable=True) # optional free-text explanation
+    recorded_at = Column(String(50), nullable=False)
+
+    trainee = relationship("Trainee", backref="question_responses")
+
 

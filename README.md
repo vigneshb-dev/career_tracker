@@ -303,6 +303,28 @@ The platform seeds a realistic workforce cohort with pre-configured personas:
 * `PATCH /api/trainees/{id}/skills/{skill_id}/verify` – Coach 0–5 skill rubric scoring.
 * `PATCH /api/trainees/{id}/outcomes/{outcome_id}/verify` – Employer official placement confirmation.
 
+### What-If Career Simulator Endpoints (`/api/simulator/...`)
+
+* `POST /api/simulator/run` – Compares Current Profile vs. Simulated Profile (additional skills, certifications, target roles, locations, interventions). Calculates newly matched jobs, remaining gaps, changed match scores, newly eligible pathways, required training, and estimated readiness change.
+* `GET /api/simulator/trainee/{id}/baseline` – Retrieves actual trainee baseline skills, target roles, and certifications.
+* `GET /api/simulator/options` – Provides available skills, roles, certifications, and catalog interventions.
+* *Output Labels*: `SIMULATION`, `ESTIMATION`.
+* *Mandatory Disclaimer*: *"Simulation based on available profile and job requirement data."*
+* *Data Safety Guard*: Automatically flags `INSUFFICIENT_DATA` if active job benchmarks < 2. Zero fabricated salaries or employment probabilities.
+
+### Outcome Risk Engine & Intervention Loop Endpoints (`/api/outcome-risks/...`)
+
+* `GET /api/outcome-risks` – Lists detected outcome risks with explainable signals (Signal 1, Signal 2, Signal 3) and structured evidence. Filterable by type, severity, and status.
+* `GET /api/outcome-risks/summary` – Executive summary of risks by severity (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`), canonical type, and active remediation count.
+* `GET /api/outcome-risks/{id}` – Full detail of specific risk with complete evidence diagnostic.
+* `POST /api/outcome-risks/scan` – Automated multi-signal workforce scan detecting 10 risk signals across 6 canonical types.
+* `POST /api/outcome-risks/{id}/accept` – Intervention Loop: Trainee/Coach accepts suggested remediation intervention.
+* `POST /api/outcome-risks/{id}/reject` – Intervention Loop: Trainee declines intervention with reason audit.
+* `POST /api/outcome-risks/{id}/start` – Intervention Loop: Commences remediation tasks.
+* `POST /api/outcome-risks/{id}/complete` – Intervention Loop: Marks intervention completed, ready for reassessment.
+* `POST /api/outcome-risks/{id}/reassess` – Intervention Loop: Submits verified reassessment score, recalculates risk severity (&ge;80% resolves to `LOW`/`RESOLVED`), and records permanent audit entry.
+* *Output Label*: `RISK SIGNAL`.
+
 Interactive Swagger documentation is available at `http://localhost:8000/docs`.
 
 ---

@@ -1,10 +1,15 @@
 import logging
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.entities import SkillGap, Trainee, Occupation
+from app.core.auth import (
+    get_current_user,
+    require_roles,
+    verify_trainee_resource_access,
+)
+from app.models.entities import SkillGap, Trainee, Occupation, User
 from app.schemas.schemas import SkillGapRead, SkillGapAnalyzeRequest
 from app.services.skill_gap_service import SkillGapEngine
 
@@ -19,20 +24,30 @@ def list_skill_gaps(
     gap_type: Optional[str] = Query(None, description="Filter by learner_gap, curriculum_gap, workplace_gap"),
     category: Optional[str] = Query(None, description="Filter by hard or soft"),
     trainee_id: Optional[str] = Query(None, description="Filter by trainee ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Retrieves all audited candidate skill gaps.
-    If no records exist, auto-synchronizes all synthetic trainees.
+    Retrieves audited candidate skill gaps with role-aware privacy:
+    - Trainees are restricted to their own gaps.
+    - Authorized Coaches/Providers/Employers/Admins can view matching cohorts.
     """
+    user_role = (current_user.role or "").strip().upper()
+    if user_role == "TRAINEE":
+        own_id = current_user.trainee_profile.trainee_id if current_user.trainee_profile else None
+        if not own_id:
+            t = db.query(Trainee).filter((Trainee.user_id == current_user.id) | (Trainee.email == current_user.email)).first()
+            own_id = t.id if t else None
+        trainee_id = own_id or "NONE"
+
     query = db.query(SkillGap)
     if trainee_id:
         query = query.filter(SkillGap.trainee_id == trainee_id)
 
     results = query.all()
 
-    # If database has empty or uninitialized gap records, auto-sync
-    if not results or any(not r.gaps_breakdown for r in results):
+    # If database has empty or uninitialized gap records for admin/coach, auto-sync
+    if (not results or any(not r.gaps_breakdown for r in results)) and user_role in ["ADMIN", "COACH", "TRAINING_PROVIDER"]:
         trainees = db.query(Trainee).all()
         for t in trainees:
             try:
@@ -40,6 +55,8 @@ def list_skill_gaps(
             except Exception as e:
                 logger.error(f"Error auto-syncing skill gap for {t.id}: {e}")
         results = db.query(SkillGap).all()
+        if trainee_id:
+            results = [r for r in results if r.trainee_id == trainee_id]
 
     # Apply in-memory filtering for detailed attributes if requested
     if priority or gap_type or category:
@@ -64,7 +81,10 @@ def list_skill_gaps(
 
 
 @router.get("/summary")
-def get_skill_gaps_summary(db: Session = Depends(get_db)):
+def get_skill_gaps_summary(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Returns executive workforce-level analytics:
     - Critical, Moderate, Low breakdown
@@ -90,15 +110,14 @@ def get_trainee_skill_gap(
     id: str,
     target_occupation_id: Optional[str] = Query(None, description="Optional target occupation override"),
     target_job_id: Optional[str] = Query(None, description="Optional target job requisition override"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Returns the comprehensive Skill Gap Audit for an individual candidate,
-    including exact formula calculation breakdowns, explainable gaps, and 4-way visual comparison.
+    Returns the comprehensive Skill Gap Audit for an individual candidate.
+    Protected by trainee resource-level authorization (IDOR safe).
     """
-    trainee = db.query(Trainee).filter(Trainee.id == id).first()
-    if not trainee:
-        raise HTTPException(status_code=404, detail=f"Trainee '{id}' not found.")
+    trainee = verify_trainee_resource_access(id, current_user, db, require_write=False)
 
     try:
         analysis = SkillGapEngine.analyze_trainee_skill_gap(
@@ -117,20 +136,19 @@ def get_trainee_skill_gap(
 @router.post("/analyze")
 def analyze_skill_gap(
     payload: SkillGapAnalyzeRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Runs on-demand deterministic + semantic skill gap analysis for a trainee
-    against a designated target occupation or employer requisition.
+    Runs on-demand deterministic + semantic skill gap analysis for a trainee.
+    Protected by trainee resource-level authorization.
     """
-    trainee = db.query(Trainee).filter(Trainee.id == payload.trainee_id).first()
-    if not trainee:
-        raise HTTPException(status_code=404, detail=f"Trainee '{payload.trainee_id}' not found.")
+    trainee = verify_trainee_resource_access(payload.trainee_id, current_user, db, require_write=False)
 
     try:
         analysis = SkillGapEngine.analyze_trainee_skill_gap(
             db=db,
-            trainee_id=payload.trainee_id,
+            trainee_id=trainee.id,
             target_occupation_id=payload.target_occupation_id,
             target_job_id=payload.target_job_id,
             target_employer=payload.target_employer,
@@ -143,9 +161,13 @@ def analyze_skill_gap(
 
 
 @router.post("/batch-sync")
-def batch_sync_all_gaps(db: Session = Depends(get_db)):
+def batch_sync_all_gaps(
+    current_user: User = Depends(require_roles(["ADMIN", "COACH", "TRAINING_PROVIDER"])),
+    db: Session = Depends(get_db)
+):
     """
     Re-runs the AI Skill Gap Engine across all registered candidates in the workforce database.
+    Restricted to Admins and Coaches.
     """
     trainees = db.query(Trainee).all()
     synced_count = 0
