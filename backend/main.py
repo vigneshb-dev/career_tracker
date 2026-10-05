@@ -1,4 +1,13 @@
+import sys
+from pathlib import Path
+
+# Ensure backend directory is in sys.path so app.* imports resolve regardless of cwd
+_backend_dir = Path(__file__).resolve().parent
+if str(_backend_dir) not in sys.path:
+    sys.path.insert(0, str(_backend_dir))
+
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,29 +50,26 @@ from app.core.skill_outcome_seed import seed_scale_workforce_data
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("skilltrace.main")
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Initialize database tables
-    logger.info("Initializing database tables...")
-    try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables verified.")
-    except Exception as e:
-        logger.error(f"Error creating database tables: {e}")
 
-    # Seed initial realistic workforce data if empty
+def _sync_seed_worker():
+    """
+    Background worker that verifies and populates workforce seed datasets.
+    Runs asynchronously off the main thread so Uvicorn can immediately bind
+    to the designated port and respond to Render's port scan and health probes.
+    """
+    logger.info("Verifying background workforce datasets...")
     db = SessionLocal()
     try:
         try:
             seed_database(db)
-            logger.info("Core database seed completed.")
+            logger.info("Core database seed verified/completed.")
         except Exception as e:
             logger.warning(f"Error during core database seed: {e}")
             db.rollback()
 
         try:
             seed_users(db)
-            logger.info("Users and RBAC seed completed.")
+            logger.info("Users and RBAC seed verified/completed.")
         except Exception as e:
             logger.warning(f"Error during users seed: {e}")
             db.rollback()
@@ -110,14 +116,37 @@ async def lifespan(app: FastAPI):
         db.close()
         import gc
         gc.collect()
+    logger.info("Workforce dataset verification finished.")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 1. Initialize database schema & tables synchronously (< 0.5s)
+    logger.info("Initializing database tables...")
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables verified.")
+    except Exception as e:
+        logger.error(f"Error creating database tables: {e}")
+        if settings.ENVIRONMENT == "production" and not settings.DATABASE_URL.startswith("sqlite"):
+            raise
+
+    # 2. Run initial seed verification in background thread so Uvicorn binds to PORT immediately
+    # This completely eliminates Render "Port scan timeout reached" errors on startup
+    seed_task = asyncio.create_task(asyncio.to_thread(_sync_seed_worker))
 
     from app.core.diagnostics import get_process_rss_mb
     startup_rss = get_process_rss_mb()
-    logger.info(f"SkillTrace API startup complete. Memory RSS: {startup_rss:.1f} MiB (Render limit: 512 MiB, Headroom: {max(0.0, 512.0 - startup_rss):.1f} MiB)")
+    logger.info(f"SkillTrace API startup complete. Server listening on port. Initial RSS: {startup_rss:.1f} MiB (Render limit: 512 MiB)")
 
     yield
 
     logger.info("SkillTrace API shutting down.")
+    if not seed_task.done():
+        try:
+            await seed_task
+        except Exception:
+            pass
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

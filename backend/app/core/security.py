@@ -6,9 +6,15 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
 # Security configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY") or os.getenv("SECRET_KEY")
 if not SECRET_KEY:
-    raise RuntimeError("JWT_SECRET_KEY must be configured")
+    import secrets
+    import logging
+    SECRET_KEY = secrets.token_urlsafe(32)
+    logging.getLogger("skilltrace.security").warning(
+        "JWT_SECRET_KEY is not set in environment! Generated an ephemeral runtime key. "
+        "Please configure JWT_SECRET_KEY in Render environment variables for persistent sessions across restarts."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")) # 24 hours
 
