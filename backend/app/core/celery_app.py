@@ -1,7 +1,9 @@
 import os
 import logging
 from datetime import datetime, timedelta, date
+from typing import Optional, Any
 from celery import Celery
+
 
 logger = logging.getLogger("skilltrace.celery")
 

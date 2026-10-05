@@ -29,9 +29,35 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def assemble_database_url(cls, v: str) -> str:
-        if v and v.startswith("postgres://"):
-            return v.replace("postgres://", "postgresql://", 1)
+        if not v:
+            return v
+        if v.startswith("postgres://"):
+            v = v.replace("postgres://", "postgresql://", 1)
+        
+        # Graceful driver fallback between psycopg (v3) and psycopg2
+        if v.startswith("postgresql+psycopg://"):
+            try:
+                import psycopg  # noqa: F401
+            except ImportError:
+                try:
+                    import psycopg2  # noqa: F401
+                    v = v.replace("postgresql+psycopg://", "postgresql+psycopg2://", 1)
+                except ImportError:
+                    pass
+        elif v.startswith("postgresql://") or v.startswith("postgresql+psycopg2://"):
+            try:
+                import psycopg2  # noqa: F401
+            except ImportError:
+                try:
+                    import psycopg  # noqa: F401
+                    if v.startswith("postgresql+psycopg2://"):
+                        v = v.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
+                    elif v.startswith("postgresql://"):
+                        v = v.replace("postgresql://", "postgresql+psycopg://", 1)
+                except ImportError:
+                    pass
         return v
+
 
     @field_validator("CORS_ORIGINS", mode="after")
     @classmethod
