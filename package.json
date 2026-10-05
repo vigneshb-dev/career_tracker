@@ -1,0 +1,11 @@
+{
+  "name": "skilltrace-app",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "build": "cd frontend && npm install --include=dev && npm run build",
+    "dev": "cd frontend && npm run dev"
+  }
+}

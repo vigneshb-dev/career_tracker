@@ -39,6 +39,7 @@ backend/app/uploads/resumes/*
 !backend/app/uploads/resumes/.gitkeep
 
 # Node / Frontend
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
