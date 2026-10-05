@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import logging
+import tempfile
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Body, status
 from sqlalchemy.orm import Session
@@ -42,8 +43,18 @@ logger = logging.getLogger("skilltrace.trainees_router")
 
 router = APIRouter(prefix="/trainees", tags=["Trainee Outcome Passport"])
 
-RESUME_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads", "resumes")
-os.makedirs(RESUME_UPLOAD_DIR, exist_ok=True)
+RESUME_UPLOAD_DIR = os.getenv(
+    "RESUME_UPLOAD_DIR",
+    os.path.join(
+        tempfile.gettempdir() if os.getenv("VERCEL") else os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "uploads",
+        "resumes"
+    )
+)
+try:
+    os.makedirs(RESUME_UPLOAD_DIR, exist_ok=True)
+except Exception:
+    pass
 
 
 def _get_caller_trainee(current_user: User, db: Session) -> Trainee:

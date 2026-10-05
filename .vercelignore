@@ -1,0 +1,60 @@
+# Python Virtual Environments
+.venv
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+
+# Local databases and test caches
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+skilltrace.db
+test_skilltrace.db
+temp_empty_test.db
+backend/skilltrace.db
+backend/test_skilltrace.db
+
+# Python Bytecode and test artifacts
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+test_*.py
+backend/tests/
+
+# Node & package artifacts
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Git and IDE metadata
+.git/
+.github/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Documentation and design assets
+docs/
+render.yaml
+docker-compose.yml
+
+# Uploads
+backend/app/uploads/resumes/*
+!backend/app/uploads/resumes/.gitkeep
+
+# Local environment files
+.env
+.env.local
+.env.production
+backend/.env
