@@ -25,10 +25,12 @@ ENV PYTHONUNBUFFERED=1 \
     OPENBLAS_NUM_THREADS=1 \
     VECLIB_MAXIMUM_THREADS=1 \
     NUMEXPR_NUM_THREADS=1 \
-    WEB_CONCURRENCY=1
+    WEB_CONCURRENCY=1 \
+    PORT=10000
 
-# Expose FastAPI port
-EXPOSE 8000
+# Expose Render standard port (10000) and local dev port (8000)
+EXPOSE 10000 8000
 
-# Run uvicorn server with conservative single-worker and bounded concurrency
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--limit-concurrency", "20"]
+# Run uvicorn server binding dynamically to $PORT (Render default: 10000)
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --limit-concurrency 20"]
+

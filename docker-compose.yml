@@ -46,6 +46,7 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/skilltrace
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=production
+      - PORT=8000
     ports:
       - "8000:8000"
     depends_on:

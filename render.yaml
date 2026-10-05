@@ -10,7 +10,7 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: PORT
-        value: "8000"
+        value: "10000"
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET_KEY
