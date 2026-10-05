@@ -17,7 +17,7 @@ services:
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: CORS_ORIGINS
-        value: https://skilltrace.onrender.com,http://localhost:3000
+        value: https://skilltracer-app.onrender.com,https://skilltracer.onrender.com,https://skilltrace.onrender.com,http://localhost:3000,http://localhost:5173
       - key: DB_POOL_SIZE
         value: "3"
       - key: DB_MAX_OVERFLOW

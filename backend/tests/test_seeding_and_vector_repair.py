@@ -363,3 +363,34 @@ def test_seed_users_idempotent(memory_db):
     u_count_2 = db.query(User).count()
 
     assert u_count_1 == u_count_2, f"Users should not duplicate on rerun: {u_count_1} != {u_count_2}"
+
+
+def test_cors_skilltracer_app_allowed():
+    """Verifies that https://skilltracer-app.onrender.com receives proper CORS headers."""
+    from app.core.config import settings
+    assert "https://skilltracer-app.onrender.com" in settings.CORS_ORIGINS
+
+    client = TestClient(app)
+    # Preflight OPTIONS
+    res_options = client.options(
+        "/api/v1/jobs",
+        headers={
+            "Origin": "https://skilltracer-app.onrender.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Authorization, Content-Type",
+        }
+    )
+    assert res_options.status_code == 200
+    assert res_options.headers.get("access-control-allow-origin") == "https://skilltracer-app.onrender.com"
+    assert res_options.headers.get("access-control-allow-credentials") == "true"
+
+    # Actual GET request with Origin
+    res_get = client.get(
+        "/",
+        headers={"Origin": "https://skilltracer-app.onrender.com"}
+    )
+    assert res_get.status_code == 200
+    assert res_get.headers.get("access-control-allow-origin") == "https://skilltracer-app.onrender.com"
+    assert res_get.headers.get("access-control-allow-credentials") == "true"
+
+

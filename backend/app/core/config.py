@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # CORS Origins (accepts JSON array string, comma-separated string, wildcard, or list)
     CORS_ORIGINS: Union[list[str], str] = os.getenv(
         "CORS_ORIGINS",
-        "https://skilltracer.onrender.com,https://skilltrace.onrender.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+        "https://skilltracer-app.onrender.com,https://skilltracer.onrender.com,https://skilltrace.onrender.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
     )
 
     @field_validator("DATABASE_URL", mode="after")
@@ -65,21 +65,41 @@ class Settings(BaseSettings):
     @field_validator("CORS_ORIGINS", mode="after")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, list[str]]) -> list[str]:
+        raw_items: list[str] = []
         if isinstance(v, str):
             v = v.strip()
             if not v:
-                return []
-            if v.startswith("[") and v.endswith("]"):
+                raw_items = []
+            elif v.startswith("[") and v.endswith("]"):
                 try:
                     parsed = json.loads(v)
                     if isinstance(parsed, list):
-                        return [str(item).strip() for item in parsed]
+                        raw_items = [str(item) for item in parsed]
                 except Exception:
                     pass
-            return [i.strip() for i in v.split(",") if i.strip()]
+            if not raw_items and v:
+                raw_items = [i for i in v.split(",") if i.strip()]
         elif isinstance(v, (list, tuple, set)):
-            return [str(i).strip() for i in v]
-        return v
+            raw_items = [str(i) for i in v]
+
+        cleaned: list[str] = []
+        for item in raw_items:
+            norm = item.strip().rstrip("/")
+            if norm and norm not in cleaned:
+                cleaned.append(norm)
+
+        # Guarantee canonical app domains are always permitted
+        canonical_origins = [
+            "https://skilltracer-app.onrender.com",
+            "https://skilltracer.onrender.com",
+            "https://skilltrace.onrender.com",
+        ]
+        if "*" not in cleaned:
+            for origin in canonical_origins:
+                if origin not in cleaned:
+                    cleaned.append(origin)
+
+        return cleaned
 
     class Config:
         case_sensitive = True

@@ -162,14 +162,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS for React frontend
+# Configure CORS for React frontend (explicitly configured for https://skilltracer-app.onrender.com)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^https:\/\/.*\.onrender\.com$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=86400,
 )
 
 # Root API Information Endpoint (Eliminates 404s and 405s on platform root probes)
