@@ -94,7 +94,7 @@ def _sync_seed_worker():
 
         # Seed scale workforce dataset (courses, employers, 1000+ job reqs, trainees)
         try:
-            seed_scale_workforce_data(db, target_trainee_count=520)
+            seed_scale_workforce_data(db, target_trainee_count=100)
         except Exception as seed_err:
             logger.warning(f"Error seeding scale workforce data: {seed_err}")
             db.rollback()
