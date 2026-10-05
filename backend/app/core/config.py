@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     VECTOR_DIMENSION: int = 1536
     
     # CORS Origins
-    CORS_ORIGINS = https://skilltrace.onrender.com
+    CORS_ORIGINS = ["https://skilltrace.onrender.com"]
 
     class Config:
         case_sensitive = True
