@@ -1920,9 +1920,21 @@ def seed_users(db: Session, force_reseed: bool = False):
         db.query(EmployerProfile).delete()
         db.query(User).delete()
         db.commit()
-    elif db.query(User).first():
-        logger.info("Users already seeded. Skipping.")
-        return
+    else:
+        required_demo_emails = [
+            "admin@skilltrace.org",
+            "admin@skilltrace.gov",
+            "coach.sarah@skilltrace.org",
+            "coach.arun@skilltrace.org",
+            "recruiter@apexcloud.io",
+            "recruiter@meridianmedtech.co.in",
+            "priya.sharma@example.com",
+            "rajesh.kumar@example.com"
+        ]
+        all_exist = all(db.query(User).filter(User.email == e).first() is not None for e in required_demo_emails)
+        if all_exist:
+            logger.info("All default demo accounts verified. Skipping.")
+            return
 
     logger.info("Seeding protected multi-role users (Admin, Coach, Employer, Trainee)...")
 
