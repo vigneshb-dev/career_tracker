@@ -34,7 +34,25 @@ import {
   mockSkillGaps, mockCareerPaths, mockFollowUps 
 } from './mockData';
 
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const rawBaseUrl = (import.meta.env.VITE_API_URL || '/api').trim().replace(/\/+$/, '');
+const BASE_URL = rawBaseUrl.endsWith('/api')
+  ? rawBaseUrl
+  : (rawBaseUrl.startsWith('http') ? `${rawBaseUrl}/api` : rawBaseUrl);
+
+export async function safeJson<T = any>(res: Response, fallback?: T): Promise<T> {
+  const text = await res.text();
+  if (!text || !text.trim()) {
+    return (fallback !== undefined ? fallback : {}) as T;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (!res.ok) {
+      throw new Error(`Server returned error (${res.status}): ${text.slice(0, 150)}`);
+    }
+    return (fallback !== undefined ? fallback : {}) as T;
+  }
+}
 
 export function getAuthHeader(): Record<string, string> {
   const token = localStorage.getItem('skilltrace_auth_token');
@@ -82,12 +100,12 @@ async function fetchWithFallback<T>(endpoint: string, fallbackData: T, options?:
       if (IS_DEMO_MODE) {
         return fallbackData;
       }
-      const err = await res.json().catch(() => ({ detail: `Request to ${endpoint} failed with status ${res.status}` }));
+      const err: any = await safeJson(res, { detail: `Request to ${endpoint} failed with status ${res.status}` });
       const error: any = new Error(err.detail || err.message || `Request to ${endpoint} failed with status ${res.status}`);
       error.status = res.status;
       throw error;
     }
-    return await res.json();
+    return await safeJson<T>(res, fallbackData);
   } catch (error) {
     clearTimeout(timeoutId);
     if (IS_DEMO_MODE) {
