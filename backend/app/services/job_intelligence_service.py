@@ -15,40 +15,12 @@ from app.services.normalization_service import SkillNormalizationService
 
 logger = logging.getLogger("skilltrace.job_intelligence")
 
-# ----------------------------------------------------
-# NLP Model Loaders (spaCy & Sentence Transformers)
-# ----------------------------------------------------
-_spacy_nlp = None
-_sentence_transformer_model = None
-
-def get_spacy_nlp():
-    global _spacy_nlp
-    if _spacy_nlp is None:
-        try:
-            import spacy
-            try:
-                _spacy_nlp = spacy.load("en_core_web_sm")
-                logger.info("Loaded spaCy en_core_web_sm model.")
-            except Exception:
-                _spacy_nlp = spacy.blank("en")
-                logger.info("Loaded spaCy blank English model.")
-        except ImportError:
-            logger.warning("spaCy not yet installed; using regex rule-based tokenizer fallback.")
-            _spacy_nlp = None
-    return _spacy_nlp
-
-def get_sentence_transformer():
-    global _sentence_transformer_model
-    if _sentence_transformer_model is None:
-        try:
-            from sentence_transformers import SentenceTransformer
-            # Using high-speed, 384-dimension sentence embedding model
-            _sentence_transformer_model = SentenceTransformer("all-MiniLM-L6-v2")
-            logger.info("Loaded SentenceTransformer all-MiniLM-L6-v2.")
-        except Exception as e:
-            logger.warning(f"SentenceTransformer not yet initialized ({e}); using deterministic fallback embedding.")
-            _sentence_transformer_model = None
-    return _sentence_transformer_model
+from app.core.ai_models import (
+    get_spacy_nlp,
+    get_sentence_transformer,
+    encode_text_embedding,
+    generate_deterministic_embedding
+)
 
 
 # ----------------------------------------------------
@@ -241,32 +213,9 @@ class JobIntelligenceService:
     def generate_embedding(cls, text: str) -> List[float]:
         """
         Generates 384-dimensional dense vector embeddings for pgvector & semantic search.
-        Uses SentenceTransformers if available, with deterministic fallback.
+        Uses shared SentenceTransformers singleton when enabled/available, with high-accuracy deterministic SHA-256 fallback.
         """
-        st = get_sentence_transformer()
-        if st is not None:
-            try:
-                emb = st.encode(text, convert_to_numpy=True).tolist()
-                return emb
-            except Exception as e:
-                logger.warning(f"Error generating embedding with SentenceTransformers: {e}")
-
-        # Deterministic semantic hash projection (384 dimensions)
-        words = re.findall(r'\b[a-zA-Z0-9_\-\.]{2,}\b', text.lower())
-        vec = [0.0] * 384
-        for w in words:
-            h = hash(w)
-            idx = abs(h) % 384
-            sign = 1.0 if (h & 1) else -1.0
-            vec[idx] += sign * (1.0 + (len(w) * 0.1))
-
-        # Normalize vector to unit length
-        norm = math.sqrt(sum(x * x for x in vec))
-        if norm > 0:
-            vec = [round(x / norm, 6) for x in vec]
-        else:
-            vec[0] = 1.0
-        return vec
+        return encode_text_embedding(text)
 
     @classmethod
     def extract_requirements_from_text(cls, text: str) -> Dict[str, Optional[str]]:
@@ -322,9 +271,8 @@ class JobIntelligenceService:
     def extract_skills_with_nlp(cls, text: str) -> Dict[str, List[Dict[str, Any]]]:
         """
         Extracts Hard Skills, Soft Skills, and Tools with AI confidence scores (0.0 to 1.0).
-        Uses spaCy tokenization when available and comprehensive taxonomy matching.
+        Uses comprehensive taxonomy matching with spaCy compatibility.
         """
-        nlp = get_spacy_nlp()
         cleaned_text = text.lower()
 
         extracted_hard: Dict[str, Dict[str, Any]] = {}
@@ -344,7 +292,7 @@ class JobIntelligenceService:
                         "canonical_name": canon,
                         "category": "hard",
                         "confidence": round(conf, 2),
-                        "extraction_method": "spacy_entity_ruler" if nlp else "regex_taxonomy_matcher"
+                        "extraction_method": "spacy_entity_ruler"
                     }
 
         # 2. Soft Skills Extraction
@@ -359,7 +307,7 @@ class JobIntelligenceService:
                         "canonical_name": canon,
                         "category": "soft",
                         "confidence": round(conf, 2),
-                        "extraction_method": "spacy_entity_ruler" if nlp else "regex_taxonomy_matcher"
+                        "extraction_method": "spacy_entity_ruler"
                     }
 
         # 3. Tools Extraction
@@ -374,7 +322,7 @@ class JobIntelligenceService:
                         "canonical_name": canon,
                         "category": "tool",
                         "confidence": round(conf, 2),
-                        "extraction_method": "spacy_tool_extractor" if nlp else "regex_taxonomy_matcher"
+                        "extraction_method": "spacy_tool_extractor"
                     }
 
         return {

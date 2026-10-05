@@ -2871,13 +2871,26 @@ def seed_longitudinal_outcome_intelligence(db: Session, force_reseed: bool = Fal
 def seed_digital_twins(db: Session, force_reseed: bool = False):
     """Generates persistent Career Outcome Digital Twin representations for all seeded trainees."""
     from app.services.digital_twin_service import DigitalTwinService
+    import gc
     trainees = db.query(Trainee).all()
+    if not force_reseed:
+        existing_twins_count = db.query(DigitalTwinState).count()
+        if existing_twins_count >= len(trainees):
+            logger.info(f"Career Outcome Digital Twin states already populated ({existing_twins_count} twins). Skipping.")
+            return
+
     logger.info(f"Computing Career Outcome Digital Twin states for {len(trainees)} trainees...")
-    for t in trainees:
+    for idx, t in enumerate(trainees):
         try:
+            if not force_reseed and db.query(DigitalTwinState).filter(DigitalTwinState.trainee_id == t.id).first():
+                continue
             DigitalTwinService.get_or_compute_twin(db, t.id, force_refresh=force_reseed)
+            if idx % 50 == 0:
+                db.commit()
         except Exception as e:
             logger.warning(f"Error computing digital twin for trainee {t.id}: {e}")
+    db.commit()
+    gc.collect()
     logger.info("Successfully seeded all Career Outcome Digital Twin representations.")
 
 

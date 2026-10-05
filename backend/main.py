@@ -108,9 +108,14 @@ async def lifespan(app: FastAPI):
             db.rollback()
     finally:
         db.close()
+        import gc
+        gc.collect()
+
+    from app.core.diagnostics import get_process_rss_mb
+    startup_rss = get_process_rss_mb()
+    logger.info(f"SkillTrace API startup complete. Memory RSS: {startup_rss:.1f} MiB (Render limit: 512 MiB, Headroom: {max(0.0, 512.0 - startup_rss):.1f} MiB)")
 
     yield
-
 
     logger.info("SkillTrace API shutting down.")
 
@@ -135,13 +140,22 @@ app.add_middleware(
 @app.get("/health", tags=["System"])
 @app.get("/api/health", tags=["System"])
 def health_check():
+    from app.core.diagnostics import get_memory_diagnostics
     return {
         "status": "healthy",
         "service": settings.PROJECT_NAME,
         "database": engine.name,
         "pgvector_ready": HAS_PGVECTOR,
         "environment": settings.ENVIRONMENT,
+        "memory": get_memory_diagnostics(),
     }
+
+# Memory Diagnostics Endpoint (Zero-overhead production telemetry)
+@app.get("/system/memory", tags=["System"])
+@app.get("/api/system/memory", tags=["System"])
+def memory_diagnostics_check():
+    from app.core.diagnostics import get_memory_diagnostics
+    return get_memory_diagnostics()
 
 # Register API Routers
 app.include_router(auth_router, prefix=settings.API_V1_STR)

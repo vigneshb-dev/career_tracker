@@ -32,39 +32,11 @@ from app.services.skill_scoring_service import SkillScoringEngine
 
 logger = logging.getLogger("skilltrace.resume_analyzer")
 
-# ----------------------------------------------------
-# NLP Model Loaders (spaCy & Sentence Transformers)
-# ----------------------------------------------------
-_spacy_nlp = None
-_sentence_transformer_model = None
-
-def get_spacy_nlp():
-    global _spacy_nlp
-    if _spacy_nlp is None:
-        try:
-            import spacy
-            try:
-                _spacy_nlp = spacy.load("en_core_web_sm")
-                logger.info("Loaded spaCy en_core_web_sm model for resume parsing.")
-            except Exception:
-                _spacy_nlp = spacy.blank("en")
-                logger.info("Loaded spaCy blank English model.")
-        except ImportError:
-            _spacy_nlp = None
-    return _spacy_nlp
-
-def get_sentence_transformer():
-    global _sentence_transformer_model
-    if _sentence_transformer_model is None:
-        try:
-            from sentence_transformers import SentenceTransformer
-            _sentence_transformer_model = SentenceTransformer("all-MiniLM-L6-v2")
-            logger.info("Loaded SentenceTransformer all-MiniLM-L6-v2 for semantic skill matching.")
-        except Exception as e:
-            logger.warning(f"SentenceTransformer not initialized ({e}); using fallback embedding.")
-            _sentence_transformer_model = None
-    return _sentence_transformer_model
-
+from app.core.ai_models import (
+    get_spacy_nlp,
+    get_sentence_transformer,
+    encode_text_embedding
+)
 from app.core.math_utils import cosine_similarity
 
 
@@ -219,7 +191,6 @@ class ResumeAnalyzerService:
     @classmethod
     def extract_entities(cls, text: str, sections: Dict[str, str]) -> Dict[str, Any]:
         """Extracts structured entities: Education, Certs, Experience, Job Titles, Years, Domains."""
-        nlp = get_spacy_nlp()
         extracted: Dict[str, Any] = {
             "candidate_name": None,
             "email": None,
@@ -377,7 +348,6 @@ class ResumeAnalyzerService:
         skill_name_map = {s.name.lower(): s for s in all_db_skills}
 
         detected_skills_map: Dict[str, Dict[str, Any]] = {}
-        st_model = get_sentence_transformer()
 
         # Step A: Scan evidence sentences
         for sentence in sentences:
@@ -661,15 +631,8 @@ class ResumeAnalyzerService:
         detected_skills = cls.extract_and_normalize_skills(db, raw_text, sentences)
 
         # 5. Compute Vector Embedding with Sentence Transformers
-        st_model = get_sentence_transformer()
-        resume_embedding = None
-        if st_model:
-            # Aggregate key resume skills & headline for vector representation
-            text_for_embedding = f"{entities.get('candidate_name', '')} {trainee.program} " + " ".join([s['canonical_name'] for s in detected_skills])
-            emb_vector = st_model.encode(text_for_embedding).tolist()
-            resume_embedding = emb_vector
-        else:
-            resume_embedding = [0.0] * 384
+        text_for_embedding = f"{entities.get('candidate_name', '')} {trainee.program} " + " ".join([s['canonical_name'] for s in detected_skills])
+        resume_embedding = encode_text_embedding(text_for_embedding)
 
         # 6. Calculate System-Generated Completeness Score
         completeness_score, completeness_breakdown = cls.calculate_completeness_score(

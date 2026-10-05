@@ -10,10 +10,12 @@ backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
+os.environ.setdefault("ENABLE_SENTENCE_TRANSFORMER", "false")
 from unittest.mock import patch
 
 # Mock sentence transformer before imports to avoid HuggingFace model download during tests
-with patch("app.services.job_intelligence_service.get_sentence_transformer", return_value=None):
+with patch("app.core.ai_models.get_sentence_transformer", return_value=None), \
+     patch("app.services.job_intelligence_service.get_sentence_transformer", return_value=None):
     from app.core.database import Base, get_db
     from app.core.seed import seed_database, seed_users
     from app.services.career_progression_service import CareerProgressionService
@@ -36,7 +38,8 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_sentence_transformer():
-    with patch("app.services.job_intelligence_service.get_sentence_transformer", return_value=None):
+    with patch("app.core.ai_models.get_sentence_transformer", return_value=None), \
+         patch("app.services.job_intelligence_service.get_sentence_transformer", return_value=None):
         yield
 
 @pytest.fixture(scope="session", autouse=True)
@@ -45,7 +48,8 @@ def setup_test_db(mock_sentence_transformer):
     Base.metadata.create_all(bind=test_engine)
     db = TestingSessionLocal()
     try:
-        with patch("app.services.job_intelligence_service.get_sentence_transformer", return_value=None):
+        with patch("app.core.ai_models.get_sentence_transformer", return_value=None), \
+             patch("app.services.job_intelligence_service.get_sentence_transformer", return_value=None):
             with patch("app.core.seed.seed_jobs_dataset"):
                 seed_database(db)
                 seed_users(db)

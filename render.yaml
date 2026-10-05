@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: skilltrace-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PORT
+        value: "8000"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://skilltrace.onrender.com,http://localhost:3000
+      - key: DB_POOL_SIZE
+        value: "3"
+      - key: DB_MAX_OVERFLOW
+        value: "2"
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: RENDER_MEMORY_LIMIT_MIB
+        value: "512.0"
+      - key: MEMORY_WARNING_THRESHOLD_MIB
+        value: "400.0"

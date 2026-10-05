@@ -26,15 +26,22 @@ def get_vector_type(dim: int = 1536):
 engine = None
 is_postgres = False
 
+import os
+
 try:
     if settings.DATABASE_URL.startswith("postgresql"):
-        # Test connection with a short timeout
-        test_engine = create_engine(
+        # Bounded connection pool tailored for Render 512 MiB limit
+        pool_size = int(os.getenv("DB_POOL_SIZE", "3"))
+        max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "2"))
+        engine = create_engine(
             settings.DATABASE_URL,
-            connect_args={"connect_timeout": 3},
+            connect_args={"connect_timeout": 5},
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_recycle=1800,
             pool_pre_ping=True
         )
-        with test_engine.connect() as conn:
+        with engine.connect() as conn:
             # Enable pgvector extension on PostgreSQL
             try:
                 conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
@@ -42,9 +49,8 @@ try:
                 logger.info("pgvector extension verified/enabled on PostgreSQL.")
             except Exception as ext_err:
                 logger.warning(f"Could not enable pgvector extension: {ext_err}")
-        engine = test_engine
         is_postgres = True
-        logger.info(f"Connected to primary PostgreSQL database at {settings.DATABASE_URL.split('@')[-1]}")
+        logger.info(f"Connected to primary PostgreSQL database at {settings.DATABASE_URL.split('@')[-1]} (pool_size={pool_size}, max_overflow={max_overflow})")
     else:
         engine = create_engine(
             settings.DATABASE_URL,

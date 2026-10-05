@@ -356,6 +356,9 @@ def seed_scale_workforce_data(db: Session, target_trainee_count: int = 520, forc
         db.commit()
         logger.info(f"Successfully seeded {target_trainee_count} scale workforce records.")
 
-    # 6. Recalculate Course Skill Gaps Table
-    SkillGapIntelligenceService.recalculate_all_skill_gaps(db)
-    logger.info("Scale dataset and course-level intelligence refresh completed.")
+    # 6. Recalculate Course Skill Gaps Table if not yet populated or forced
+    if force or db.query(CourseSkillGap).count() == 0:
+        SkillGapIntelligenceService.recalculate_all_skill_gaps(db)
+        logger.info("Scale dataset and course-level intelligence refresh completed.")
+    else:
+        logger.info("CourseSkillGap table already populated. Skipping heavy recalculation on startup.")

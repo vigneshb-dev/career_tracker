@@ -13,18 +13,29 @@ class InMemoryStore:
         self._store = {}
         self._lock = threading.Lock()
 
+    def _cleanup_expired_locked(self, now: float):
+        """Removes expired entries while lock is already acquired."""
+        expired_keys = [k for k, (_, exp) in self._store.items() if exp and now > exp]
+        for k in expired_keys:
+            del self._store[k]
+
     def set(self, key: str, value: str, ex: Optional[int] = None) -> bool:
-        expire_at = (time.time() + ex) if ex else None
+        now = time.time()
+        expire_at = (now + ex) if ex else None
         with self._lock:
+            # Bound store size by pruning expired keys periodically
+            if len(self._store) > 50:
+                self._cleanup_expired_locked(now)
             self._store[key] = (value, expire_at)
         return True
 
     def get(self, key: str) -> Optional[str]:
+        now = time.time()
         with self._lock:
             if key not in self._store:
                 return None
             val, expire_at = self._store[key]
-            if expire_at and time.time() > expire_at:
+            if expire_at and now > expire_at:
                 del self._store[key]
                 return None
             return val

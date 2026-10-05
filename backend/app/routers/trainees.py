@@ -343,6 +343,8 @@ async def analyze_my_resume(
 ):
     trainee = _get_caller_trainee(current_user, db)
     content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Resume file exceeds 10 MiB size limit.")
     try:
         return ResumeAnalyzerService.process_and_record_resume(
             db=db,
@@ -1221,6 +1223,8 @@ async def upload_trainee_resume(
     """
     trainee = verify_trainee_resource_access(trainee_id, current_user, db)
     content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Resume file exceeds 10 MiB size limit.")
     try:
         return ResumeAnalyzerService.process_and_record_resume(
             db=db,

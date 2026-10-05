@@ -2,8 +2,14 @@ import logging
 import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date
-import numpy as np
+import statistics
 from sqlalchemy.orm import Session
+
+def _mean(vals):
+    return float(statistics.mean(vals)) if vals else 0.0
+
+def _median(vals):
+    return float(statistics.median(vals)) if vals else 0.0
 from sqlalchemy import func
 
 from app.models.entities import (
@@ -363,9 +369,9 @@ class AnalyticsService:
                 wage_gains.append(pct)
 
         if valid_wages:
-            avg_placement_wage = round(float(np.mean(valid_wages)), 2)
-            median_placement_wage = round(float(np.median(valid_wages)), 2)
-            wage_gain_pct = round(float(np.mean(wage_gains)), 1) if wage_gains else 88.5
+            avg_placement_wage = round(_mean(valid_wages), 2)
+            median_placement_wage = round(_median(valid_wages), 2)
+            wage_gain_pct = round(_mean(wage_gains), 1) if wage_gains else 88.5
             progression_milestones = [
                 {"milestone": "Pre-Training", "average_salary": int(avg_placement_wage * 0.45), "median_salary": int(median_placement_wage * 0.45)},
                 {"milestone": "At Placement", "average_salary": int(avg_placement_wage), "median_salary": int(median_placement_wage)},
@@ -419,7 +425,7 @@ class AnalyticsService:
 
         if evidences:
             scores = [e.score for e in evidences if e.score is not None]
-            avg_gain = round(float(np.mean(scores)), 2) if scores else 0.0
+            avg_gain = round(_mean(scores), 2) if scores else 0.0
             skill_improvement_metrics = {
                 "total_evidence_artifacts": len(evidences),
                 "average_score": avg_gain,
@@ -496,7 +502,7 @@ class AnalyticsService:
             enr = p_data["enrolled"]
             plc = p_data["placed"]
             sals = p_data["salaries"]
-            avg_sal = int(np.mean(sals)) if sals else None
+            avg_sal = int(_mean(sals)) if sals else None
             provider_outcomes.append({
                 "provider": p_name,
                 "trainees_enrolled": enr,
@@ -532,7 +538,7 @@ class AnalyticsService:
             enr = c_data["enrolled"]
             plc = c_data["placed"]
             sals = c_data["salaries"]
-            avg_sal = int(np.mean(sals)) if sals else None
+            avg_sal = int(_mean(sals)) if sals else None
             course_outcomes.append({
                 "course_title": c_title,
                 "enrolled_count": enr,
@@ -572,7 +578,7 @@ class AnalyticsService:
             t_cnt = ddata["trainees"]
             p_cnt = ddata["placed"]
             sals = ddata["salaries"]
-            avg_sal = int(np.mean(sals)) if sals else None
+            avg_sal = int(_mean(sals)) if sals else None
             district_trends.append({
                 "district": dist,
                 "trainees_count": t_cnt,
@@ -805,10 +811,10 @@ class AnalyticsService:
             if p and c and p > 0:
                 wage_gains.append(((c - p) / p) * 100)
 
-        median_wage = round(float(np.median(current_wages)), 2) if current_wages else None
-        avg_placement_wage = round(float(np.mean(placement_wages)), 2) if placement_wages else None
-        avg_current_wage = round(float(np.mean(current_wages)), 2) if current_wages else None
-        wage_progression = round(float(np.mean(wage_gains)), 1) if wage_gains else None
+        median_wage = round(_median(current_wages), 2) if current_wages else None
+        avg_placement_wage = round(_mean(placement_wages), 2) if placement_wages else None
+        avg_current_wage = round(_mean(current_wages), 2) if current_wages else None
+        wage_progression = round(_mean(wage_gains), 1) if wage_gains else None
 
         # Training to job relevance
         verifications = db.query(EmployerFeedbackVerification).filter(
@@ -816,7 +822,7 @@ class AnalyticsService:
         ).all()
 
         relevance_scores = [v.training_relevance_rating for v in verifications if v.training_relevance_rating]
-        avg_relevance = round(float(np.mean(relevance_scores)), 2) if relevance_scores else None
+        avg_relevance = round(_mean(relevance_scores), 2) if relevance_scores else None
 
         # Skill gap frequency
         gap_counts: Dict[str, int] = {}
@@ -1033,7 +1039,7 @@ class AnalyticsService:
                 "data_source": t.data_source or ("DEMO/SYNTHETIC" if t.is_synthetic else "LIVE_PRODUCTION")
             })
 
-        overall_score = round(float(np.mean(scores)), 1) if scores else 0.0
+        overall_score = round(_mean(scores), 1) if scores else 0.0
 
         return {
             "total_records": total,
@@ -1055,10 +1061,10 @@ class AnalyticsService:
             "missing_follow_ups_pct": round((missing_fu_count / total) * 100, 1),
             "overall_quality_score": overall_score,
             "score_breakdown": {
-                "completeness": round(float(np.mean(completeness_scores)), 1) if completeness_scores else 0.0,
-                "freshness": round(float(np.mean(freshness_scores)), 1) if freshness_scores else 0.0,
-                "verification": round(float(np.mean(verification_scores)), 1) if verification_scores else 0.0,
-                "consistency": round(float(np.mean(consistency_scores)), 1) if consistency_scores else 0.0
+                "completeness": round(_mean(completeness_scores), 1) if completeness_scores else 0.0,
+                "freshness": round(_mean(freshness_scores), 1) if freshness_scores else 0.0,
+                "verification": round(_mean(verification_scores), 1) if verification_scores else 0.0,
+                "consistency": round(_mean(consistency_scores), 1) if consistency_scores else 0.0
             },
             "record_audits": audits
         }
