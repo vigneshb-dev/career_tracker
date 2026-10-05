@@ -17,6 +17,7 @@ from unittest.mock import patch
 with patch("app.core.ai_models.get_sentence_transformer", return_value=None), \
      patch("app.services.job_intelligence_service.get_sentence_transformer", return_value=None):
     from app.core.database import Base, get_db
+    import app.models.entities
     from app.core.seed import seed_database, seed_users
     from app.services.career_progression_service import CareerProgressionService
     from app.services.employer_verification_service import EmployerVerificationService
@@ -31,7 +32,7 @@ async def dummy_lifespan(app):
 
 app.router.lifespan_context = dummy_lifespan
 
-# Test SQLite in-memory database
+# Test SQLite database
 TEST_DB_URL = "sqlite:///./test_skilltrace.db"
 test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
@@ -44,7 +45,12 @@ def mock_sentence_transformer():
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db(mock_sentence_transformer):
-    Base.metadata.drop_all(bind=test_engine)
+    test_engine.dispose()
+    if os.path.exists("./test_skilltrace.db"):
+        try:
+            os.remove("./test_skilltrace.db")
+        except Exception:
+            pass
     Base.metadata.create_all(bind=test_engine)
     db = TestingSessionLocal()
     try:

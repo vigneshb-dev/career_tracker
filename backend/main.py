@@ -9,8 +9,9 @@ if str(_backend_dir) not in sys.path:
 import logging
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal, HAS_PGVECTOR
 import app.models
@@ -126,6 +127,12 @@ async def lifespan(app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables verified.")
+        # Safe migration check: audit and adapt vector column dimensions
+        try:
+            from scripts.migrate_vector_dimensions import check_and_migrate_vector_dimensions
+            check_and_migrate_vector_dimensions(engine)
+        except Exception as mig_err:
+            logger.warning(f"Vector dimension migration check notice: {mig_err}")
     except Exception as e:
         logger.error(f"Error creating database tables: {e}")
         if settings.ENVIRONMENT == "production" and not settings.DATABASE_URL.startswith("sqlite"):
@@ -165,16 +172,47 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Health & Status Endpoint
+# Root API Information Endpoint (Eliminates 404s on platform root probes)
+@app.get("/", tags=["System"])
+def root_endpoint():
+    return {
+        "service": settings.PROJECT_NAME,
+        "status": "operational",
+        "version": "1.0.0",
+        "docs_url": "/docs",
+        "health_url": "/health",
+        "environment": settings.ENVIRONMENT,
+    }
+
+# Health & Status Endpoint (Actively verifies database connectivity)
 @app.get("/health", tags=["System"])
 @app.get("/api/health", tags=["System"])
-def health_check():
+def health_check(response: Response):
     from app.core.diagnostics import get_memory_diagnostics
+    db_connected = False
+    db_error = None
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1;"))
+            db_connected = True
+    except Exception as e:
+        db_connected = False
+        db_error = "Database connectivity check failed"
+        logger.error(f"Health check database query error: {e}")
+
+    if not db_connected:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
     return {
-        "status": "healthy",
+        "status": "healthy" if db_connected else "unhealthy",
         "service": settings.PROJECT_NAME,
-        "database": engine.name,
+        "database": {
+            "engine": engine.name,
+            "connected": db_connected,
+            "error": db_error if not db_connected else None,
+        },
         "pgvector_ready": HAS_PGVECTOR,
+        "vector_dimension": settings.VECTOR_DIMENSION,
         "environment": settings.ENVIRONMENT,
         "memory": get_memory_diagnostics(),
     }

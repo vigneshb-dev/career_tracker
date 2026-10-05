@@ -138,19 +138,29 @@ def generate_deterministic_embedding(text: str, dim: int = 384) -> List[float]:
     return vec
 
 
-def encode_text_embedding(text: str) -> List[float]:
+def encode_text_embedding(text: str, dim: Optional[int] = None) -> List[float]:
     """
     Unified embedding generator:
-    Uses SentenceTransformer if available; otherwise uses deterministic 384-d semantic projection.
+    Uses SentenceTransformer if available; otherwise uses deterministic semantic projection.
+    Strictly validates output vector dimension before returning.
     """
+    from app.core.config import settings
+    from app.core.database import validate_and_serialize_vector
+
+    target_dim = dim if dim is not None else settings.VECTOR_DIMENSION
+
     st = get_sentence_transformer()
     if st is not None:
         try:
             import torch
             with torch.inference_mode():
                 emb = st.encode(text, convert_to_numpy=True).tolist()
-                return [round(float(x), 6) for x in emb]
+                emb_list = [round(float(x), 6) for x in emb]
+                if len(emb_list) == target_dim:
+                    return emb_list
+                logger.warning(f"SentenceTransformer output dimension {len(emb_list)} != target {target_dim}; using deterministic fallback.")
         except Exception as e:
             logger.warning(f"Error during SentenceTransformer inference ({e}); falling back to deterministic embedding.")
 
-    return generate_deterministic_embedding(text, dim=384)
+    fallback_vec = generate_deterministic_embedding(text, dim=target_dim)
+    return validate_and_serialize_vector(fallback_vec, expected_dim=target_dim, allow_none=False)

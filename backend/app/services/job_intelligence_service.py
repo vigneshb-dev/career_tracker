@@ -21,6 +21,7 @@ from app.core.ai_models import (
     encode_text_embedding,
     generate_deterministic_embedding
 )
+from app.core.database import validate_and_serialize_vector
 
 
 # ----------------------------------------------------
@@ -215,7 +216,8 @@ class JobIntelligenceService:
         Generates 384-dimensional dense vector embeddings for pgvector & semantic search.
         Uses shared SentenceTransformers singleton when enabled/available, with high-accuracy deterministic SHA-256 fallback.
         """
-        return encode_text_embedding(text)
+        raw_emb = encode_text_embedding(text)
+        return validate_and_serialize_vector(raw_emb, allow_none=False)
 
     @classmethod
     def extract_requirements_from_text(cls, text: str) -> Dict[str, Optional[str]]:
@@ -475,10 +477,12 @@ class JobIntelligenceService:
     def process_and_save_job(
         cls,
         db: Session,
-        job_data: Dict[str, Any]
+        job_data: Dict[str, Any],
+        commit: bool = True
     ) -> Job:
         """
         Analyzes and saves job description into PostgreSQL tables 'jobs' and 'job_extracted_skills'.
+        Supports transactional execution via commit=False (caller or savepoint manages commit).
         """
         analysis = cls.analyze_job_description(
             db=db,
@@ -533,7 +537,7 @@ class JobIntelligenceService:
                     "tools": analysis["extracted_tools"],
                     "mapped_occupation": mapped_occ
                 },
-                embedding=analysis["embedding"]
+                embedding=validate_and_serialize_vector(analysis.get("embedding"), allow_none=True)
             )
             db.add(job)
         else:
@@ -560,10 +564,9 @@ class JobIntelligenceService:
                 "tools": analysis["extracted_tools"],
                 "mapped_occupation": mapped_occ
             }
-            job.embedding = analysis["embedding"]
+            job.embedding = validate_and_serialize_vector(analysis.get("embedding"), allow_none=True)
 
-        db.commit()
-        db.refresh(job)
+        db.flush()
 
         # Clear existing extracted skill records for this job
         db.query(JobExtractedSkill).filter(JobExtractedSkill.job_id == job.id).delete()
@@ -580,5 +583,8 @@ class JobIntelligenceService:
                 extraction_method=s.get("extraction_method", "spacy_ner")
             ))
 
-        db.commit()
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(job)
         return job

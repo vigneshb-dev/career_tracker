@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     # Redis Cache & Message Queue
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     
-    # Vector Search Configuration
-    VECTOR_DIMENSION: int = 1536
+    # Vector Search Configuration (default 384 for all-MiniLM-L6-v2 & deterministic fallback)
+    VECTOR_DIMENSION: int = int(os.getenv("VECTOR_DIMENSION", "384"))
     
     # CORS Origins (accepts JSON array string, comma-separated string, wildcard, or list)
     CORS_ORIGINS: Union[list[str], str] = os.getenv(

@@ -43,38 +43,65 @@ class InterventionEngine:
             db.commit()
 
         logger.info("Seeding structured Intervention Catalogue and generating semantic embeddings...")
-        for item in INTERVENTIONS_CATALOGUE_DATA:
-            existing = db.query(Intervention).filter(Intervention.id == item["id"]).first()
-            embed_text = f"{item['title']}. {item['type']}. {item['domain']}. {' '.join(item['target_skills'])}. {item['description']}"
-            embedding = JobIntelligenceService.generate_embedding(embed_text)
+        inserted_count = 0
+        updated_count = 0
+        failed_count = 0
 
-            if existing:
-                for k, v in item.items():
-                    setattr(existing, k, v)
-                existing.embedding = embedding
-            else:
-                db.add(Intervention(
-                    id=item["id"],
-                    title=item["title"],
-                    type=item["type"],
-                    domain=item["domain"],
-                    target_skills=item["target_skills"],
-                    target_occupations=item["target_occupations"],
-                    difficulty_level=item.get("difficulty_level", "intermediate"),
-                    min_proficiency=item.get("min_proficiency", 0.0),
-                    target_proficiency=item.get("target_proficiency", 4.0),
-                    estimated_effort=item["estimated_effort"],
-                    provider_or_platform=item["provider_or_platform"],
-                    description=item["description"],
-                    why_it_matters=item.get("why_it_matters"),
-                    prerequisites=item.get("prerequisites", []),
-                    learning_outcomes=item.get("learning_outcomes", []),
-                    reassessment_rubric=item.get("reassessment_rubric", {}),
-                    market_demand_alignment=item.get("market_demand_alignment", 90),
-                    embedding=embedding
-                ))
+        for item in INTERVENTIONS_CATALOGUE_DATA:
+            try:
+                with db.begin_nested():
+                    existing = db.query(Intervention).filter(Intervention.id == item["id"]).first()
+                    embed_text = f"{item['title']}. {item['type']}. {item['domain']}. {' '.join(item['target_skills'])}. {item['description']}"
+                    embedding = JobIntelligenceService.generate_embedding(embed_text)
+
+                    if existing:
+                        for k, v in item.items():
+                            setattr(existing, k, v)
+                        existing.embedding = embedding
+                        updated_count += 1
+                    else:
+                        db.add(Intervention(
+                            id=item["id"],
+                            title=item["title"],
+                            type=item["type"],
+                            domain=item["domain"],
+                            target_skills=item["target_skills"],
+                            target_occupations=item["target_occupations"],
+                            difficulty_level=item.get("difficulty_level", "intermediate"),
+                            min_proficiency=item.get("min_proficiency", 0.0),
+                            target_proficiency=item.get("target_proficiency", 4.0),
+                            estimated_effort=item["estimated_effort"],
+                            provider_or_platform=item["provider_or_platform"],
+                            description=item["description"],
+                            why_it_matters=item.get("why_it_matters"),
+                            prerequisites=item.get("prerequisites", []),
+                            learning_outcomes=item.get("learning_outcomes", []),
+                            reassessment_rubric=item.get("reassessment_rubric", {}),
+                            market_demand_alignment=item.get("market_demand_alignment", 90),
+                            embedding=embedding
+                        ))
+                        inserted_count += 1
+            except Exception as e:
+                failed_count += 1
+                logger.error(f"Error seeding intervention {item.get('id')}: {e}")
+
         db.commit()
-        logger.info("Intervention catalogue seeded successfully.")
+        if failed_count > 0:
+            logger.warning(
+                f"Intervention catalogue seed completed with issues: "
+                f"{inserted_count} inserted, {updated_count} updated, {failed_count} failed."
+            )
+        else:
+            logger.info(
+                f"Intervention catalogue successfully seeded: "
+                f"{inserted_count} inserted, {updated_count} updated."
+            )
+        return {
+            "inserted": inserted_count,
+            "updated": updated_count,
+            "failed": failed_count,
+            "total": len(INTERVENTIONS_CATALOGUE_DATA)
+        }
 
     @classmethod
     def get_all_interventions(cls, db: Session, type_filter: Optional[str] = None, domain_filter: Optional[str] = None) -> List[Intervention]:

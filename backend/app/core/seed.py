@@ -237,26 +237,45 @@ def seed_jobs_dataset(db: Session, force_reseed: bool = False):
         current_job_count = db.query(Job).count()
         if current_job_count >= 30:
             logger.info(f"Jobs dataset already seeded ({current_job_count} jobs). Skipping.")
-            return
+            return {"inserted": 0, "updated": 0, "failed": 0, "skipped": current_job_count}
 
     logger.info("Seeding 35 AI-analyzed synthetic job descriptions across 7 domains...")
+    inserted_count = 0
+    updated_count = 0
+    failed_count = 0
     for j_data in SYNTHETIC_JOBS_DATA:
         try:
-            JobIntelligenceService.process_and_save_job(db, j_data)
+            with db.begin_nested():
+                job_id = j_data.get("id")
+                is_update = bool(job_id and db.query(Job).filter(Job.id == job_id).first())
+                JobIntelligenceService.process_and_save_job(db, j_data, commit=False)
+                if is_update:
+                    updated_count += 1
+                else:
+                    inserted_count += 1
         except Exception as e:
+            failed_count += 1
             logger.error(f"Error analyzing and saving job {j_data.get('id')}: {e}")
-            db.rollback()
-    logger.info("Successfully seeded synthetic job descriptions and extracted skills.")
 
-def seed_organizations_dataset(db: Session, force_reseed: bool = False):
+    db.commit()
+    if failed_count > 0:
+        logger.warning(
+            f"Jobs dataset seed completed with issues: "
+            f"{inserted_count} inserted, {updated_count} updated, {failed_count} failed."
+        )
+    else:
+        logger.info(
+            f"Successfully seeded synthetic job descriptions: "
+            f"{inserted_count} inserted, {updated_count} updated."
+        )
+    return {"inserted": inserted_count, "updated": updated_count, "failed": failed_count}
+
+def seed_organizations_base(db: Session, force_reseed: bool = False):
     """
-    Seeds multi-tenant Company, TrainingInstitute, Enrollment, and JobApplication records.
-    Ensures courses are mapped to training institutes and jobs are mapped to companies.
+    Seeds multi-tenant Company and TrainingInstitute records,
+    and maps existing courses to training institutes.
     """
     if force_reseed:
-        db.query(OrganizationAuditLog).delete()
-        db.query(JobApplication).delete()
-        db.query(Enrollment).delete()
         db.query(TrainingInstitute).delete()
         db.query(Company).delete()
         db.commit()
@@ -358,8 +377,10 @@ def seed_organizations_dataset(db: Session, force_reseed: bool = False):
             c.capacity = 35
     db.commit()
 
-    # 4. Associate Jobs with Companies
+def associate_jobs_with_companies(db: Session):
+    """Associates existing jobs with their parent company organizations."""
     jobs = db.query(Job).all()
+    updated = 0
     for j in jobs:
         if not j.company_id:
             if j.employer_id == "EMP-01" or (j.employer_name and "Apex" in j.employer_name):
@@ -372,104 +393,225 @@ def seed_organizations_dataset(db: Session, force_reseed: bool = False):
                 j.company_id = "CMP-04"
             else:
                 j.company_id = "CMP-01"
-    db.commit()
-
-    # 5. Seed Enrollments
-    if not db.query(Enrollment).first():
-        enrollments = [
-            Enrollment(
-                id="ENR-001",
-                training_institute_id="INST-01",
-                course_id="crs-sw-01",
-                trainee_id="TRN-2024-001",
-                status="enrolled",
-                enrolled_at="2024-01-10T10:00:00",
-                progress_percent=85
-            ),
-            Enrollment(
-                id="ENR-002",
-                training_institute_id="INST-01",
-                course_id="crs-sw-01",
-                trainee_id="TRN-2024-002",
-                status="enrolled",
-                enrolled_at="2024-01-12T10:00:00",
-                progress_percent=70
-            ),
-            Enrollment(
-                id="ENR-003",
-                training_institute_id="INST-02",
-                course_id="crs-hc-01",
-                trainee_id="TRN-2024-004",
-                status="enrolled",
-                enrolled_at="2024-01-15T10:00:00",
-                progress_percent=60
-            )
-        ]
-        db.add_all(enrollments)
+            updated += 1
+    if updated:
         db.commit()
-        logger.info("Successfully seeded course enrollments.")
+        logger.info(f"Associated {updated} jobs with company organizations.")
 
-    # 6. Seed Job Applications
-    if not db.query(JobApplication).first():
-        first_job = db.query(Job).filter(Job.company_id == "CMP-01").first()
-        if first_job:
-            apps = [
-                JobApplication(
-                    id="APP-001",
-                    job_id=first_job.id,
-                    company_id="CMP-01",
-                    trainee_id="TRN-2024-001",
-                    status="interviewing",
-                    applied_at="2024-03-01T11:00:00",
-                    cover_note="High alignment with cloud data engineering stack.",
-                    match_score=0.92
-                )
-            ]
-            db.add_all(apps)
-            db.commit()
-            logger.info("Successfully seeded job applications.")
+def seed_enrollments_and_applications(db: Session, force_reseed: bool = False):
+    """
+    Seeds Enrollments and JobApplications with pre-seeding validation.
+    Verifies that parent Trainee, Course, TrainingInstitute, Job, and Company records exist
+    before insertion, preventing foreign-key violations.
+    """
+    if force_reseed:
+        db.query(JobApplication).delete()
+        db.query(Enrollment).delete()
+        db.commit()
+
+    # 1. Seed Enrollments
+    target_enrollments = [
+        {
+            "id": "ENR-001",
+            "training_institute_id": "INST-01",
+            "course_id": "crs-sw-01",
+            "trainee_id": "TRN-2024-001",
+            "status": "enrolled",
+            "enrolled_at": "2024-01-10T10:00:00",
+            "progress_percent": 85
+        },
+        {
+            "id": "ENR-002",
+            "training_institute_id": "INST-01",
+            "course_id": "crs-sw-01",
+            "trainee_id": "TRN-2024-002",
+            "status": "enrolled",
+            "enrolled_at": "2024-01-12T10:00:00",
+            "progress_percent": 70
+        },
+        {
+            "id": "ENR-003",
+            "training_institute_id": "INST-02",
+            "course_id": "crs-hc-01",
+            "trainee_id": "TRN-2024-004",
+            "status": "enrolled",
+            "enrolled_at": "2024-01-15T10:00:00",
+            "progress_percent": 60
+        }
+    ]
+
+    enr_inserted = 0
+    enr_updated = 0
+    enr_skipped = 0
+    enr_failed = 0
+
+    for enr_data in target_enrollments:
+        missing_parents = []
+        if not db.query(Trainee).filter(Trainee.id == enr_data["trainee_id"]).first():
+            missing_parents.append(f"Trainee({enr_data['trainee_id']})")
+        if not db.query(Course).filter(Course.id == enr_data["course_id"]).first():
+            missing_parents.append(f"Course({enr_data['course_id']})")
+        if not db.query(TrainingInstitute).filter(TrainingInstitute.id == enr_data["training_institute_id"]).first():
+            missing_parents.append(f"TrainingInstitute({enr_data['training_institute_id']})")
+
+        if missing_parents:
+            logger.error(
+                f"Pre-seeding validation failed for Enrollment '{enr_data['id']}': "
+                f"Missing parent records: {', '.join(missing_parents)}. Skipping insertion."
+            )
+            enr_skipped += 1
+            continue
+
+        try:
+            with db.begin_nested():
+                existing = db.query(Enrollment).filter(Enrollment.id == enr_data["id"]).first()
+                if existing:
+                    for k, v in enr_data.items():
+                        setattr(existing, k, v)
+                    enr_updated += 1
+                else:
+                    db.add(Enrollment(**enr_data))
+                    enr_inserted += 1
+        except Exception as e:
+            enr_failed += 1
+            logger.error(f"Error persisting enrollment {enr_data['id']}: {e}")
+
+    db.commit()
+    logger.info(
+        f"Enrollment seeding completed: {enr_inserted} inserted, {enr_updated} updated, "
+        f"{enr_skipped} skipped, {enr_failed} failed."
+    )
+
+    # 2. Seed Job Applications
+    target_apps = [
+        {
+            "id": "APP-001",
+            "job_id": None,
+            "company_id": "CMP-01",
+            "trainee_id": "TRN-2024-001",
+            "status": "interviewing",
+            "applied_at": "2024-03-01T11:00:00",
+            "cover_note": "High alignment with cloud data engineering stack.",
+            "match_score": 0.92
+        }
+    ]
+
+    app_inserted = 0
+    app_updated = 0
+    app_skipped = 0
+    app_failed = 0
+
+    first_job = db.query(Job).filter(Job.company_id == "CMP-01").first() or db.query(Job).first()
+
+    for app_data in target_apps:
+        job_id = app_data["job_id"] or (first_job.id if first_job else None)
+        if not job_id:
+            logger.warning(f"No job found for JobApplication '{app_data['id']}'. Skipping.")
+            app_skipped += 1
+            continue
+
+        missing_parents = []
+        if not db.query(Trainee).filter(Trainee.id == app_data["trainee_id"]).first():
+            missing_parents.append(f"Trainee({app_data['trainee_id']})")
+        if not db.query(Job).filter(Job.id == job_id).first():
+            missing_parents.append(f"Job({job_id})")
+        if not db.query(Company).filter(Company.id == app_data["company_id"]).first():
+            missing_parents.append(f"Company({app_data['company_id']})")
+
+        if missing_parents:
+            logger.error(
+                f"Pre-seeding validation failed for JobApplication '{app_data['id']}': "
+                f"Missing parent records: {', '.join(missing_parents)}. Skipping insertion."
+            )
+            app_skipped += 1
+            continue
+
+        try:
+            with db.begin_nested():
+                existing = db.query(JobApplication).filter(JobApplication.id == app_data["id"]).first()
+                if existing:
+                    existing.job_id = job_id
+                    existing.company_id = app_data["company_id"]
+                    existing.trainee_id = app_data["trainee_id"]
+                    existing.status = app_data["status"]
+                    existing.applied_at = app_data["applied_at"]
+                    existing.cover_note = app_data["cover_note"]
+                    existing.match_score = app_data["match_score"]
+                    app_updated += 1
+                else:
+                    db.add(JobApplication(
+                        id=app_data["id"],
+                        job_id=job_id,
+                        company_id=app_data["company_id"],
+                        trainee_id=app_data["trainee_id"],
+                        status=app_data["status"],
+                        applied_at=app_data["applied_at"],
+                        cover_note=app_data["cover_note"],
+                        match_score=app_data["match_score"]
+                    ))
+                    app_inserted += 1
+        except Exception as e:
+            app_failed += 1
+            logger.error(f"Error persisting job application {app_data['id']}: {e}")
+
+    db.commit()
+    logger.info(
+        f"Job application seeding completed: {app_inserted} inserted, {app_updated} updated, "
+        f"{app_skipped} skipped, {app_failed} failed."
+    )
+    return {
+        "enrollments": {"inserted": enr_inserted, "updated": enr_updated, "skipped": enr_skipped, "failed": enr_failed},
+        "applications": {"inserted": app_inserted, "updated": app_updated, "skipped": app_skipped, "failed": app_failed}
+    }
+
+def seed_organizations_dataset(db: Session, force_reseed: bool = False):
+    """
+    Seeds multi-tenant Company, TrainingInstitute, Enrollment, and JobApplication records.
+    Ensures courses are mapped to training institutes and jobs are mapped to companies.
+    """
+    seed_organizations_base(db, force_reseed)
+    associate_jobs_with_companies(db)
+    seed_enrollments_and_applications(db, force_reseed)
 
 def seed_database(db: Session, force_reseed: bool = False):
     # 1. Always ensure ontology is seeded
     seed_competency_ontology(db, force_reseed)
 
-    # 2. Always ensure employers are seeded before jobs dataset
+    # 2. Always ensure employers are seeded
     seed_employers_dataset(db, force_reseed)
 
-    # 3. Always ensure synthetic jobs dataset is seeded & analyzed
-    seed_jobs_dataset(db, force_reseed)
-
-    # 4. Always ensure multi-tenant organizations (Companies & Institutes) are seeded
-    seed_organizations_dataset(db, force_reseed)
+    # 3. Always ensure multi-tenant organizations base (Companies & Institutes) are seeded
+    seed_organizations_base(db, force_reseed)
 
     if force_reseed:
-        logger.info("Force reseed enabled. Clearing old seed records...")
+        logger.info("Force reseed enabled. Clearing old seed records in dependency order...")
+        db.query(JobApplication).delete()
+        db.query(Enrollment).delete()
         db.query(DigitalTwinState).delete()
         db.query(CareerTimelineEvent).delete()
         db.query(LongitudinalFollowUp).delete()
         db.query(EmployerFeedbackVerification).delete()
         db.query(TraineeSkillEvidence).delete()
         db.query(TraineeSkill).delete()
-        db.query(Trainee).delete()
-        db.query(Employer).delete()
         db.query(FollowUp).delete()
         db.query(SkillGap).delete()
         db.query(CareerPath).delete()
+        db.query(Trainee).delete()
+        db.query(JobExtractedSkill).delete()
+        db.query(Job).delete()
         db.commit()
     elif db.query(Trainee).first():
-        logger.info("Trainee records already exist. Verifying skill evidence, longitudinal intelligence, and users...")
+        logger.info("Trainee records already exist. Verifying jobs, enrollments, skill evidence, longitudinal intelligence, and users...")
+        seed_jobs_dataset(db, force_reseed)
+        associate_jobs_with_companies(db)
+        seed_enrollments_and_applications(db, force_reseed)
         seed_longitudinal_outcome_intelligence(db, force_reseed)
         seed_trainee_skill_evidence(db)
         seed_digital_twins(db, force_reseed)
         seed_users(db, force_reseed)
         return
 
-
     logger.info("Seeding complete Trainee Outcome Passport workforce dataset...")
-
-
-    # 2. Employers
-    seed_employers_dataset(db, force_reseed)
 
     # 4. Comprehensive Synthetic Trainees Representing All 6 Outcome Pathways:
     # 1) Employment, 2) Self-Employment, 3) Freelancing, 4) Apprenticeship, 5) Entrepreneurship, 6) Further Education
@@ -1415,7 +1557,9 @@ def seed_database(db: Session, force_reseed: bool = False):
     db.commit()
 
     logger.info("Complete Trainee Outcome Passport database seeding successfully completed.")
-    seed_organizations_dataset(db, force_reseed=force_reseed)
+    seed_jobs_dataset(db, force_reseed=force_reseed)
+    associate_jobs_with_companies(db)
+    seed_enrollments_and_applications(db, force_reseed=force_reseed)
     seed_longitudinal_outcome_intelligence(db, force_reseed=force_reseed)
     seed_trainee_skill_evidence(db, force_reseed=force_reseed)
     seed_digital_twins(db, force_reseed=force_reseed)
