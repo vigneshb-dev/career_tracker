@@ -13,6 +13,7 @@ export default defineConfig({
     },
   },
   build: {
+    cssMinify: false,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
