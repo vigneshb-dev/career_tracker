@@ -64,7 +64,7 @@ export const TraineeSkillGapDashboard: React.FC = () => {
     setError(null);
     try {
       const params = jobId ? { target_job_id: jobId } : undefined;
-      const res = await skillIntelligenceApi.getTraineeSkillGap(id, params);
+      const res = await skillIntelligenceApi.getTraineeSkillIntelligence(id, params);
       setData(res);
       if (!jobId && res.target_job_id) {
         setSelectedJobId(res.target_job_id);

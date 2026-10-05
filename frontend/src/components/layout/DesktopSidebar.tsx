@@ -17,7 +17,8 @@ import {
   UserCheck,
   Sliders,
   ShieldAlert,
-  BrainCircuit
+  BrainCircuit,
+  GraduationCap
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -50,6 +51,7 @@ export const DesktopSidebar: React.FC<SidebarProps> = ({ followUpsCount = 4 }) =
     ];
   } else if (userRole === 'COACH') {
     navItems = [
+      { label: 'Training Institute', path: '/coach-institute', icon: GraduationCap },
       { label: 'Assigned Trainees', path: '/trainees', icon: Users },
       { label: 'Career Digital Twins', path: '/digital-twin', icon: Sparkles },
       { label: 'What-If Simulator', path: '/career-simulator', icon: Sliders },
@@ -63,13 +65,16 @@ export const DesktopSidebar: React.FC<SidebarProps> = ({ followUpsCount = 4 }) =
     ];
   } else if (userRole === 'EMPLOYER') {
     navItems = [
-      { label: 'Employer Verification Portal', path: '/employers', icon: Building2 },
+      { label: 'Company Organization', path: '/employer-organization', icon: Building2 },
+      { label: 'Employer Verification Portal', path: '/employers', icon: ShieldCheck },
       { label: 'Job Postings Management', path: '/jobs', icon: Briefcase },
     ];
   } else {
     // ADMIN: Complete platform access
     navItems = [
       { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+      { label: 'Employer Companies', path: '/employer-organization', icon: Building2 },
+      { label: 'Training Institutes', path: '/coach-institute', icon: GraduationCap },
       { label: 'Skill Gap Intelligence', path: '/admin/skill-intelligence', icon: BrainCircuit },
       { label: 'Career Digital Twin', path: '/digital-twin', icon: Sparkles },
       { label: 'What-If Simulator', path: '/career-simulator', icon: Sliders },

@@ -145,7 +145,7 @@ export const OutcomeRisks: React.FC = () => {
   const handleStartIntervention = async (riskId: string) => {
     setSubmittingAction(true);
     try {
-      const updated = await outcomeRisksApi.startIntervention(riskId);
+      const updated = await outcomeRisksApi.startOutcomeRiskIntervention(riskId);
       setSelectedRisk(updated);
       await loadRisksData();
     } catch (err: any) {

@@ -35,7 +35,12 @@ test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": Fals
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_db():
+def mock_sentence_transformer():
+    with patch("app.services.job_intelligence_service.get_sentence_transformer", return_value=None):
+        yield
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_db(mock_sentence_transformer):
     Base.metadata.drop_all(bind=test_engine)
     Base.metadata.create_all(bind=test_engine)
     db = TestingSessionLocal()
@@ -50,6 +55,34 @@ def setup_test_db():
                 from app.services.outcome_cause_intelligence_service import OutcomeCauseIntelligenceService
                 OutcomeCauseIntelligenceService.ensure_reason_configs_seeded(db)
                 from app.core.celery_app import schedule_longitudinal_milestones_task
+                from app.models.entities import Job
+                if not db.query(Job).filter(Job.id == "JOB-01").first():
+                    db.add(Job(
+                        id="JOB-01",
+                        title="Cloud Infrastructure Architect",
+                        company_id="CMP-01",
+                        employer_id="EMP-01",
+                        employer_name="Apex Cloud Technologies",
+                        status="active",
+                        salary_range="₹24,00,000 - ₹32,00,000",
+                        posted_date="2024-09-25",
+                        description="Cloud infrastructure role",
+                        location="Bengaluru, KA"
+                    ))
+                if not db.query(Job).filter(Job.id == "JOB-02").first():
+                    db.add(Job(
+                        id="JOB-02",
+                        title="Biomedical Informatics Engineer",
+                        company_id="CMP-02",
+                        employer_id="EMP-02",
+                        employer_name="Meridian MedTech",
+                        status="active",
+                        salary_range="₹18,00,000 - ₹24,00,000",
+                        posted_date="2024-09-25",
+                        description="Biomedical role",
+                        location="Hyderabad, TS"
+                    ))
+                db.commit()
                 schedule_longitudinal_milestones_task("TRN-2024-001", "2024-06-30", "employment", db_session=db)
                 schedule_longitudinal_milestones_task("TRN-2024-002", "2024-06-30", "employment", db_session=db)
     finally:
@@ -98,6 +131,18 @@ def coach_token(client):
 def employer_token(client):
     res = client.post("/api/auth/login", json={"email": "recruiter@apexcloud.io", "password": "Employer@123456"})
     assert res.status_code == 200, f"Employer login failed: {res.text}"
+    return res.json()["token"]
+
+@pytest.fixture
+def employer2_token(client):
+    res = client.post("/api/auth/login", json={"email": "recruiter@meridianmedtech.co.in", "password": "Employer@123456"})
+    assert res.status_code == 200, f"Employer 2 login failed: {res.text}"
+    return res.json()["token"]
+
+@pytest.fixture
+def coach2_token(client):
+    res = client.post("/api/auth/login", json={"email": "coach.arun@skilltrace.org", "password": "Coach@123456"})
+    assert res.status_code == 200, f"Coach 2 login failed: {res.text}"
     return res.json()["token"]
 
 @pytest.fixture

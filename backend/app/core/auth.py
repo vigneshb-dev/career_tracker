@@ -6,7 +6,17 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.core.redis_store import redis_store
-from app.models.entities import User, Trainee, Employer
+from app.models.entities import (
+    User,
+    Trainee,
+    Employer,
+    Company,
+    TrainingInstitute,
+    Course,
+    Job,
+    Enrollment,
+    OrganizationAuditLog,
+)
 
 logger = logging.getLogger("skilltrace.auth")
 
@@ -286,7 +296,7 @@ def verify_employer_can_verify_trainee(
     if user_role not in ["EMPLOYER", "ADMIN", "VERIFICATION_AUTHORITY", "AUDITOR", "COACH"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: Only authenticated employers, verification authorities, or administrators can submit employer verifications."
+            detail="Access denied: Only authenticated employers or administrators can submit employer verifications."
         )
 
     trainee = db.query(Trainee).filter(Trainee.id == trainee_id).first()
@@ -319,9 +329,27 @@ def verify_employer_can_verify_trainee(
         )
 
     user_employer_id = current_user.employer_profile.employer_id
+    user_company_id = current_user.employer_profile.company_id
+    if employer_id and employer_id not in ["all", "me", "default"]:
+        if user_employer_id and employer_id != user_employer_id and (not user_company_id or employer_id != user_company_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: You cannot submit verifications on behalf of another employer organization ({employer_id})."
+            )
+        if user_company_id and employer_id != user_company_id and (not user_employer_id or employer_id != user_employer_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: You cannot submit verifications on behalf of another employer organization ({employer_id})."
+            )
+
     employer = None
     if user_employer_id:
         employer = db.query(Employer).filter(Employer.id == user_employer_id).first()
+
+    if not employer and user_company_id:
+        cmp = db.query(Company).filter(Company.id == user_company_id).first()
+        if cmp:
+            employer = db.query(Employer).filter((Employer.name == cmp.display_name) | (Employer.name == cmp.legal_name)).first()
 
     if not employer and current_user.employer_profile.company_name:
         employer = db.query(Employer).filter(
@@ -342,9 +370,14 @@ def verify_employer_can_verify_trainee(
     
     # Check candidate association:
     # 1. Candidate ID is explicitly in authorized_candidate_ids
-    # 2. Candidate's current_employer matches employer.name or employer_profile.company_name (substring match)
+    # 2. Candidate's current_employer matches employer.name or employer_profile.company_name or company name (substring match)
     # 3. Candidate's reported outcome history matches employer.name or employer_profile.company_name (substring match)
     emp_names = [n for n in [employer.name, current_user.employer_profile.company_name] if n]
+    if current_user.employer_profile and current_user.employer_profile.company:
+        if current_user.employer_profile.company.display_name:
+            emp_names.append(current_user.employer_profile.company.display_name)
+        if current_user.employer_profile.company.legal_name:
+            emp_names.append(current_user.employer_profile.company.legal_name)
     trn_emp = (trainee.current_employer or "").strip().lower()
     matches_current_emp = any(
         (name.strip().lower() in trn_emp or trn_emp in name.strip().lower())
@@ -412,3 +445,198 @@ def verify_follow_up_access(
         return trainee
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized follow-up access.")
+
+
+# ========================================================
+# Organization-Scoped Multi-Tenant RBAC & Audit Utilities
+# ========================================================
+
+def record_organization_audit(
+    db: Session,
+    actor_user_id: Optional[str],
+    organization_id: str,
+    action: str,
+    resource_type: str,
+    resource_id: str,
+    details: Optional[dict] = None
+) -> OrganizationAuditLog:
+    """
+    Records an immutable organization-scoped audit log for all mutations.
+    """
+    from datetime import datetime
+    import uuid
+    log_entry = OrganizationAuditLog(
+        id=f"AUD-{uuid.uuid4().hex[:12].upper()}",
+        actor_user_id=actor_user_id,
+        organization_id=organization_id,
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        details=details or {},
+        timestamp=datetime.utcnow().isoformat()
+    )
+    db.add(log_entry)
+    db.flush()
+    return log_entry
+
+
+def get_user_company_id(current_user: User, db: Session) -> Optional[str]:
+    """Retrieves authenticated employer's company ID."""
+    if not current_user or not current_user.employer_profile:
+        return None
+    prof = current_user.employer_profile
+    return prof.company_id or prof.employer_id
+
+
+def get_user_training_institute_id(current_user: User, db: Session) -> Optional[str]:
+    """Retrieves authenticated coach's training institute ID."""
+    if not current_user or not current_user.coach_profile:
+        return None
+    return current_user.coach_profile.training_institute_id
+
+
+def verify_employer_owns_company(company_id: str, current_user: User, db: Session) -> Company:
+    """
+    Verifies that the employer belongs to company_id, or user is ADMIN.
+    """
+    user_role = (current_user.role or "").strip().upper()
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Company '{company_id}' not found.")
+
+    if user_role == "ADMIN":
+        return company
+
+    if user_role == "EMPLOYER":
+        user_company_id = get_user_company_id(current_user, db)
+        if user_company_id != company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You can only manage data belonging to your own company."
+            )
+        return company
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Employer or Admin required.")
+
+
+def verify_coach_owns_institute(institute_id: str, current_user: User, db: Session) -> TrainingInstitute:
+    """
+    Verifies that the coach belongs to institute_id, or user is ADMIN.
+    """
+    user_role = (current_user.role or "").strip().upper()
+    institute = db.query(TrainingInstitute).filter(TrainingInstitute.id == institute_id).first()
+    if not institute:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Training institute '{institute_id}' not found.")
+
+    if user_role == "ADMIN":
+        return institute
+
+    if user_role in ["COACH", "TRAINING_PROVIDER", "PROVIDER"]:
+        user_inst_id = get_user_training_institute_id(current_user, db)
+        if user_inst_id != institute_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You can only manage data belonging to your own training institute."
+            )
+        return institute
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Coach or Admin required.")
+
+
+def verify_employer_owns_job(job_id: str, current_user: User, db: Session) -> Job:
+    """
+    Verifies that the authenticated employer's company owns the specified job.
+    """
+    user_role = (current_user.role or "").strip().upper()
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job '{job_id}' not found.")
+
+    if user_role == "ADMIN":
+        return job
+
+    if user_role == "EMPLOYER":
+        user_company_id = get_user_company_id(current_user, db)
+        user_emp_id = current_user.employer_profile.employer_id if current_user.employer_profile else None
+        
+        matches = (
+            (job.company_id and job.company_id == user_company_id) or
+            (job.employer_id and job.employer_id == user_emp_id) or
+            (job.employer_id and job.employer_id == user_company_id)
+        )
+        if not matches:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You cannot modify or manage jobs belonging to another company."
+            )
+        return job
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Employer or Admin required.")
+
+
+def verify_coach_owns_course(course_id: str, current_user: User, db: Session) -> Course:
+    """
+    Verifies that the authenticated coach's training institute owns the specified course.
+    """
+    user_role = (current_user.role or "").strip().upper()
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Course '{course_id}' not found.")
+
+    if user_role == "ADMIN":
+        return course
+
+    if user_role in ["COACH", "TRAINING_PROVIDER", "PROVIDER"]:
+        user_inst_id = get_user_training_institute_id(current_user, db)
+        if course.training_institute_id and course.training_institute_id != user_inst_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You cannot modify or manage courses belonging to another training institute."
+            )
+        return course
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Coach or Admin required.")
+
+
+def verify_coach_can_assess_trainee(
+    course_id: str,
+    trainee_id: str,
+    current_user: User,
+    db: Session
+) -> Course:
+    """
+    Verifies that:
+    1. The coach's institute owns the course.
+    2. The trainee is enrolled in this course (or this institute).
+    """
+    user_role = (current_user.role or "").strip().upper()
+    course = verify_coach_owns_course(course_id, current_user, db)
+
+    trainee = db.query(Trainee).filter(Trainee.id == trainee_id).first()
+    if not trainee:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Trainee '{trainee_id}' not found.")
+
+    if user_role == "ADMIN":
+        return course
+
+    # Check enrollment in this course or institute
+    enrollment = db.query(Enrollment).filter(
+        Enrollment.course_id == course_id,
+        Enrollment.trainee_id == trainee_id
+    ).first()
+
+    if not enrollment:
+        user_inst_id = get_user_training_institute_id(current_user, db)
+        inst_enrollment = db.query(Enrollment).filter(
+            Enrollment.training_institute_id == user_inst_id,
+            Enrollment.trainee_id == trainee_id
+        ).first() if user_inst_id else None
+
+        if not inst_enrollment:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: Trainee '{trainee_id}' is not enrolled in your institute's course."
+            )
+
+    return course
+

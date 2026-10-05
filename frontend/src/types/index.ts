@@ -203,7 +203,8 @@ export interface Job {
   openings_count?: number;
   applicantsCount?: number;
   applicants_count?: number;
-  status: 'active' | 'closed' | 'draft';
+  status: 'active' | 'closed' | 'draft' | 'archived';
+  company_id?: string;
   postedDate?: string;
   posted_date?: string;
   closingDate?: string;
@@ -213,6 +214,7 @@ export interface Job {
   mapped_occupation_id?: string;
   mapped_occupation_title?: string;
   experience_level?: string;
+  experience?: string;
   education_level?: string;
   source?: string;
   extracted_metadata?: any;
@@ -2199,6 +2201,115 @@ export interface FollowUpResponseSubmission {
   trainee_id: string;
   employment_status: string;
   answers: FollowUpAnswerItem[];
+}
+
+// ========================================================
+// Organization & Multi-Tenant RBAC Types
+// ========================================================
+
+export interface Company {
+  id: string;
+  legal_name: string;
+  display_name: string;
+  industry?: string;
+  description?: string;
+  location?: string;
+  website?: string;
+  contact_email?: string;
+  status?: string;
+  created_at?: string;
+}
+
+export interface TrainingInstitute {
+  id: string;
+  name: string;
+  description?: string;
+  location?: string;
+  website?: string;
+  contact_email?: string;
+  status?: string;
+  created_at?: string;
+}
+
+export interface EmployerProfileDetail {
+  id: string;
+  user_id: string;
+  employer_id?: string;
+  company_id?: string;
+  company_name?: string;
+  full_name?: string;
+  email?: string;
+  designation?: string;
+  department?: string;
+  verification_status?: string;
+}
+
+export interface CoachProfileDetail {
+  id: string;
+  user_id: string;
+  training_institute_id?: string;
+  institute_name?: string;
+  full_name?: string;
+  email?: string;
+  designation?: string;
+  specialization?: string;
+  verification_status?: string;
+}
+
+export interface CourseDetail {
+  id: string;
+  code?: string;
+  training_institute_id?: string;
+  title: string;
+  description?: string;
+  category?: string;
+  domain?: string;
+  provider?: string;
+  duration?: string;
+  mode?: string;
+  eligibility?: string;
+  capacity?: number;
+  status?: string;
+  created_by?: string;
+}
+
+export interface Enrollment {
+  id: string;
+  training_institute_id: string;
+  course_id: string;
+  trainee_id: string;
+  trainee_name?: string;
+  course_title?: string;
+  status: string;
+  enrolled_at: string;
+  completed_at?: string;
+  progress_percent: number;
+  grade_or_result?: string;
+}
+
+export interface JobApplication {
+  id: string;
+  job_id: string;
+  job_title?: string;
+  company_id?: string;
+  company_name?: string;
+  trainee_id: string;
+  trainee_name?: string;
+  status: string;
+  applied_at?: string;
+  cover_note?: string;
+  match_score?: number;
+}
+
+export interface OrganizationAuditLog {
+  id: string;
+  actor_user_id: string;
+  organization_id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  details?: Record<string, any>;
+  timestamp: string;
 }
 
 

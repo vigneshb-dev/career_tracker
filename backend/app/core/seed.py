@@ -21,6 +21,11 @@ from app.models.entities import (
     TraineeSkillEvidence,
     CareerTimelineEvent,
     LongitudinalFollowUp,
+    Company,
+    TrainingInstitute,
+    Enrollment,
+    JobApplication,
+    OrganizationAuditLog,
     EmployerFeedbackVerification,
     DigitalTwinState,
     OutcomeState,
@@ -243,6 +248,187 @@ def seed_jobs_dataset(db: Session, force_reseed: bool = False):
             db.rollback()
     logger.info("Successfully seeded synthetic job descriptions and extracted skills.")
 
+def seed_organizations_dataset(db: Session, force_reseed: bool = False):
+    """
+    Seeds multi-tenant Company, TrainingInstitute, Enrollment, and JobApplication records.
+    Ensures courses are mapped to training institutes and jobs are mapped to companies.
+    """
+    if force_reseed:
+        db.query(OrganizationAuditLog).delete()
+        db.query(JobApplication).delete()
+        db.query(Enrollment).delete()
+        db.query(TrainingInstitute).delete()
+        db.query(Company).delete()
+        db.commit()
+
+    # 1. Seed Companies
+    if not db.query(Company).first():
+        companies = [
+            Company(
+                id="CMP-01",
+                legal_name="Apex Cloud Technologies India Pvt. Ltd.",
+                display_name="Apex Cloud Technologies",
+                industry="Enterprise Software & SaaS",
+                description="Global cloud infrastructure, SaaS engineering, and enterprise platform development.",
+                location="Bengaluru, KA",
+                website="https://apexcloud.example.in",
+                contact_email="recruiter@apexcloud.io",
+                status="active",
+                created_at="2024-01-01T09:00:00"
+            ),
+            Company(
+                id="CMP-02",
+                legal_name="Meridian MedTech India Pvt. Ltd.",
+                display_name="Meridian MedTech",
+                industry="Healthcare Technology & AI",
+                description="Healthcare devices, clinical intelligence software, and healthcare analytics.",
+                location="Hyderabad, TS",
+                website="https://meridianmedtech.example.in",
+                contact_email="recruiter@meridianmedtech.co.in",
+                status="active",
+                created_at="2024-01-01T09:00:00"
+            ),
+            Company(
+                id="CMP-03",
+                legal_name="OmniTrade FinTech Solutions India",
+                display_name="OmniTrade FinTech",
+                industry="Financial Technology",
+                description="Digital payments, ledger security, and financial transaction processing.",
+                location="Mumbai, MH",
+                website="https://omnitrade.example.in",
+                contact_email="careers@omnitrade.co.in",
+                status="active",
+                created_at="2024-01-01T09:00:00"
+            ),
+            Company(
+                id="CMP-04",
+                legal_name="Vanguard Healthcare Networks India",
+                display_name="Vanguard Healthcare",
+                industry="Hospital & Healthcare Networks",
+                description="Integrated hospital networks, clinical operations, and health worker deployment.",
+                location="Chennai, TN",
+                website="https://vanguardhealth.example.in",
+                contact_email="careers@vanguardhealth.co.in",
+                status="active",
+                created_at="2024-01-01T09:00:00"
+            )
+        ]
+        db.add_all(companies)
+        db.commit()
+        logger.info("Successfully seeded companies dataset.")
+
+    # 2. Seed Training Institutes
+    if not db.query(TrainingInstitute).first():
+        institutes = [
+            TrainingInstitute(
+                id="INST-01",
+                name="National Institute of Cloud & AI",
+                description="Premier government and ecosystem training center for cloud, data & artificial intelligence.",
+                location="Bengaluru, KA",
+                website="https://nica.skilltrace.gov.in",
+                contact_email="director@nica.skilltrace.gov.in",
+                status="active",
+                created_at="2024-01-01T09:00:00"
+            ),
+            TrainingInstitute(
+                id="INST-02",
+                name="Meridian Health & Life Sciences Institute",
+                description="Accredited workforce institute for digital healthcare systems, informatics & clinical data.",
+                location="Hyderabad, TS",
+                website="https://mhls.skilltrace.org",
+                contact_email="admissions@mhls.skilltrace.org",
+                status="active",
+                created_at="2024-01-01T09:00:00"
+            )
+        ]
+        db.add_all(institutes)
+        db.commit()
+        logger.info("Successfully seeded training institutes dataset.")
+
+    # 3. Associate Courses with Training Institutes
+    courses = db.query(Course).all()
+    for c in courses:
+        if not c.training_institute_id:
+            if "Health" in (c.domain or "") or "Health" in (c.title or ""):
+                c.training_institute_id = "INST-02"
+            else:
+                c.training_institute_id = "INST-01"
+            c.status = "active"
+            c.mode = "Hybrid"
+            c.capacity = 35
+    db.commit()
+
+    # 4. Associate Jobs with Companies
+    jobs = db.query(Job).all()
+    for j in jobs:
+        if not j.company_id:
+            if j.employer_id == "EMP-01" or (j.employer_name and "Apex" in j.employer_name):
+                j.company_id = "CMP-01"
+            elif j.employer_id == "EMP-02" or (j.employer_name and "Meridian" in j.employer_name):
+                j.company_id = "CMP-02"
+            elif j.employer_id == "EMP-03" or (j.employer_name and "OmniTrade" in j.employer_name):
+                j.company_id = "CMP-03"
+            elif j.employer_id == "EMP-04" or (j.employer_name and "Vanguard" in j.employer_name):
+                j.company_id = "CMP-04"
+            else:
+                j.company_id = "CMP-01"
+    db.commit()
+
+    # 5. Seed Enrollments
+    if not db.query(Enrollment).first():
+        enrollments = [
+            Enrollment(
+                id="ENR-001",
+                training_institute_id="INST-01",
+                course_id="crs-sw-01",
+                trainee_id="TRN-2024-001",
+                status="enrolled",
+                enrolled_at="2024-01-10T10:00:00",
+                progress_percent=85
+            ),
+            Enrollment(
+                id="ENR-002",
+                training_institute_id="INST-01",
+                course_id="crs-sw-01",
+                trainee_id="TRN-2024-002",
+                status="enrolled",
+                enrolled_at="2024-01-12T10:00:00",
+                progress_percent=70
+            ),
+            Enrollment(
+                id="ENR-003",
+                training_institute_id="INST-02",
+                course_id="crs-hc-01",
+                trainee_id="TRN-2024-004",
+                status="enrolled",
+                enrolled_at="2024-01-15T10:00:00",
+                progress_percent=60
+            )
+        ]
+        db.add_all(enrollments)
+        db.commit()
+        logger.info("Successfully seeded course enrollments.")
+
+    # 6. Seed Job Applications
+    if not db.query(JobApplication).first():
+        first_job = db.query(Job).filter(Job.company_id == "CMP-01").first()
+        if first_job:
+            apps = [
+                JobApplication(
+                    id="APP-001",
+                    job_id=first_job.id,
+                    company_id="CMP-01",
+                    trainee_id="TRN-2024-001",
+                    status="interviewing",
+                    applied_at="2024-03-01T11:00:00",
+                    cover_note="High alignment with cloud data engineering stack.",
+                    match_score=0.92
+                )
+            ]
+            db.add_all(apps)
+            db.commit()
+            logger.info("Successfully seeded job applications.")
+
 def seed_database(db: Session, force_reseed: bool = False):
     # 1. Always ensure ontology is seeded
     seed_competency_ontology(db, force_reseed)
@@ -252,6 +438,9 @@ def seed_database(db: Session, force_reseed: bool = False):
 
     # 3. Always ensure synthetic jobs dataset is seeded & analyzed
     seed_jobs_dataset(db, force_reseed)
+
+    # 4. Always ensure multi-tenant organizations (Companies & Institutes) are seeded
+    seed_organizations_dataset(db, force_reseed)
 
     if force_reseed:
         logger.info("Force reseed enabled. Clearing old seed records...")
@@ -1226,6 +1415,7 @@ def seed_database(db: Session, force_reseed: bool = False):
     db.commit()
 
     logger.info("Complete Trainee Outcome Passport database seeding successfully completed.")
+    seed_organizations_dataset(db, force_reseed=force_reseed)
     seed_longitudinal_outcome_intelligence(db, force_reseed=force_reseed)
     seed_trainee_skill_evidence(db, force_reseed=force_reseed)
     seed_digital_twins(db, force_reseed=force_reseed)
@@ -1750,6 +1940,19 @@ def seed_users(db: Session, force_reseed: bool = False):
     )
     db.add(admin_user)
 
+    admin_user_org = User(
+        id="USR-ADMIN-002",
+        email="admin@skilltrace.org",
+        hashed_password=get_password_hash("Admin@123456"),
+        role="ADMIN",
+        full_name="Director Rajeshwar Rao",
+        phone="+91 80 2345 6789",
+        is_active=True,
+        is_verified=True,
+        created_at="2024-01-01T09:00:00"
+    )
+    db.add(admin_user_org)
+
     # 2. Coaches
     coach_1 = User(
         id="USR-COACH-001",
@@ -1767,10 +1970,13 @@ def seed_users(db: Session, force_reseed: bool = False):
     db.add(CoachProfile(
         id="CP-001",
         user_id=coach_1.id,
+        training_institute_id="INST-01",
         full_name="Sarah Jenkins",
         title="Lead Cloud & AI Workforce Coach",
-        organization="National Skill Development Ecosystem",
+        designation="Lead Cloud & AI Workforce Coach",
+        organization="National Institute of Cloud & AI",
         specialization="Cloud Infrastructure, Python Microservices & Full-Stack",
+        verification_status="VERIFIED",
         phone="+91 98450 11223",
         assigned_trainee_ids=["TRN-2024-001", "TRN-2024-002", "TRN-2024-003"]
     ))
@@ -1791,16 +1997,20 @@ def seed_users(db: Session, force_reseed: bool = False):
     db.add(CoachProfile(
         id="CP-002",
         user_id=coach_2.id,
+        training_institute_id="INST-02",
         full_name="Arun Kumar",
         title="Healthcare & Data Systems Coach",
-        organization="National Skill Development Ecosystem",
+        designation="Healthcare & Data Systems Coach",
+        organization="Meridian Health & Life Sciences Institute",
         specialization="Healthcare Informatics & Analytics",
+        verification_status="VERIFIED",
         phone="+91 98450 44556",
         assigned_trainee_ids=["TRN-2024-004", "TRN-2024-005", "TRN-2024-006"]
     ))
 
-    # 3. Employer
-    employer_user = User(
+    # 3. Employers (Multi-Tenant Companies)
+    # Employer 1: Apex Cloud Technologies (CMP-01)
+    employer_user_1 = User(
         id="USR-EMP-001",
         email="recruiter@apexcloud.io",
         hashed_password=get_password_hash("Employer@123456"),
@@ -1811,16 +2021,46 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_verified=True,
         created_at="2024-02-01T08:30:00"
     )
-    db.add(employer_user)
+    db.add(employer_user_1)
     db.flush()
     db.add(EmployerProfile(
         id="EP-001",
-        user_id=employer_user.id,
+        user_id=employer_user_1.id,
+        company_id="CMP-01",
         employer_id="EMP-01",
         company_name="Apex Cloud Technologies India Pvt. Ltd.",
         designation="VP of Talent & Apprenticeship Programs",
+        department="Talent Acquisition & HR",
+        verification_status="VERIFIED",
         contact_phone="+91 80 4123 0144",
         authorized_candidate_ids=["TRN-2024-001", "TRN-2024-004"]
+    ))
+
+    # Employer 2: Meridian MedTech (CMP-02)
+    employer_user_2 = User(
+        id="USR-EMP-002",
+        email="recruiter@meridianmedtech.co.in",
+        hashed_password=get_password_hash("Employer@123456"),
+        role="EMPLOYER",
+        full_name="Vikram Reddy",
+        phone="+91 40 4567 0189",
+        is_active=True,
+        is_verified=True,
+        created_at="2024-02-05T09:00:00"
+    )
+    db.add(employer_user_2)
+    db.flush()
+    db.add(EmployerProfile(
+        id="EP-002",
+        user_id=employer_user_2.id,
+        company_id="CMP-02",
+        employer_id="EMP-02",
+        company_name="Meridian MedTech India Pvt. Ltd.",
+        designation="Engineering Manager & Hiring Lead",
+        department="Engineering",
+        verification_status="VERIFIED",
+        contact_phone="+91 40 4567 0189",
+        authorized_candidate_ids=["TRN-2024-004", "TRN-2024-005"]
     ))
 
     # 3b. Verification Authority & Auditor

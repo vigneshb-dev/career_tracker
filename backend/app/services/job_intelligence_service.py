@@ -557,6 +557,9 @@ class JobIntelligenceService:
             job = Job(
                 id=job_id,
                 title=job_data.get("title") or analysis["title"],
+                company_id=job_data.get("company_id"),
+                created_by=job_data.get("created_by"),
+                experience=job_data.get("experience") or (analysis["experience_requirements"][:250] if analysis.get("experience_requirements") else None),
                 employer_id=job_data.get("employer_id"),
                 employer_name=job_data.get("employer_name") or analysis["employer_name"],
                 location=job_data.get("location") or analysis["location"],
@@ -587,6 +590,12 @@ class JobIntelligenceService:
             db.add(job)
         else:
             job.title = job_data.get("title") or job.title
+            if job_data.get("company_id"):
+                job.company_id = job_data["company_id"]
+            if job_data.get("created_by"):
+                job.created_by = job_data["created_by"]
+            if job_data.get("experience"):
+                job.experience = job_data["experience"]
             job.employer_name = job_data.get("employer_name") or analysis["employer_name"]
             job.location = job_data.get("location") or analysis["location"]
             job.salary_range = job_data.get("salary_range") or analysis["salary"] or "₹7,50,000 - ₹9,50,000"

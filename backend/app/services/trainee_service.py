@@ -88,10 +88,15 @@ class TraineeService:
         status: Optional[str] = None,
         program: Optional[str] = None,
         outcome_type: Optional[str] = None,
+        allowed_trainee_ids: Optional[List[str]] = None,
         page: int = 1,
         page_size: int = 10
     ) -> Tuple[List[Trainee], int, int]:
         query = db.query(Trainee)
+        if allowed_trainee_ids is not None:
+            if not allowed_trainee_ids:
+                return [], 0, 1
+            query = query.filter(Trainee.id.in_(allowed_trainee_ids))
         if search:
             s = f"%{search}%"
             query = query.filter(

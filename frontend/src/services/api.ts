@@ -22,7 +22,9 @@ import {
   TraineeSkillGapResponse, CourseSkillAnalysisResponse, TopSkillGapsResponse,
   EmergingSkillsResponse, JobSkillDemandResponse, OutcomeReasonItem,
   OutcomeReasonBreakdownResponse, OutcomeSummaryAnalyticsResponse,
-  FollowUpGenerationResponse, FollowUpResponseSubmission
+  FollowUpGenerationResponse, FollowUpResponseSubmission,
+  Company, TrainingInstitute, EmployerProfileDetail, CoachProfileDetail,
+  CourseDetail, Enrollment, JobApplication, OrganizationAuditLog
 } from '../types';
 import { AuthUser, AuthResponse, SignupPayload } from '../types/auth';
 
@@ -58,11 +60,13 @@ function toQueryString(params?: Record<string, any>): string {
   return qs ? `?${qs}` : '';
 }
 
-async function fetchWithFallback<T>(endpoint: string, fallbackData: T, options?: RequestInit): Promise<T> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
+async function fetchWithFallback<T>(endpoint: string, fallbackData: T, options?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+  try {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       signal: controller.signal,
@@ -75,15 +79,261 @@ async function fetchWithFallback<T>(endpoint: string, fallbackData: T, options?:
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      return fallbackData;
+      if (IS_DEMO_MODE) {
+        return fallbackData;
+      }
+      const err = await res.json().catch(() => ({ detail: `Request to ${endpoint} failed with status ${res.status}` }));
+      const error: any = new Error(err.detail || err.message || `Request to ${endpoint} failed with status ${res.status}`);
+      error.status = res.status;
+      throw error;
     }
     return await res.json();
-  } catch {
-    return fallbackData;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (IS_DEMO_MODE) {
+      return fallbackData;
+    }
+    throw error;
   }
 }
 
+// ========================================================
+// Organization & Multi-Tenant RBAC Services
+// ========================================================
+export const organizationApi = {
+  // Companies
+  async getCompanies(): Promise<Company[]> {
+    return fetchWithFallback<Company[]>('/companies', []);
+  },
+
+  async getCompany(companyId: string): Promise<Company> {
+    const res = await fetch(`${BASE_URL}/companies/${encodeURIComponent(companyId)}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error(`Failed to load company ${companyId}`);
+    return await res.json();
+  },
+
+  async updateCompany(companyId: string, payload: Partial<Company>): Promise<Company> {
+    const res = await fetch(`${BASE_URL}/companies/${encodeURIComponent(companyId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to update company');
+    return await res.json();
+  },
+
+  async getCompanyEmployers(companyId: string): Promise<EmployerProfileDetail[]> {
+    return fetchWithFallback<EmployerProfileDetail[]>(`/companies/${encodeURIComponent(companyId)}/employers`, []);
+  },
+
+  async getCompanyJobs(companyId: string): Promise<Job[]> {
+    return fetchWithFallback<Job[]>(`/companies/${encodeURIComponent(companyId)}/jobs`, []);
+  },
+
+  async createCompanyJob(companyId: string, jobData: Partial<Job>): Promise<Job> {
+    const res = await fetch(`${BASE_URL}/companies/${encodeURIComponent(companyId)}/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify(jobData)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to create company job');
+    }
+    return await res.json();
+  },
+
+  async getCompanyApplications(companyId: string): Promise<JobApplication[]> {
+    return fetchWithFallback<JobApplication[]>(`/companies/${encodeURIComponent(companyId)}/applications`, []);
+  },
+
+  async getCompanyAuditLogs(companyId: string): Promise<OrganizationAuditLog[]> {
+    return fetchWithFallback<OrganizationAuditLog[]>(`/companies/${encodeURIComponent(companyId)}/audit-logs`, []);
+  },
+
+  // Training Institutes
+  async getTrainingInstitutes(): Promise<TrainingInstitute[]> {
+    return fetchWithFallback<TrainingInstitute[]>('/training-institutes', []);
+  },
+
+  async getTrainingInstitute(instituteId: string): Promise<TrainingInstitute> {
+    const res = await fetch(`${BASE_URL}/training-institutes/${encodeURIComponent(instituteId)}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error(`Failed to load training institute ${instituteId}`);
+    return await res.json();
+  },
+
+  async updateTrainingInstitute(instituteId: string, payload: Partial<TrainingInstitute>): Promise<TrainingInstitute> {
+    const res = await fetch(`${BASE_URL}/training-institutes/${encodeURIComponent(instituteId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to update training institute');
+    return await res.json();
+  },
+
+  async getInstituteCoaches(instituteId: string): Promise<CoachProfileDetail[]> {
+    return fetchWithFallback<CoachProfileDetail[]>(`/training-institutes/${encodeURIComponent(instituteId)}/coaches`, []);
+  },
+
+  async getInstituteCourses(instituteId: string): Promise<CourseDetail[]> {
+    return fetchWithFallback<CourseDetail[]>(`/training-institutes/${encodeURIComponent(instituteId)}/courses`, []);
+  },
+
+  async createInstituteCourse(instituteId: string, courseData: Partial<CourseDetail>): Promise<CourseDetail> {
+    const res = await fetch(`${BASE_URL}/training-institutes/${encodeURIComponent(instituteId)}/courses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify(courseData)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to create institute course');
+    }
+    return await res.json();
+  },
+
+  async getInstituteTrainees(instituteId: string): Promise<Enrollment[]> {
+    return fetchWithFallback<Enrollment[]>(`/training-institutes/${encodeURIComponent(instituteId)}/trainees`, []);
+  },
+
+  async getInstituteAuditLogs(instituteId: string): Promise<OrganizationAuditLog[]> {
+    return fetchWithFallback<OrganizationAuditLog[]>(`/training-institutes/${encodeURIComponent(instituteId)}/audit-logs`, []);
+  },
+
+  // Courses & Assessments
+  async getCourses(): Promise<CourseDetail[]> {
+    return fetchWithFallback<CourseDetail[]>('/courses', []);
+  },
+
+  async getCourse(courseId: string): Promise<CourseDetail> {
+    const res = await fetch(`${BASE_URL}/courses/${encodeURIComponent(courseId)}`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error(`Failed to load course ${courseId}`);
+    return await res.json();
+  },
+
+  async updateCourse(courseId: string, payload: Partial<CourseDetail>): Promise<CourseDetail> {
+    const res = await fetch(`${BASE_URL}/courses/${encodeURIComponent(courseId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to update course');
+    return await res.json();
+  },
+
+  async archiveCourse(courseId: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/courses/${encodeURIComponent(courseId)}`, {
+      method: 'DELETE',
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to archive course');
+    return await res.json();
+  },
+
+  async getCourseEnrollments(courseId: string): Promise<Enrollment[]> {
+    return fetchWithFallback<Enrollment[]>(`/courses/${encodeURIComponent(courseId)}/enrollments`, []);
+  },
+
+  async enrollTraineeInCourse(courseId: string, traineeId: string): Promise<Enrollment> {
+    const res = await fetch(`${BASE_URL}/courses/${encodeURIComponent(courseId)}/enroll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({ trainee_id: traineeId })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to enroll trainee');
+    }
+    return await res.json();
+  },
+
+  async assessTraineeInCourse(courseId: string, payload: {
+    trainee_id: string;
+    skill_name: string;
+    score: number;
+    evaluation_type?: string;
+    notes?: string;
+  }): Promise<{ success: boolean; message: string; evidence_id: string }> {
+    const res = await fetch(`${BASE_URL}/courses/${encodeURIComponent(courseId)}/assessments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to assess trainee');
+    }
+    return await res.json();
+  },
+
+  async completeCourseForTrainee(courseId: string, payload: {
+    trainee_id: string;
+    grade_or_result?: string;
+    certificate_url?: string;
+    notes?: string;
+  }): Promise<any> {
+    const res = await fetch(`${BASE_URL}/courses/${encodeURIComponent(courseId)}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to mark course completion');
+    }
+    return await res.json();
+  },
+
+  // Jobs RBAC
+  async updateJob(jobId: string, payload: Partial<Job>): Promise<Job> {
+    const res = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to update job');
+    }
+    return await res.json();
+  },
+
+  async archiveJob(jobId: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}`, {
+      method: 'DELETE',
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to archive job');
+    return await res.json();
+  },
+
+  async getJobApplications(jobId: string): Promise<JobApplication[]> {
+    return fetchWithFallback<JobApplication[]>(`/jobs/${encodeURIComponent(jobId)}/applications`, []);
+  },
+
+  async applyToJob(jobId: string, payload: { trainee_id?: string; cover_note?: string }): Promise<JobApplication> {
+    const res = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to apply to job');
+    }
+    return await res.json();
+  }
+};
+
 export const api = {
+  ...organizationApi,
   // Authentication & RBAC API
   async signup(payload: SignupPayload): Promise<AuthResponse> {
     const res = await fetch(`${BASE_URL}/auth/signup`, {
@@ -190,7 +440,7 @@ export const api = {
     }
   },
 
-  async uploadResume(traineeId: string, file: File): Promise<{
+  async uploadAndAnalyzeResume(traineeId: string, file: File): Promise<{
     message: string;
     filename: string;
     resume_url: string;
@@ -208,36 +458,31 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
     const token = localStorage.getItem('skilltrace_auth_token');
-    const res = await fetch(`${BASE_URL}/trainees/${traineeId}/resume`, {
+    const res = await fetch(`${BASE_URL}/trainees/${traineeId}/resume/analyze`, {
       method: 'POST',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: formData,
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Failed to upload and analyze resume.' }));
-      throw new Error(err.detail || 'Failed to upload and analyze resume.');
+      const error: any = new Error(err.detail || 'Failed to upload and analyze resume.');
+      error.status = res.status;
+      throw error;
     }
     return await res.json();
   },
 
-  async analyzeResume(traineeId: string, file: File): Promise<ResumeAnalysisResult> {
-    const formData = new FormData();
-    formData.append('file', file);
-    const token = localStorage.getItem('skilltrace_auth_token');
-    const res = await fetch(`${BASE_URL}/trainees/${traineeId}/analyze-resume`, {
-      method: 'POST',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      body: formData,
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'AI Resume Analysis failed.' }));
-      throw new Error(err.detail || 'AI Resume Analysis failed.');
-    }
-    return await res.json();
+  // Backward-compatibility wrappers delegating to canonical uploadAndAnalyzeResume
+  uploadResume(traineeId: string, file: File) {
+    return this.uploadAndAnalyzeResume(traineeId, file);
+  },
+
+  analyzeResume(traineeId: string, file: File): Promise<ResumeAnalysisResult> {
+    return this.uploadAndAnalyzeResume(traineeId, file) as unknown as Promise<ResumeAnalysisResult>;
   },
 
   async reanalyzeResume(traineeId: string): Promise<ResumeAnalysisResult> {
-    const res = await fetch(`${BASE_URL}/trainees/${traineeId}/reanalyze-resume`, {
+    const res = await fetch(`${BASE_URL}/trainees/${traineeId}/resume/reanalyze`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -245,8 +490,21 @@ export const api = {
       },
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Failed to re-analyze resume.' }));
-      throw new Error(err.detail || 'Failed to re-analyze resume.');
+      // Compatibility fallback to legacy endpoint if required
+      const fallbackRes = await fetch(`${BASE_URL}/trainees/${traineeId}/reanalyze-resume`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+      });
+      if (!fallbackRes.ok) {
+        const err = await fallbackRes.json().catch(() => ({ detail: 'Failed to re-analyze resume.' }));
+        const error: any = new Error(err.detail || 'Failed to re-analyze resume.');
+        error.status = fallbackRes.status;
+        throw error;
+      }
+      return await fallbackRes.json();
     }
     return await res.json();
   },
@@ -259,7 +517,13 @@ export const api = {
       },
     });
     if (!res.ok) {
-      return { has_resume: false, extracted_skills: [] };
+      if (res.status === 404 || IS_DEMO_MODE) {
+        return { has_resume: false, extracted_skills: [] };
+      }
+      const err = await res.json().catch(() => ({ detail: 'Failed to get resume info' }));
+      const error: any = new Error(err.detail || 'Failed to get resume info');
+      error.status = res.status;
+      throw error;
     }
     return await res.json();
   },
@@ -272,7 +536,13 @@ export const api = {
       },
     });
     if (!res.ok) {
-      return { has_analysis: false, analysis: null };
+      if (res.status === 404 || IS_DEMO_MODE) {
+        return { has_analysis: false, analysis: null };
+      }
+      const err = await res.json().catch(() => ({ detail: 'Failed to get latest resume analysis' }));
+      const error: any = new Error(err.detail || 'Failed to get latest resume analysis');
+      error.status = res.status;
+      throw error;
     }
     return await res.json();
   },
@@ -353,12 +623,23 @@ export const api = {
     };
 
     try {
-      const res = await fetch(`${BASE_URL}/trainees/paginated/list?${queryParams.toString()}`);
+      const res = await fetch(`${BASE_URL}/trainees/paginated/list?${queryParams.toString()}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+      });
       if (res.ok) {
         return await res.json();
       }
-    } catch {
-      // fallback
+      if (!IS_DEMO_MODE) {
+        const err = await res.json().catch(() => ({ detail: `Failed to fetch paginated trainees: ${res.status}` }));
+        const error: any = new Error(err.detail || `Failed to fetch paginated trainees: ${res.status}`);
+        error.status = res.status;
+        throw error;
+      }
+    } catch (e) {
+      if (!IS_DEMO_MODE) throw e;
     }
 
     return fallback;
@@ -439,8 +720,14 @@ export const api = {
         localTrainees.unshift(created);
         return created;
       }
-    } catch {
-      // ignore
+      if (!IS_DEMO_MODE) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to create trainee' }));
+        const error: any = new Error(err.detail || 'Failed to create trainee');
+        error.status = res.status;
+        throw error;
+      }
+    } catch (e) {
+      if (!IS_DEMO_MODE) throw e;
     }
 
     localTrainees.unshift(newTrainee);
@@ -459,8 +746,14 @@ export const api = {
         body: JSON.stringify(updates)
       });
       if (res.ok) return await res.json();
-    } catch {
-      // fallback to local
+      if (!IS_DEMO_MODE) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to update trainee' }));
+        const error: any = new Error(err.detail || 'Failed to update trainee');
+        error.status = res.status;
+        throw error;
+      }
+    } catch (e) {
+      if (!IS_DEMO_MODE) throw e;
     }
     return localTrainees[index] || null;
   },
@@ -473,8 +766,14 @@ export const api = {
         body: JSON.stringify(consent)
       });
       if (res.ok) return await res.json();
-    } catch {
-      // fallback
+      if (!IS_DEMO_MODE) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to update consent' }));
+        const error: any = new Error(err.detail || 'Failed to update consent');
+        error.status = res.status;
+        throw error;
+      }
+    } catch (e) {
+      if (!IS_DEMO_MODE) throw e;
     }
     const t = localTrainees.find(tr => tr.id === id);
     if (t) {
@@ -494,8 +793,14 @@ export const api = {
         body: JSON.stringify(outcome)
       });
       if (res.ok) return await res.json();
-    } catch {
-      // fallback
+      if (!IS_DEMO_MODE) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to add outcome' }));
+        const error: any = new Error(err.detail || 'Failed to add outcome');
+        error.status = res.status;
+        throw error;
+      }
+    } catch (e) {
+      if (!IS_DEMO_MODE) throw e;
     }
     const t = localTrainees.find(tr => tr.id === id);
     if (t) {
@@ -529,8 +834,14 @@ export const api = {
         body: JSON.stringify(followUp)
       });
       if (res.ok) return await res.json();
-    } catch {
-      // fallback
+      if (!IS_DEMO_MODE) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to add follow-up' }));
+        const error: any = new Error(err.detail || 'Failed to add follow-up');
+        error.status = res.status;
+        throw error;
+      }
+    } catch (e) {
+      if (!IS_DEMO_MODE) throw e;
     }
     const t = localTrainees.find(tr => tr.id === id);
     if (t) {
@@ -557,8 +868,14 @@ export const api = {
         body: JSON.stringify(cert)
       });
       if (res.ok) return await res.json();
-    } catch {
-      // fallback
+      if (!IS_DEMO_MODE) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to add certification' }));
+        const error: any = new Error(err.detail || 'Failed to add certification');
+        error.status = res.status;
+        throw error;
+      }
+    } catch (e) {
+      if (!IS_DEMO_MODE) throw e;
     }
     const t = localTrainees.find(tr => tr.id === id);
     if (t) {
@@ -598,8 +915,14 @@ export const api = {
         body: JSON.stringify(assess)
       });
       if (res.ok) return await res.json();
-    } catch {
-      // fallback
+      if (!IS_DEMO_MODE) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to add assessment' }));
+        const error: any = new Error(err.detail || 'Failed to add assessment');
+        error.status = res.status;
+        throw error;
+      }
+    } catch (e) {
+      if (!IS_DEMO_MODE) throw e;
     }
     const t = localTrainees.find(tr => tr.id === id);
     if (t) {
@@ -710,7 +1033,7 @@ export const api = {
     return await res.json();
   },
 
-  async getTraineeSkillGap(
+  async getTraineeSkillGapAnalysis(
     traineeId: string,
     targetOccupationId?: string,
     targetJobId?: string
@@ -726,6 +1049,15 @@ export const api = {
       throw new Error(`Failed to fetch skill gap analysis for trainee ${traineeId}`);
     }
     return await res.json();
+  },
+
+  // Backward-compatibility alias delegating to canonical getTraineeSkillGapAnalysis
+  async getTraineeSkillGap(
+    traineeId: string,
+    targetOccupationId?: string,
+    targetJobId?: string
+  ): Promise<SkillGapAnalysis> {
+    return this.getTraineeSkillGapAnalysis(traineeId, targetOccupationId, targetJobId);
   },
 
   async analyzeSkillGap(payload: {
@@ -777,6 +1109,26 @@ export const api = {
   },
 
   async completeFollowUp(id: string, notes?: string): Promise<FollowUpItem | null> {
+    try {
+      const res = await fetch(`${BASE_URL}/follow-ups/${id}/complete`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ notes }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      if (!IS_DEMO_MODE) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to complete follow-up' }));
+        const error: any = new Error(err.detail || 'Failed to complete follow-up');
+        error.status = res.status;
+        throw error;
+      }
+    } catch (e: any) {
+      if (!IS_DEMO_MODE) {
+        throw e;
+      }
+    }
     const item = localFollowUps.find(f => f.id === id);
     if (item) {
       item.status = 'completed';
@@ -1000,7 +1352,7 @@ export const api = {
     return fetchWithFallback<TraineeInterventionItem[]>(`/interventions/trainees/${traineeId}`, []);
   },
 
-  async startIntervention(payload: StartInterventionPayload): Promise<TraineeInterventionItem> {
+  async startSkillGapIntervention(payload: StartInterventionPayload): Promise<TraineeInterventionItem> {
     const res = await fetch(`${BASE_URL}/interventions/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
@@ -1011,6 +1363,11 @@ export const api = {
       throw new Error(err.detail || 'Failed to start intervention');
     }
     return await res.json();
+  },
+
+  // Backward-compatibility alias delegating to canonical startSkillGapIntervention
+  async startIntervention(payload: StartInterventionPayload): Promise<TraineeInterventionItem> {
+    return this.startSkillGapIntervention(payload);
   },
 
   async updateInterventionProgress(
@@ -2114,21 +2471,7 @@ export const api = {
   },
 
   async analyzeTraineeResume(id: string, file: File): Promise<any> {
-    const formData = new FormData();
-    formData.append('file', file);
-    const authHeaders = getAuthHeader();
-    const res = await fetch(`${BASE_URL}/trainees/${id}/resume/analyze`, {
-      method: 'POST',
-      headers: {
-        ...authHeaders,
-      },
-      body: formData,
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Failed to analyze resume' }));
-      throw new Error(err.detail || 'Failed to analyze resume');
-    }
-    return await res.json();
+    return this.uploadAndAnalyzeResume(id, file);
   },
 
   // Self-Service /me API wrappers
@@ -2412,7 +2755,7 @@ export const outcomeRisksApi = {
     return await res.json();
   },
 
-  async startIntervention(riskId: string): Promise<OutcomeRiskItem> {
+  async startOutcomeRiskIntervention(riskId: string): Promise<OutcomeRiskItem> {
     const res = await fetch(`${BASE_URL}/outcome-risks/${riskId}/start`, {
       method: 'POST',
       headers: {
@@ -2425,6 +2768,11 @@ export const outcomeRisksApi = {
       throw new Error(err.detail || 'Failed to start intervention');
     }
     return await res.json();
+  },
+
+  // Backward-compatibility alias delegating to canonical startOutcomeRiskIntervention
+  async startIntervention(riskId: string): Promise<OutcomeRiskItem> {
+    return this.startOutcomeRiskIntervention(riskId);
   },
 
   async completeIntervention(riskId: string): Promise<OutcomeRiskItem> {
@@ -2473,7 +2821,7 @@ export const outcomeRisksApi = {
 // ========================================================
 
 export const skillIntelligenceApi = {
-  async getTraineeSkillGap(
+  async getTraineeSkillIntelligence(
     traineeId: string,
     params?: { target_role?: string; target_job_id?: string }
   ): Promise<TraineeSkillGapResponse> {
@@ -2483,6 +2831,14 @@ export const skillIntelligenceApi = {
     });
     if (!res.ok) throw new Error('Failed to fetch trainee skill gap intelligence');
     return await res.json();
+  },
+
+  // Backward-compatibility alias delegating to canonical getTraineeSkillIntelligence
+  async getTraineeSkillGap(
+    traineeId: string,
+    params?: { target_role?: string; target_job_id?: string }
+  ): Promise<TraineeSkillGapResponse> {
+    return this.getTraineeSkillIntelligence(traineeId, params);
   },
 
   async getCourseSkillAnalysis(courseId: string): Promise<CourseSkillAnalysisResponse> {
@@ -2589,7 +2945,7 @@ export const outcomeIntelligenceApi = {
   },
 
   async generateFollowUpQuestions(traineeId: string, employmentStatus: string): Promise<FollowUpGenerationResponse> {
-    const res = await fetch(`${BASE_URL}/followups/generate?trainee_id=${encodeURIComponent(traineeId)}&employment_status=${encodeURIComponent(employmentStatus)}`, {
+    const res = await fetch(`${BASE_URL}/follow-ups/generate?trainee_id=${encodeURIComponent(traineeId)}&employment_status=${encodeURIComponent(employmentStatus)}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2601,7 +2957,7 @@ export const outcomeIntelligenceApi = {
   },
 
   async submitFollowUpResponse(payload: FollowUpResponseSubmission): Promise<any> {
-    const res = await fetch(`${BASE_URL}/followups/respond`, {
+    const res = await fetch(`${BASE_URL}/follow-ups/respond`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2613,7 +2969,3 @@ export const outcomeIntelligenceApi = {
     return await res.json();
   }
 };
-
-
-
-

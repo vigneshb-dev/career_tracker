@@ -25,7 +25,11 @@ from app.routers import (
     skill_intelligence_router,
     outcome_intelligence_router,
     outcomes_router,
+    follow_ups_questions_router,
     followups_router,
+    companies_router,
+    training_institutes_router,
+    courses_router,
 )
 from app.services.intervention_service import InterventionEngine
 from app.services.career_progression_service import CareerProgressionService
@@ -158,7 +162,11 @@ app.include_router(outcome_risks_router, prefix=settings.API_V1_STR)
 app.include_router(skill_intelligence_router, prefix=settings.API_V1_STR)
 app.include_router(outcome_intelligence_router, prefix=settings.API_V1_STR)
 app.include_router(outcomes_router, prefix=settings.API_V1_STR)
+app.include_router(follow_ups_questions_router, prefix=settings.API_V1_STR)
 app.include_router(followups_router, prefix=settings.API_V1_STR)
+app.include_router(companies_router, prefix=settings.API_V1_STR)
+app.include_router(training_institutes_router, prefix=settings.API_V1_STR)
+app.include_router(courses_router, prefix=settings.API_V1_STR)
 
 
 if __name__ == "__main__":

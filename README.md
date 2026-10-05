@@ -261,16 +261,21 @@ Open `http://localhost:5173` in your browser.
 
 ## 👥 Default Demo Credentials
 
-The platform seeds a realistic workforce cohort with pre-configured personas:
+The platform seeds a realistic workforce cohort with pre-configured personas across multi-tenant organizations:
 
-| Persona | Role | Email | Password |
-|---|---|---|---|
-| **Priya Sharma** | `TRAINEE` | `priya.sharma@example.com` | `Trainee@123456` |
-| **Sarah Jenkins** | `COACH` | `coach.sarah@skilltrace.org` | `Coach@123456` |
-| **Sunita Rao (Apex Cloud)** | `EMPLOYER` | `recruiter@apexcloud.io` | `Employer@123456` |
-| **System Admin** | `ADMIN` | `admin@skilltrace.org` | `Admin@123456` |
+| Persona | Role | Organization / Scope | Email | Password |
+|---|---|---|---|---|
+| **Sarah Jenkins** | `COACH` | National Institute of Cloud & AI (`INST-01`) | `coach.sarah@skilltrace.org` | `Coach@123456` |
+| **Arun Kumar** | `COACH` | Meridian Health & Life Sciences (`INST-02`) | `coach.arun@skilltrace.org` | `Coach@123456` |
+| **Sunita Rao** | `EMPLOYER` | Apex Cloud Technologies (`CMP-01`) | `recruiter@apexcloud.io` | `Employer@123456` |
+| **Vikram Reddy** | `EMPLOYER` | Meridian MedTech (`CMP-02`) | `recruiter@meridianmedtech.co.in` | `Employer@123456` |
+| **Priya Sharma** | `TRAINEE` | Cloud & AI Cohort (`TRN-2024-001`) | `priya.sharma@example.com` | `Trainee@123456` |
+| **Rajesh Kumar** | `TRAINEE` | Cloud & AI Cohort (`TRN-2024-002`) | `rajesh.kumar@example.com` | `Trainee@123456` |
+| **System Admin** | `ADMIN` | Central Multi-Tenant Administration | `admin@skilltrace.org` | `Admin@123456` |
+| **System Admin (Alt)** | `ADMIN` | Central Multi-Tenant Administration | `admin@skilltrace.gov` | `Admin@123456` |
 
-*Note: For 2FA/OTP login screens in demo mode, the test verification code is `123456`.*
+> [!NOTE]
+> For 2FA/OTP login screens in demo mode, the test verification code is **`123456`**.
 
 ---
 

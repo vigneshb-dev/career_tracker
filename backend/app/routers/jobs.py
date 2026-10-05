@@ -3,29 +3,30 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from app.core.database import get_db
-from app.core.auth import get_current_user, require_roles
-from app.models.entities import Job, JobExtractedSkill, User
+from app.core.auth import (
+    get_current_user,
+    require_roles,
+    verify_employer_owns_job,
+    get_user_company_id,
+    record_organization_audit,
+)
+from app.models.entities import Job, JobExtractedSkill, User, Company, JobApplication, Trainee
 from app.schemas.schemas import (
     JobRead,
     JobCreate,
+    JobUpdate,
     JobAnalyzeRequest,
     JobAnalyzeResponse,
     ExtractedSkillsResponse,
     JobExtractedSkillRead,
+    JobApplicationRead,
+    JobApplicationCreate,
 )
 from app.services.job_intelligence_service import JobIntelligenceService
 
 router = APIRouter(prefix="/jobs", tags=["Job Intelligence"])
 
-def cosine_similarity(v1: List[float], v2: List[float]) -> float:
-    if not v1 or not v2 or len(v1) != len(v2):
-        return 0.0
-    dot = sum(a * b for a, b in zip(v1, v2))
-    norm1 = math.sqrt(sum(a * a for a in v1))
-    norm2 = math.sqrt(sum(b * b for b in v2))
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-    return dot / (norm1 * norm2)
+from app.core.math_utils import cosine_similarity
 
 @router.get("", response_model=List[JobRead])
 def list_jobs(
@@ -92,18 +93,182 @@ def create_job(
     """
     Creates a new job description:
     Triggers NLP Skill Extraction -> Skill Normalization -> Occupation Mapping -> Embedding Generation.
-    Restricted to authorized Employer or Admin.
+    Strictly enforces company ownership for employers.
     """
     user_role = (current_user.role or "").strip().upper()
     job_data = job_in.model_dump()
-    if user_role == "EMPLOYER" and current_user.employer_profile:
-        # Enforce employer affiliation
-        job_data["employer_id"] = current_user.employer_profile.employer_id
-        if current_user.employer_profile.company_name:
-            job_data["employer_name"] = current_user.employer_profile.company_name
+    target_company_id = job_data.get("company_id")
+
+    if user_role == "EMPLOYER":
+        if not current_user.employer_profile or not current_user.employer_profile.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Employer is not associated with any registered company"
+            )
+        user_company_id = current_user.employer_profile.company_id
+        if target_company_id and target_company_id != user_company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Forbidden: You cannot create jobs for another company ({target_company_id})"
+            )
+        job_data["company_id"] = user_company_id
+        job_data["created_by"] = current_user.id
+        job_data["employer_id"] = current_user.employer_profile.employer_id or user_company_id
+
+        company = db.query(Company).filter(Company.id == user_company_id).first()
+        if company:
+            job_data["employer_name"] = company.display_name or company.legal_name
+    elif user_role == "ADMIN":
+        if target_company_id:
+            company = db.query(Company).filter(Company.id == target_company_id).first()
+            if company and not job_data.get("employer_name"):
+                job_data["employer_name"] = company.display_name or company.legal_name
+        job_data["created_by"] = current_user.id
 
     job = JobIntelligenceService.process_and_save_job(db, job_data)
+
+    org_id = job.company_id or "SYSTEM"
+    record_organization_audit(
+        db=db,
+        actor_user_id=current_user.id,
+        organization_id=org_id,
+        action="CREATE_JOB",
+        resource_type="JOB",
+        resource_id=job.id,
+        details={"title": job.title, "company_id": job.company_id}
+    )
+
     return job
+
+@router.put("/{job_id}", response_model=JobRead)
+def update_job(
+    job_id: str,
+    job_update: JobUpdate,
+    current_user: User = Depends(require_roles(["ADMIN", "EMPLOYER"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Updates a job description. Strict tenant isolation: Employers can only edit jobs belonging to their own company.
+    """
+    job = verify_employer_owns_job(job_id=job_id, current_user=current_user, db=db)
+
+    update_data = job_update.model_dump(exclude_unset=True)
+    # Employer cannot re-assign company_id
+    user_role = (current_user.role or "").strip().upper()
+    if user_role == "EMPLOYER" and "company_id" in update_data:
+        if update_data["company_id"] != job.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Cannot reassign job to another company"
+            )
+
+    for field, val in update_data.items():
+        if hasattr(job, field) and val is not None:
+            setattr(job, field, val)
+
+    db.commit()
+    db.refresh(job)
+
+    record_organization_audit(
+        db=db,
+        actor_user_id=current_user.id,
+        organization_id=job.company_id or "UNKNOWN",
+        action="UPDATE_JOB",
+        resource_type="JOB",
+        resource_id=job.id,
+        details={"updated_fields": list(update_data.keys())}
+    )
+
+    return job
+
+@router.delete("/{job_id}")
+def delete_or_archive_job(
+    job_id: str,
+    current_user: User = Depends(require_roles(["ADMIN", "EMPLOYER"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Closes or archives a job. Restricted to company owning the job or Admin.
+    """
+    job = verify_employer_owns_job(job_id=job_id, current_user=current_user, db=db)
+    job.status = "archived"
+    db.commit()
+
+    record_organization_audit(
+        db=db,
+        actor_user_id=current_user.id,
+        organization_id=job.company_id or "UNKNOWN",
+        action="ARCHIVE_JOB",
+        resource_type="JOB",
+        resource_id=job.id,
+        details={"status": "archived"}
+    )
+    return {"status": "success", "message": f"Job {job_id} archived successfully", "id": job_id}
+
+@router.get("/{job_id}/applications", response_model=List[JobApplicationRead])
+def list_job_applications(
+    job_id: str,
+    current_user: User = Depends(require_roles(["ADMIN", "EMPLOYER"])),
+    db: Session = Depends(get_db)
+):
+    """
+    List applications for a job. Enforces company-level RBAC.
+    """
+    job = verify_employer_owns_job(job_id=job_id, current_user=current_user, db=db)
+    applications = db.query(JobApplication).filter(JobApplication.job_id == job.id).all()
+    return applications
+
+@router.post("/{job_id}/apply", response_model=JobApplicationRead, status_code=status.HTTP_201_CREATED)
+def apply_to_job(
+    job_id: str,
+    app_in: JobApplicationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Apply for a company job.
+    """
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    trainee_id = app_in.trainee_id
+    if not trainee_id and current_user.trainee_profile:
+        trainee_id = current_user.trainee_profile.id
+    elif not trainee_id:
+        # Fallback to user ID if no trainee profile
+        trainee_id = current_user.id
+
+    existing = db.query(JobApplication).filter(
+        JobApplication.job_id == job_id,
+        JobApplication.trainee_id == trainee_id
+    ).first()
+    if existing:
+        return existing
+
+    import uuid
+    application = JobApplication(
+        id=f"APP-{uuid.uuid4().hex[:8].upper()}",
+        job_id=job.id,
+        company_id=job.company_id,
+        trainee_id=trainee_id,
+        status="APPLIED",
+        cover_note=app_in.cover_note
+    )
+    db.add(application)
+    db.commit()
+    db.refresh(application)
+
+    record_organization_audit(
+        db=db,
+        actor_user_id=current_user.id,
+        organization_id=job.company_id or "COMPANY",
+        action="APPLY_JOB",
+        resource_type="JOB_APPLICATION",
+        resource_id=application.id,
+        details={"job_id": job.id, "trainee_id": trainee_id}
+    )
+    return application
 
 @router.post("/analyze", response_model=JobAnalyzeResponse)
 def analyze_job_description(

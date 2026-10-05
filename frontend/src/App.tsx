@@ -29,6 +29,8 @@ import { OutcomeRisks } from './pages/OutcomeRisks';
 import { AdminSkillIntelligence } from './pages/AdminSkillIntelligence';
 import { TraineeSkillGapDashboard } from './pages/TraineeSkillGapDashboard';
 import { CourseSkillAnalysis } from './pages/CourseSkillAnalysis';
+import { EmployerOrganizationDashboard } from './pages/EmployerOrganizationDashboard';
+import { CoachInstituteDashboard } from './pages/CoachInstituteDashboard';
 import { NotFound } from './pages/NotFound';
 
 const RootRedirect: React.FC = () => {
@@ -38,7 +40,8 @@ const RootRedirect: React.FC = () => {
     const target = user?.trainee_id ? `/trainees/${user.trainee_id}` : '/my-resume';
     return <Navigate to={target} replace />;
   }
-  if (role === 'EMPLOYER') return <Navigate to="/employers" replace />;
+  if (role === 'EMPLOYER') return <Navigate to="/employer-organization" replace />;
+  if (role === 'COACH') return <Navigate to="/coach-institute" replace />;
   return <Navigate to="/dashboard" replace />;
 };
 
@@ -83,6 +86,10 @@ export const App: React.FC = () => {
             <Route path="/trainee/skill-gap" element={<TraineeSkillGapDashboard />} />
             <Route path="/admin/courses/:courseId/skill-analysis" element={<ProtectedRoute allowedRoles={['ADMIN', 'COACH']}><CourseSkillAnalysis /></ProtectedRoute>} />
             
+            {/* Multi-Tenant Organization Dashboards */}
+            <Route path="/employer-organization" element={<ProtectedRoute allowedRoles={['EMPLOYER', 'ADMIN']}><EmployerOrganizationDashboard /></ProtectedRoute>} />
+            <Route path="/coach-institute" element={<ProtectedRoute allowedRoles={['COACH', 'ADMIN']}><CoachInstituteDashboard /></ProtectedRoute>} />
+
             {/* Employer Views */}
             <Route path="/employers" element={<ProtectedRoute allowedRoles={['EMPLOYER', 'ADMIN']}><Employers /></ProtectedRoute>} />
             <Route path="/employer-portal" element={<ProtectedRoute allowedRoles={['EMPLOYER', 'ADMIN']}><Employers /></ProtectedRoute>} />

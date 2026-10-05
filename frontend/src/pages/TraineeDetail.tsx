@@ -647,22 +647,7 @@ EDUCATION & CERTIFICATIONS:
         fileToUpload = new File([sampleText], 'Priya_Sharma_DataAnalyst_Resume.txt', { type: 'text/plain' });
       }
 
-      const formData = new FormData();
-      formData.append('file', fileToUpload);
-
-      const token = localStorage.getItem('skilltrace_auth_token');
-      const res = await fetch(`/api/trainees/${trainee.id}/resume/analyze`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: 'Failed to analyze resume' }));
-        throw new Error(err.detail || 'Resume analysis failed');
-      }
-
-      const result = await res.json();
+      const result = await api.uploadAndAnalyzeResume(trainee.id, fileToUpload);
       setResumeAnalysisResult(result);
       const skillsCount = result.extracted_skills?.length || 0;
       showToast(`Resume analyzed. ${skillsCount} skills detected.`);

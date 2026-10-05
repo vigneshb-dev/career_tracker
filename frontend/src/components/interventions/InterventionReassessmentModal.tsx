@@ -188,7 +188,7 @@ export const InterventionReassessmentModal: React.FC<InterventionReassessmentMod
   // Step 3 Handler: Start Intervention
   const handleStartIntervention = async (rec: InterventionRecommendation) => {
     try {
-      const tint = await api.startIntervention({
+      const tint = await api.startSkillGapIntervention({
         trainee_id: traineeId,
         gap_skill_id: gap.skill_id,
         gap_skill_name: gap.skill_name,

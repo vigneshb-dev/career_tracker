@@ -154,7 +154,7 @@ export const SkillGaps: React.FC = () => {
     setIsAnalyzing(true);
     try {
       const [data, interventions] = await Promise.all([
-        api.getTraineeSkillGap(traineeId, occId || undefined, jobId || undefined),
+        api.getTraineeSkillGapAnalysis(traineeId, occId || undefined, jobId || undefined),
         api.getTraineeInterventions(traineeId).catch(() => [])
       ]);
       setCurrentAnalysis(data);
@@ -234,7 +234,7 @@ export const SkillGaps: React.FC = () => {
       const [newSummary, newGaps, newCurrent] = await Promise.all([
         api.getSkillGapsSummary(),
         api.getSkillGaps(),
-        api.getTraineeSkillGap(selectedTraineeId, selectedOccId || undefined)
+        api.getTraineeSkillGapAnalysis(selectedTraineeId, selectedOccId || undefined)
       ]);
       setSummary(newSummary);
       setAllGaps(newGaps);

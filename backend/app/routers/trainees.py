@@ -343,42 +343,17 @@ async def analyze_my_resume(
 ):
     trainee = _get_caller_trainee(current_user, db)
     content = await file.read()
-    safe_filename = f"{trainee.id}_{uuid.uuid4().hex[:6]}_{file.filename}"
-    file_path = os.path.join(RESUME_UPLOAD_DIR, safe_filename)
-    with open(file_path, "wb") as f:
-        f.write(content)
-    file_url = f"/uploads/resumes/{safe_filename}"
     try:
-        result = ResumeAnalyzerService.analyze_and_integrate_resume(
+        return ResumeAnalyzerService.process_and_record_resume(
             db=db,
-            trainee_id=trainee.id,
+            trainee=trainee,
             file_bytes=content,
             filename=file.filename,
-            file_url=file_url
-        )
-        extracted = [s["canonical_name"] for s in result.get("skills_profile", [])]
-        TraineeService.log_passport_event(
-            db=db,
-            trainee_id=trainee.id,
+            upload_dir=RESUME_UPLOAD_DIR,
             actor_name=current_user.full_name,
             actor_role=current_user.role,
-            actor_id=current_user.id,
-            event_type="RESUME_ANALYZED",
-            action=f"AI Resume Analyzer scanned resume: {file.filename} ({len(extracted)} skills detected)",
-            entity_type="RESUME",
-            entity_id=safe_filename,
-            previous_value=None,
-            new_value={"filename": file.filename, "skills_detected": len(extracted)},
-            source="RESUME_ANALYZER",
-            verification_status="AI_EXTRACTED",
-            notes="Real-time semantic extraction and canonical mapping completed."
+            actor_id=current_user.id
         )
-        return {
-            "success": True,
-            "message": f"Resume analyzed. {len(extracted)} skills detected.",
-            "extracted_skills": extracted,
-            **result
-        }
     except Exception as exc:
         logger.error(f"Error analyzing resume: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -457,7 +432,8 @@ def update_my_outcome(
     )
 
 
-@router.get("/me/followups")
+@router.get("/me/follow-ups")
+@router.get("/me/followups", include_in_schema=False)
 def get_my_followups(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -466,7 +442,8 @@ def get_my_followups(
     return trainee.follow_up_history or []
 
 
-@router.post("/me/followups/{followup_id}/respond", response_model=TraineeRead)
+@router.post("/me/follow-ups/{followup_id}/respond", response_model=TraineeRead)
+@router.post("/me/followups/{followup_id}/respond", response_model=TraineeRead, include_in_schema=False)
 def respond_my_followup(
     followup_id: str,
     payload: FollowUpResponseRequest,
@@ -533,19 +510,33 @@ def list_trainees(
         return [trainee] if trainee else []
 
     elif user_role == "COACH":
-        assigned_ids = current_user.coach_profile.assigned_trainee_ids if current_user.coach_profile else []
+        coach_profile = current_user.coach_profile
+        assigned_ids = set(coach_profile.assigned_trainee_ids or []) if coach_profile else set()
+        if coach_profile and coach_profile.training_institute_id:
+            from app.models.entities import Enrollment
+            enrolled = db.query(Enrollment.trainee_id).filter(Enrollment.training_institute_id == coach_profile.training_institute_id).all()
+            for (t_id,) in enrolled:
+                if t_id:
+                    assigned_ids.add(t_id)
         if not assigned_ids:
             return []
-        query = db.query(Trainee).filter(Trainee.id.in_(assigned_ids))
+        query = db.query(Trainee).filter(Trainee.id.in_(list(assigned_ids)))
         if search:
             query = query.filter(Trainee.full_name.ilike(f"%{search}%"))
         return query.offset(skip).limit(limit).all()
 
     elif user_role == "EMPLOYER":
-        auth_ids = current_user.employer_profile.authorized_candidate_ids if current_user.employer_profile else []
+        employer_profile = current_user.employer_profile
+        auth_ids = set(employer_profile.authorized_candidate_ids or []) if employer_profile else set()
+        if employer_profile and employer_profile.company_id:
+            from app.models.entities import JobApplication
+            applied = db.query(JobApplication.trainee_id).filter(JobApplication.company_id == employer_profile.company_id).all()
+            for (t_id,) in applied:
+                if t_id:
+                    auth_ids.add(t_id)
         query = db.query(Trainee)
         if auth_ids:
-            query = query.filter(Trainee.id.in_(auth_ids))
+            query = query.filter(Trainee.id.in_(list(auth_ids)))
         return query.offset(skip).limit(limit).all()
 
     return TraineeService.get_trainees(
@@ -571,11 +562,15 @@ def list_trainees_paginated(
     db: Session = Depends(get_db)
 ):
     user_role = (current_user.role or "").upper()
+    allowed_ids = None
+
     if user_role == "TRAINEE":
         trainee = db.query(Trainee).filter(
             (Trainee.user_id == current_user.id) | 
             (Trainee.email == current_user.email)
         ).first()
+        if not trainee and current_user.trainee_profile and current_user.trainee_profile.trainee_id:
+            trainee = db.query(Trainee).filter(Trainee.id == current_user.trainee_profile.trainee_id).first()
         items = [trainee] if trainee else []
         return {
             "items": items,
@@ -585,12 +580,36 @@ def list_trainees_paginated(
             "total_pages": 1 if items else 0
         }
 
+    elif user_role == "COACH":
+        coach_profile = current_user.coach_profile
+        assigned_ids = set(coach_profile.assigned_trainee_ids or []) if coach_profile else set()
+        if coach_profile and coach_profile.training_institute_id:
+            from app.models.entities import Enrollment
+            enrolled = db.query(Enrollment.trainee_id).filter(Enrollment.training_institute_id == coach_profile.training_institute_id).all()
+            for (t_id,) in enrolled:
+                if t_id:
+                    assigned_ids.add(t_id)
+        allowed_ids = list(assigned_ids)
+
+    elif user_role == "EMPLOYER":
+        employer_profile = current_user.employer_profile
+        auth_ids = set(employer_profile.authorized_candidate_ids or []) if employer_profile else set()
+        if employer_profile and employer_profile.company_id:
+            from app.models.entities import JobApplication
+            applied = db.query(JobApplication.trainee_id).filter(JobApplication.company_id == employer_profile.company_id).all()
+            for (t_id,) in applied:
+                if t_id:
+                    auth_ids.add(t_id)
+        if auth_ids:
+            allowed_ids = list(auth_ids)
+
     items, total, total_pages = TraineeService.get_paginated_trainees(
         db,
         search=search,
         status=status,
         program=program,
         outcome_type=outcome_type,
+        allowed_trainee_ids=allowed_ids,
         page=page,
         page_size=page_size
     )
@@ -1027,8 +1046,8 @@ def verify_outcome(
 # Follow-Ups & Longitudinal Audits
 # ========================================================
 
-@router.get("/{trainee_id}/followups")
 @router.get("/{trainee_id}/follow-ups")
+@router.get("/{trainee_id}/followups", include_in_schema=False)
 def get_trainee_followups(
     trainee_id: str,
     current_user: User = Depends(get_current_user),
@@ -1050,7 +1069,7 @@ def add_follow_up(
 
 
 @router.post("/{trainee_id}/follow-ups/{followup_id}/respond", response_model=TraineeRead)
-@router.post("/{trainee_id}/followups/{followup_id}/respond", response_model=TraineeRead)
+@router.post("/{trainee_id}/followups/{followup_id}/respond", response_model=TraineeRead, include_in_schema=False)
 def respond_follow_up(
     trainee_id: str,
     followup_id: str,
@@ -1185,60 +1204,34 @@ def get_passport_audit_history(
 # Resume Analyzer Integration
 # ========================================================
 
-@router.post("/{trainee_id}/resume")
-@router.post("/{trainee_id}/analyze-resume")
-@router.post("/{trainee_id}/resume/analyze")
+# Canonical: POST /{trainee_id}/resume/analyze
+# Compatibility aliases: POST /{trainee_id}/resume, POST /{trainee_id}/analyze-resume
+@router.post("/{trainee_id}/resume/analyze", tags=["AI Resume Analyzer"])
+@router.post("/{trainee_id}/resume", include_in_schema=False)
+@router.post("/{trainee_id}/analyze-resume", include_in_schema=False)
 async def upload_trainee_resume(
     trainee_id: str,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Canonical Endpoint: Upload and analyze trainee resume in real time.
+    Extracts skills, matches target ontology, updates profile, and creates audit passport event.
+    """
     trainee = verify_trainee_resource_access(trainee_id, current_user, db)
-
     content = await file.read()
-    safe_filename = f"{trainee.id}_{uuid.uuid4().hex[:6]}_{file.filename}"
-    file_path = os.path.join(RESUME_UPLOAD_DIR, safe_filename)
-    
-    with open(file_path, "wb") as f:
-        f.write(content)
-
-    file_url = f"/uploads/resumes/{safe_filename}"
-
     try:
-        result = ResumeAnalyzerService.analyze_and_integrate_resume(
+        return ResumeAnalyzerService.process_and_record_resume(
             db=db,
-            trainee_id=trainee.id,
+            trainee=trainee,
             file_bytes=content,
             filename=file.filename,
-            file_url=file_url
-        )
-        extracted = [s["canonical_name"] for s in result.get("skills_profile", [])]
-
-        # Log Passport Event for Resume Analysis
-        TraineeService.log_passport_event(
-            db=db,
-            trainee_id=trainee.id,
+            upload_dir=RESUME_UPLOAD_DIR,
             actor_name=current_user.full_name,
             actor_role=current_user.role,
-            actor_id=current_user.id,
-            event_type="RESUME_ANALYZED",
-            action=f"AI Resume Analyzer scanned resume: {file.filename} ({len(extracted)} skills detected)",
-            entity_type="RESUME",
-            entity_id=safe_filename,
-            previous_value=None,
-            new_value={"filename": file.filename, "skills_detected": len(extracted)},
-            source="RESUME_ANALYZER",
-            verification_status="AI_EXTRACTED",
-            notes="Real-time semantic extraction and canonical mapping completed."
+            actor_id=current_user.id
         )
-
-        return {
-            "success": True,
-            "message": f"Resume analyzed. {len(extracted)} skills detected.",
-            "extracted_skills": extracted,
-            **result
-        }
     except Exception as exc:
         logger.error(f"Error analyzing resume for trainee {trainee.id}: {exc}", exc_info=True)
         raise HTTPException(
@@ -1247,7 +1240,10 @@ async def upload_trainee_resume(
         )
 
 
-@router.post("/{trainee_id}/reanalyze-resume")
+# Canonical: POST /{trainee_id}/resume/reanalyze
+# Compatibility alias: POST /{trainee_id}/reanalyze-resume
+@router.post("/{trainee_id}/resume/reanalyze", tags=["AI Resume Analyzer"])
+@router.post("/{trainee_id}/reanalyze-resume", include_in_schema=False)
 def reanalyze_trainee_resume(
     trainee_id: str,
     current_user: User = Depends(get_current_user),

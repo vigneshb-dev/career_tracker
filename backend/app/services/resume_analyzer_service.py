@@ -65,19 +65,71 @@ def get_sentence_transformer():
             _sentence_transformer_model = None
     return _sentence_transformer_model
 
-def cosine_similarity(v1: List[float], v2: List[float]) -> float:
-    if not v1 or not v2 or len(v1) != len(v2):
-        return 0.0
-    dot = sum(a * b for a, b in zip(v1, v2))
-    norm1 = math.sqrt(sum(a * a for a in v1))
-    norm2 = math.sqrt(sum(b * b for b in v2))
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-    return dot / (norm1 * norm2)
+from app.core.math_utils import cosine_similarity
 
 
 class ResumeAnalyzerService:
     """End-to-end AI Resume Analyzer fused with SkillTrace Competency Architecture."""
+
+    @classmethod
+    def process_and_record_resume(
+        cls,
+        db: Session,
+        trainee: Trainee,
+        file_bytes: bytes,
+        filename: str,
+        upload_dir: str,
+        actor_name: Optional[str] = None,
+        actor_role: Optional[str] = None,
+        actor_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Canonical workflow for uploading, persisting, analyzing, and recording a trainee resume.
+        Saves file to disk, runs analysis & profile integration, and logs passport audit event.
+        """
+        from app.services.trainee_service import TraineeService
+
+        os.makedirs(upload_dir, exist_ok=True)
+        safe_filename = f"{trainee.id}_{uuid.uuid4().hex[:6]}_{filename}"
+        file_path = os.path.join(upload_dir, safe_filename)
+
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
+
+        file_url = f"/uploads/resumes/{safe_filename}"
+
+        result = cls.analyze_and_integrate_resume(
+            db=db,
+            trainee_id=trainee.id,
+            file_bytes=file_bytes,
+            filename=filename,
+            file_url=file_url
+        )
+        extracted = [s["canonical_name"] for s in result.get("skills_profile", [])]
+
+        TraineeService.log_passport_event(
+            db=db,
+            trainee_id=trainee.id,
+            actor_name=actor_name,
+            actor_role=actor_role,
+            actor_id=actor_id,
+            event_type="RESUME_ANALYZED",
+            action=f"AI Resume Analyzer scanned resume: {filename} ({len(extracted)} skills detected)",
+            entity_type="RESUME",
+            entity_id=safe_filename,
+            previous_value=None,
+            new_value={"filename": filename, "skills_detected": len(extracted)},
+            source="RESUME_ANALYZER",
+            verification_status="AI_EXTRACTED",
+            notes="Real-time semantic extraction and canonical mapping completed."
+        )
+
+        return {
+            "success": True,
+            "message": f"Resume analyzed. {len(extracted)} skills detected.",
+            "extracted_skills": extracted,
+            **result
+        }
 
     @classmethod
     def extract_text_from_file(cls, file_bytes: bytes, filename: str) -> str:
@@ -706,6 +758,7 @@ class ResumeAnalyzerService:
         logger.info(f"Resume analysis {analysis_id} for trainee {trainee.id} successfully completed.")
 
         return {
+            "status": "success",
             "analysis_id": analysis_id,
             "trainee_id": trainee.id,
             "trainee_name": trainee.full_name,
@@ -714,6 +767,7 @@ class ResumeAnalyzerService:
             "file_type": filename.split(".")[-1].lower(),
             "analyzed_at": analysis_record.analyzed_at,
             "extracted_metadata": entities,
+            "extracted_skills": detected_skills,
             "skills_profile": detected_skills,
             "skills_count": len(detected_skills),
             "completeness_score": completeness_score,

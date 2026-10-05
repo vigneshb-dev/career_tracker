@@ -28,6 +28,10 @@ export interface AuthUser {
   profile_id?: string | null;
   trainee_id?: string | null;
   employer_id?: string | null;
+  company_id?: string | null;
+  training_institute_id?: string | null;
+  employer_profile?: any;
+  coach_profile?: any;
   details?: UserProfileDetails;
 }
 

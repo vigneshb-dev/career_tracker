@@ -18,7 +18,12 @@ from app.routers.outcome_intelligence import (
     router as outcome_intelligence_router,
     outcomes_router,
     followups_router,
+    follow_ups_questions_router,
 )
+
+from app.routers.companies import router as companies_router
+from app.routers.training_institutes import router as training_institutes_router
+from app.routers.courses import router as courses_router
 
 __all__ = [
     "auth_router",
@@ -40,6 +45,10 @@ __all__ = [
     "outcome_intelligence_router",
     "outcomes_router",
     "followups_router",
+    "follow_ups_questions_router",
+    "companies_router",
+    "training_institutes_router",
+    "courses_router",
 ]
 
 

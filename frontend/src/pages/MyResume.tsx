@@ -105,7 +105,7 @@ export const MyResume: React.FC = () => {
     setSuccessMsg(null);
 
     try {
-      const res = await api.uploadResume(traineeId, selectedFile);
+      const res = await api.uploadAndAnalyzeResume(traineeId, selectedFile);
       setSuccessMsg('Resume uploaded & analyzed in real time! Verified competencies are synchronized with your SkillTrace passport.');
       
       const newAnalysis: ResumeAnalysisResult = {

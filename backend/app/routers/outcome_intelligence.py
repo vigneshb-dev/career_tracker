@@ -23,9 +23,11 @@ logger = logging.getLogger("skilltrace.outcome_intelligence_router")
 
 router = APIRouter(prefix="/outcome-intelligence", tags=["Outcome Cause & Attrition Intelligence"])
 
-# Secondary router for root-level `/outcomes` and `/followups` endpoints
+# Canonical router for `/follow-ups` dynamic question generation and response
+follow_ups_questions_router = APIRouter(prefix="/follow-ups", tags=["Dynamic Follow-Up Engine"])
+# Backward compatibility alias router for `/followups`
+followups_router = APIRouter(prefix="/followups", tags=["Dynamic Follow-Up Engine (Compatibility Alias)"])
 outcomes_router = APIRouter(prefix="/outcomes", tags=["Outcome Cause Actions"])
-followups_router = APIRouter(prefix="/followups", tags=["Dynamic Follow-Up Engine"])
 
 
 @router.get("/reasons", response_model=List[OutcomeReasonConfigRead])
@@ -142,12 +144,16 @@ def record_outcome_reason_endpoint(
 
 
 # ========================================================
-# POST /api/followups/generate and /respond
+# POST /api/follow-ups/generate and /respond (Canonical)
+# POST /api/followups/generate and /respond (Compatibility Alias)
 # ========================================================
 
-@followups_router.post("/generate", response_model=FollowUpGenerateResponse)
+@follow_ups_questions_router.post("/generate", response_model=FollowUpGenerateResponse)
+@followups_router.post("/generate", response_model=FollowUpGenerateResponse, include_in_schema=False)
 def generate_followup_questions_endpoint(
-    payload: FollowUpGenerateRequest,
+    payload: Optional[FollowUpGenerateRequest] = None,
+    trainee_id: Optional[str] = Query(None),
+    employment_status: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -158,9 +164,13 @@ def generate_followup_questions_endpoint(
     - If SELF_EMPLOYED: asks about business status, revenue, operational bottlenecks
     - If EMPLOYMENT_LOST: asks about exit timing, primary reason, previous job match
     """
-    verify_trainee_resource_access(payload.trainee_id, current_user, db)
+    target_trainee_id = (payload.trainee_id if payload else None) or trainee_id
+    if not target_trainee_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="trainee_id is required")
+
+    verify_trainee_resource_access(target_trainee_id, current_user, db)
     try:
-        return OutcomeCauseIntelligenceService.generate_follow_up_questions(payload.trainee_id, db)
+        return OutcomeCauseIntelligenceService.generate_follow_up_questions(target_trainee_id, db)
     except ValueError as ve:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(ve))
     except Exception as e:
@@ -171,7 +181,8 @@ def generate_followup_questions_endpoint(
         )
 
 
-@followups_router.post("/respond")
+@follow_ups_questions_router.post("/respond")
+@followups_router.post("/respond", include_in_schema=False)
 def submit_followup_responses_endpoint(
     payload: FollowUpSubmitAnswersRequest,
     current_user: User = Depends(get_current_user),

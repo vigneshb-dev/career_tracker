@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, Text, ForeignKey, JSON
+from sqlalchemy import Column, String, Integer, Float, Boolean, Text, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.core.database import Base, get_vector_type
 from app.core.config import settings
@@ -359,20 +359,60 @@ class TraineeProfile(Base):
     trainee = relationship("Trainee", backref="profile_record")
 
 
+class Company(Base):
+    __tablename__ = "companies"
+
+    id = Column(String(50), primary_key=True, index=True)
+    legal_name = Column(String(200), nullable=False, index=True)
+    display_name = Column(String(150), nullable=False, index=True)
+    industry = Column(String(100), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    location = Column(String(150), nullable=False)
+    website = Column(String(255), nullable=True)
+    contact_email = Column(String(150), nullable=False)
+    status = Column(String(50), default="active", index=True) # active, pending, suspended, archived
+    created_at = Column(String(50), nullable=False)
+
+    employer_profiles = relationship("EmployerProfile", back_populates="company", cascade="all, delete-orphan")
+    jobs = relationship("Job", back_populates="company", cascade="all, delete-orphan")
+    applications = relationship("JobApplication", back_populates="company", cascade="all, delete-orphan")
+
+
+class TrainingInstitute(Base):
+    __tablename__ = "training_institutes"
+
+    id = Column(String(50), primary_key=True, index=True)
+    name = Column(String(200), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    location = Column(String(150), nullable=False)
+    website = Column(String(255), nullable=True)
+    contact_email = Column(String(150), nullable=False)
+    status = Column(String(50), default="active", index=True) # active, pending, suspended
+    created_at = Column(String(50), nullable=False)
+
+    coach_profiles = relationship("CoachProfile", back_populates="training_institute", cascade="all, delete-orphan")
+    courses = relationship("Course", back_populates="training_institute", cascade="all, delete-orphan")
+    enrollments = relationship("Enrollment", back_populates="training_institute", cascade="all, delete-orphan")
+
+
 class CoachProfile(Base):
     __tablename__ = "coach_profiles"
 
     id = Column(String(50), primary_key=True, index=True)
     user_id = Column(String(50), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    training_institute_id = Column(String(50), ForeignKey("training_institutes.id", ondelete="SET NULL"), nullable=True, index=True)
     full_name = Column(String(150), nullable=False)
     title = Column(String(150), default="Career & Workforce Coach")
+    designation = Column(String(100), default="Senior Workforce Coach")
     organization = Column(String(150), default="National Skill Development Ecosystem")
     specialization = Column(String(200), nullable=True)
+    verification_status = Column(String(50), default="VERIFIED", index=True)
     bio = Column(Text, nullable=True)
     phone = Column(String(50), nullable=True)
     assigned_trainee_ids = Column(JSON, default=list)
 
     user = relationship("User", back_populates="coach_profile")
+    training_institute = relationship("TrainingInstitute", back_populates="coach_profiles")
 
 
 class EmployerProfile(Base):
@@ -380,13 +420,17 @@ class EmployerProfile(Base):
 
     id = Column(String(50), primary_key=True, index=True)
     user_id = Column(String(50), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    company_id = Column(String(50), ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
     employer_id = Column(String(50), ForeignKey("employers.id", ondelete="SET NULL"), nullable=True, index=True)
     company_name = Column(String(150), nullable=False)
     designation = Column(String(100), default="Talent Acquisition Partner")
+    department = Column(String(100), default="Talent Acquisition & HR")
+    verification_status = Column(String(50), default="VERIFIED", index=True)
     contact_phone = Column(String(50), nullable=True)
     authorized_candidate_ids = Column(JSON, default=list)
 
     user = relationship("User", back_populates="employer_profile")
+    company = relationship("Company", back_populates="employer_profiles")
     employer = relationship("Employer", backref="representative_profiles")
 
 
@@ -470,12 +514,23 @@ class Course(Base):
 
     id = Column(String(50), primary_key=True, index=True)
     code = Column(String(50), unique=True, index=True)
+    training_institute_id = Column(String(50), ForeignKey("training_institutes.id", ondelete="SET NULL"), nullable=True, index=True)
     title = Column(String(150), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    category = Column(String(100), nullable=True, index=True)
     domain = Column(String(100), nullable=False, index=True)
     provider = Column(String(150), nullable=False)
+    duration = Column(String(50), default="12 Weeks")
     duration_weeks = Column(Integer, default=12)
-    description = Column(Text, nullable=True)
+    mode = Column(String(50), default="Hybrid") # Online, In-Person, Hybrid
+    eligibility = Column(String(200), default="Open to all enrolled candidates")
+    capacity = Column(Integer, default=30)
+    status = Column(String(50), default="active", index=True) # active, archived, upcoming
+    created_by = Column(String(50), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     competency_ids = Column(JSON, default=list) # Links to Competency IDs
+
+    training_institute = relationship("TrainingInstitute", back_populates="courses")
+    enrollments = relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
 
 
 class Competency(Base):
@@ -608,32 +663,37 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id = Column(String(50), primary_key=True, index=True)
-    title = Column(String(150), nullable=False, index=True)
+    company_id = Column(String(50), ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
     employer_id = Column(String(50), ForeignKey("employers.id"), nullable=True)
     employer_name = Column(String(150), nullable=False)
+    title = Column(String(150), nullable=False, index=True)
     location = Column(String(100), nullable=False)
     employment_type = Column(String(50), default="Full-time")
     workplace_type = Column(String(50), default="Hybrid")
     salary_range = Column(String(100), nullable=False)
     required_skills = Column(JSON, default=list)
+    experience = Column(String(100), nullable=True)
+    experience_level = Column(String(255), nullable=True)
+    education_level = Column(String(255), nullable=True)
     openings_count = Column(Integer, default=1)
     applicants_count = Column(Integer, default=0)
-    status = Column(String(50), default="active")
-    posted_date = Column(String(50), nullable=False)
+    status = Column(String(50), default="active", index=True)
+    posted_date = Column(String(50), default="2024-09-25", nullable=False)
     closing_date = Column(String(50), nullable=True)
     description = Column(Text, nullable=False)
     domain = Column(String(100), nullable=True, index=True)
+    created_by = Column(String(50), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     mapped_occupation_id = Column(String(50), nullable=True, index=True)
     mapped_occupation_title = Column(String(150), nullable=True)
-    experience_level = Column(String(255), nullable=True)
-    education_level = Column(String(255), nullable=True)
     source = Column(String(50), default="direct_submission")
     extracted_metadata = Column(JSON, default=dict)
 
     embedding = Column(vector_type, nullable=True)
 
+    company = relationship("Company", back_populates="jobs")
     extracted_skills = relationship("JobExtractedSkill", back_populates="job", cascade="all, delete-orphan")
+    applications = relationship("JobApplication", back_populates="job", cascade="all, delete-orphan")
 
 
 class JobExtractedSkill(Base):
@@ -649,6 +709,60 @@ class JobExtractedSkill(Base):
     extraction_method = Column(String(50), default="spacy_ner")
 
     job = relationship("Job", back_populates="extracted_skills")
+
+
+class Enrollment(Base):
+    __tablename__ = "enrollments"
+    __table_args__ = (
+        UniqueConstraint("course_id", "trainee_id", name="uq_course_trainee_enrollment"),
+    )
+
+    id = Column(String(50), primary_key=True, index=True)
+    training_institute_id = Column(String(50), ForeignKey("training_institutes.id", ondelete="CASCADE"), nullable=False, index=True)
+    course_id = Column(String(50), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(50), default="enrolled", index=True) # enrolled, completed, dropped, withdrawn
+    enrolled_at = Column(String(50), nullable=False)
+    completed_at = Column(String(50), nullable=True)
+    progress_percent = Column(Integer, default=0)
+    grade_or_result = Column(String(50), nullable=True)
+
+    training_institute = relationship("TrainingInstitute", back_populates="enrollments")
+    course = relationship("Course", back_populates="enrollments")
+    trainee = relationship("Trainee", backref="course_enrollments")
+
+
+class JobApplication(Base):
+    __tablename__ = "job_applications"
+    __table_args__ = (
+        UniqueConstraint("job_id", "trainee_id", name="uq_job_trainee_application"),
+    )
+
+    id = Column(String(50), primary_key=True, index=True)
+    job_id = Column(String(50), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(String(50), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    trainee_id = Column(String(50), ForeignKey("trainees.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(50), default="applied", index=True) # applied, screening, interviewing, offered, rejected, hired
+    applied_at = Column(String(50), nullable=False)
+    cover_note = Column(Text, nullable=True)
+    match_score = Column(Float, nullable=True)
+
+    job = relationship("Job", back_populates="applications")
+    company = relationship("Company", back_populates="applications")
+    trainee = relationship("Trainee", backref="job_applications")
+
+
+class OrganizationAuditLog(Base):
+    __tablename__ = "organization_audit_logs"
+
+    id = Column(String(50), primary_key=True, index=True)
+    actor_user_id = Column(String(50), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    organization_id = Column(String(50), nullable=False, index=True)
+    action = Column(String(100), nullable=False, index=True) # CREATE_JOB, UPDATE_JOB, CLOSE_JOB, CREATE_COURSE, UPDATE_COURSE, ASSESS_TRAINEE, VERIFY_ASSESSMENT, VERIFY_EMPLOYMENT
+    resource_type = Column(String(100), nullable=False, index=True) # JOB, COURSE, ASSESSMENT, VERIFICATION, ENROLLMENT
+    resource_id = Column(String(50), nullable=False, index=True)
+    details = Column(JSON, default=dict)
+    timestamp = Column(String(50), nullable=False, index=True)
 
 
 class FollowUp(Base):

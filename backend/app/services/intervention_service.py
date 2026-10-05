@@ -23,8 +23,8 @@ from app.models.entities import (
 )
 from app.core.intervention_catalogue_data import INTERVENTIONS_CATALOGUE_DATA
 from app.services.job_intelligence_service import JobIntelligenceService
-from app.services.skill_scoring_service import SkillScoringEngine
-from app.services.skill_gap_service import SkillGapEngine, vector_cosine_similarity
+from app.core.math_utils import vector_cosine_similarity
+from app.services.skill_gap_service import SkillGapEngine
 
 logger = logging.getLogger("skilltrace.intervention_engine")
 

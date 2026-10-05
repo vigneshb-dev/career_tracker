@@ -45,16 +45,7 @@ from app.services.job_intelligence_service import (
 logger = logging.getLogger("skilltrace.skill_gap_engine")
 
 
-def vector_cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
-    """Computes cosine similarity between two unit or non-unit float vectors."""
-    if not vec1 or not vec2 or len(vec1) != len(vec2):
-        return 0.0
-    dot = sum(a * b for a, b in zip(vec1, vec2))
-    norm_a = math.sqrt(sum(a * a for a in vec1))
-    norm_b = math.sqrt(sum(b * b for b in vec2))
-    if norm_a == 0.0 or norm_b == 0.0:
-        return 0.0
-    return max(0.0, min(1.0, dot / (norm_a * norm_b)))
+from app.core.math_utils import vector_cosine_similarity, cosine_similarity
 
 
 class SkillGapEngine:

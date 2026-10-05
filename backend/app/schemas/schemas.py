@@ -359,11 +359,19 @@ class CertificationVerifyRequest(BaseModel):
 
 class CourseRead(BaseModel):
     id: str
-    code: str
+    code: Optional[str] = None
+    training_institute_id: Optional[str] = None
     title: str
     domain: str
+    category: Optional[str] = None
     provider: str
-    duration_weeks: int
+    duration: Optional[str] = "12 Weeks"
+    duration_weeks: int = 12
+    mode: Optional[str] = "Hybrid"
+    eligibility: Optional[str] = "Open to all enrolled candidates"
+    capacity: Optional[int] = 30
+    status: Optional[str] = "active"
+    created_by: Optional[str] = None
     description: Optional[str] = None
     competency_ids: List[str] = []
 
@@ -487,6 +495,7 @@ class JobExtractedSkillRead(BaseModel):
 
 class JobBase(BaseModel):
     id: str
+    company_id: Optional[str] = None
     title: str
     employer_id: Optional[str] = None
     employer_name: str
@@ -495,6 +504,7 @@ class JobBase(BaseModel):
     workplace_type: str = "Hybrid"
     salary_range: str
     required_skills: List[str] = []
+    experience: Optional[str] = None
     openings_count: int = 1
     applicants_count: int = 0
     status: str = "active"
@@ -508,20 +518,36 @@ class JobBase(BaseModel):
     education_level: Optional[str] = None
     source: Optional[str] = "direct_submission"
     extracted_metadata: Optional[Dict[str, Any]] = None
+    created_by: Optional[str] = None
 
 class JobCreate(BaseModel):
     title: str
-    employer_name: str
+    employer_name: Optional[str] = None
     location: str
     description: str
+    company_id: Optional[str] = None
     employer_id: Optional[str] = None
     employment_type: Optional[str] = "Full-time"
     workplace_type: Optional[str] = "Hybrid"
     salary_range: Optional[str] = None
+    required_skills: Optional[List[str]] = []
+    experience: Optional[str] = None
     domain: Optional[str] = None
     openings_count: Optional[int] = 1
     closing_date: Optional[str] = None
     source: Optional[str] = "direct_submission"
+
+class JobUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    employment_type: Optional[str] = None
+    location: Optional[str] = None
+    salary_range: Optional[str] = None
+    required_skills: Optional[List[str]] = None
+    experience: Optional[str] = None
+    status: Optional[str] = None
+    openings_count: Optional[int] = None
+    closing_date: Optional[str] = None
 
 class JobRead(JobBase):
     extracted_skills: Optional[List[JobExtractedSkillRead]] = []
@@ -732,6 +758,8 @@ class UserProfileResponse(BaseModel):
     profile_id: Optional[str] = None
     trainee_id: Optional[str] = None
     employer_id: Optional[str] = None
+    company_id: Optional[str] = None
+    training_institute_id: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
 
     class Config:
@@ -1620,6 +1648,229 @@ class FollowUpSubmitAnswersRequest(BaseModel):
     trainee_id: str
     employment_status: str
     responses: List[Dict[str, Any]]
+
+
+# ========================================================
+# Organization-Scoped Profile & Entity Schemas
+# ========================================================
+
+class CompanyBase(BaseModel):
+    legal_name: str
+    display_name: str
+    industry: str
+    description: Optional[str] = None
+    location: str
+    website: Optional[str] = None
+    contact_email: str
+    status: str = "active"
+
+
+class CompanyCreate(CompanyBase):
+    pass
+
+
+class CompanyUpdate(BaseModel):
+    legal_name: Optional[str] = None
+    display_name: Optional[str] = None
+    industry: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    website: Optional[str] = None
+    contact_email: Optional[str] = None
+    status: Optional[str] = None
+
+
+class CompanyRead(CompanyBase):
+    id: str
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class TrainingInstituteBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    location: str
+    website: Optional[str] = None
+    contact_email: str
+    status: str = "active"
+
+
+class TrainingInstituteCreate(TrainingInstituteBase):
+    pass
+
+
+class TrainingInstituteUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    website: Optional[str] = None
+    contact_email: Optional[str] = None
+    status: Optional[str] = None
+
+
+class TrainingInstituteRead(TrainingInstituteBase):
+    id: str
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class EmployerProfileDetailRead(BaseModel):
+    id: str
+    user_id: str
+    company_id: Optional[str] = None
+    employer_id: Optional[str] = None
+    company_name: str
+    designation: str
+    department: Optional[str] = None
+    verification_status: str
+    contact_phone: Optional[str] = None
+    authorized_candidate_ids: List[str] = []
+
+    class Config:
+        from_attributes = True
+
+
+class CoachProfileDetailRead(BaseModel):
+    id: str
+    user_id: str
+    training_institute_id: Optional[str] = None
+    full_name: str
+    title: str
+    designation: str
+    organization: str
+    specialization: Optional[str] = None
+    verification_status: str
+    phone: Optional[str] = None
+    assigned_trainee_ids: List[str] = []
+
+    class Config:
+        from_attributes = True
+
+
+class CourseCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    training_institute_id: Optional[str] = None
+    category: Optional[str] = "Information Technology"
+    domain: Optional[str] = "Software Engineering"
+    provider: Optional[str] = None
+    duration: Optional[str] = "12 Weeks"
+    duration_weeks: Optional[int] = 12
+    mode: Optional[str] = "Hybrid"
+    eligibility: Optional[str] = "Open to all enrolled candidates"
+    capacity: Optional[int] = 30
+    status: Optional[str] = "active"
+    competency_ids: Optional[List[str]] = []
+
+
+class CourseUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    domain: Optional[str] = None
+    duration: Optional[str] = None
+    duration_weeks: Optional[int] = None
+    mode: Optional[str] = None
+    eligibility: Optional[str] = None
+    capacity: Optional[int] = None
+    status: Optional[str] = None
+    competency_ids: Optional[List[str]] = None
+
+
+class CourseDetailRead(BaseModel):
+    id: str
+    code: Optional[str] = None
+    training_institute_id: Optional[str] = None
+    title: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    domain: str
+    provider: str
+    duration: Optional[str] = None
+    duration_weeks: int
+    mode: str
+    eligibility: Optional[str] = None
+    capacity: int
+    status: str
+    created_by: Optional[str] = None
+    competency_ids: List[str] = []
+
+    class Config:
+        from_attributes = True
+
+
+class EnrollmentRead(BaseModel):
+    id: str
+    training_institute_id: str
+    course_id: str
+    trainee_id: str
+    status: str
+    enrolled_at: str
+    completed_at: Optional[str] = None
+    progress_percent: int = 0
+    grade_or_result: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EnrollmentCreate(BaseModel):
+    course_id: str
+    trainee_id: str
+    training_institute_id: Optional[str] = None
+
+
+class TraineeAssessmentCreate(BaseModel):
+    trainee_id: str
+    skill_name: str
+    score: float # 0.0 to 5.0
+    evaluation_type: str = "instructor_evaluation"
+    notes: Optional[str] = None
+
+
+class CourseCompletionCreate(BaseModel):
+    trainee_id: str
+    grade_or_result: Optional[str] = "Passed - Certified"
+    certificate_url: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class JobApplicationRead(BaseModel):
+    id: str
+    job_id: str
+    company_id: str
+    trainee_id: str
+    status: str
+    applied_at: str
+    cover_note: Optional[str] = None
+    match_score: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+
+class JobApplicationCreate(BaseModel):
+    job_id: str
+    cover_note: Optional[str] = None
+
+
+class OrganizationAuditLogRead(BaseModel):
+    id: str
+    actor_user_id: Optional[str] = None
+    organization_id: str
+    action: str
+    resource_type: str
+    resource_id: str
+    details: Dict[str, Any] = {}
+    timestamp: str
+
+    class Config:
+        from_attributes = True
+
 
 
 

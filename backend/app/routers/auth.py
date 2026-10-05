@@ -34,6 +34,8 @@ def build_user_response(user: User, db: Session) -> UserProfileResponse:
     """Builds a rich UserProfileResponse including role-specific profile links."""
     trainee_id = None
     employer_id = None
+    company_id = None
+    training_institute_id = None
     profile_id = None
     details: Dict[str, Any] = {}
 
@@ -59,20 +61,28 @@ def build_user_response(user: User, db: Session) -> UserProfileResponse:
     elif user_role == "COACH":
         if user.coach_profile:
             profile_id = user.coach_profile.id
+            training_institute_id = user.coach_profile.training_institute_id
             details = {
                 "title": user.coach_profile.title,
                 "organization": user.coach_profile.organization,
                 "specialization": user.coach_profile.specialization,
-                "assigned_trainee_ids": user.coach_profile.assigned_trainee_ids or []
+                "assigned_trainee_ids": user.coach_profile.assigned_trainee_ids or [],
+                "training_institute_id": user.coach_profile.training_institute_id,
+                "designation": user.coach_profile.designation,
+                "verification_status": user.coach_profile.verification_status
             }
 
     elif user_role == "EMPLOYER":
         if user.employer_profile:
             profile_id = user.employer_profile.id
             employer_id = user.employer_profile.employer_id
+            company_id = user.employer_profile.company_id
             details = {
+                "company_id": user.employer_profile.company_id,
                 "company_name": user.employer_profile.company_name,
                 "designation": user.employer_profile.designation,
+                "department": user.employer_profile.department,
+                "verification_status": user.employer_profile.verification_status,
                 "authorized_candidate_ids": user.employer_profile.authorized_candidate_ids or []
             }
 
@@ -93,6 +103,8 @@ def build_user_response(user: User, db: Session) -> UserProfileResponse:
         profile_id=profile_id,
         trainee_id=trainee_id,
         employer_id=employer_id,
+        company_id=company_id,
+        training_institute_id=training_institute_id,
         details=details
     )
 

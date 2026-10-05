@@ -14,7 +14,8 @@ import {
   FileText,
   Compass,
   Building2,
-  UserPlus
+  UserPlus,
+  GraduationCap
 } from 'lucide-react';
 import { Button } from '../common/Button';
 import { useAuth } from '../../context/AuthContext';
@@ -125,6 +126,49 @@ export const TopNav: React.FC<TopNavProps> = ({
 
       {/* Right: Actions, Notifications & Profile */}
       <div className="flex items-center gap-3">
+        {/* Active Organization Identity Badge */}
+        {userRole === 'EMPLOYER' && (
+          <Link
+            to="/employer-organization"
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200/80 rounded-xl text-blue-900 text-xs font-semibold hover:bg-blue-100 transition-all shadow-sm group"
+            title="Active Company Profile"
+          >
+            <Building2 className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+            <div className="flex flex-col text-left leading-tight">
+              <span className="text-[9px] uppercase font-extrabold text-blue-500 tracking-wider">Company</span>
+              <span className="text-xs font-bold text-blue-950 truncate max-w-[130px]">
+                {user?.employer_profile?.company_name || 'Apex Cloud Technologies'}
+              </span>
+            </div>
+          </Link>
+        )}
+
+        {userRole === 'COACH' && (
+          <Link
+            to="/coach-institute"
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200/80 rounded-xl text-indigo-900 text-xs font-semibold hover:bg-indigo-100 transition-all shadow-sm group"
+            title="Active Training Institute Profile"
+          >
+            <GraduationCap className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+            <div className="flex flex-col text-left leading-tight">
+              <span className="text-[9px] uppercase font-extrabold text-indigo-500 tracking-wider">Institute</span>
+              <span className="text-xs font-bold text-indigo-950 truncate max-w-[140px]">
+                {user?.coach_profile?.institute_name || 'National Institute of AI'}
+              </span>
+            </div>
+          </Link>
+        )}
+
+        {userRole === 'ADMIN' && (
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200/80 rounded-xl text-purple-900 text-xs font-semibold">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200 animate-pulse"></span>
+            <div className="flex flex-col text-left leading-tight">
+              <span className="text-[9px] uppercase font-extrabold text-purple-500 tracking-wider">RBAC Scope</span>
+              <span className="text-xs font-bold text-purple-950">Multi-Tenant Admin</span>
+            </div>
+          </div>
+        )}
+
         {/* Role-Specific Quick Actions */}
         {userRole === 'ADMIN' && (
           <Button
