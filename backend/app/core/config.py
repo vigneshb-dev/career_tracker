@@ -1,4 +1,7 @@
 import os
+import json
+from typing import Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -20,11 +23,39 @@ class Settings(BaseSettings):
     # Vector Search Configuration
     VECTOR_DIMENSION: int = 1536
     
-    # CORS Origins
-    CORS_ORIGINS: list[str] = ["https://skilltrace.onrender.com"]
+    # CORS Origins (accepts JSON array string, comma-separated string, wildcard, or list)
+    CORS_ORIGINS: Union[list[str], str] = ["https://skilltrace.onrender.com"]
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def assemble_database_url(cls, v: str) -> str:
+        if v and v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql://", 1)
+        return v
+
+    @field_validator("CORS_ORIGINS", mode="after")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, list[str]]) -> list[str]:
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed]
+                except Exception:
+                    pass
+            return [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, (list, tuple, set)):
+            return [str(i).strip() for i in v]
+        return v
 
     class Config:
         case_sensitive = True
+        extra = "ignore"
         env_file = ".env"
 
 settings = Settings()
+
