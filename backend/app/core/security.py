@@ -6,7 +6,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
 # Security configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "skilltrace-super-secure-production-jwt-key-2026-x89f")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY must be configured")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")) # 24 hours
 
