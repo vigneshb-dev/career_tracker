@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     VECTOR_DIMENSION: int = 1536
     
     # CORS Origins (accepts JSON array string, comma-separated string, wildcard, or list)
-    CORS_ORIGINS: Union[list[str], str] = ["https://skilltrace.onrender.com"]
+    CORS_ORIGINS: Union[list[str], str] = ["https://skilltracer.onrender.com"]
 
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
