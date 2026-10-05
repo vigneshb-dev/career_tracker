@@ -8,14 +8,14 @@ services:
     restart: always
     environment:
       POSTGRES_DB: skilltrace
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: vigneshb
+      POSTGRES_PASSWORD: CB9uRRDvglD986DGdJWK7RpUAXFmrGj0
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d skilltrace"]
+      test: ["CMD-SHELL", "pg_isready -U vigneshb -d skilltrace"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -43,7 +43,7 @@ services:
     container_name: skilltrace_backend
     restart: always
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/skilltrace
+      - DATABASE_URL=postgresql://vigneshb:CB9uRRDvglD986DGdJWK7RpUAXFmrGj0@db:5432/skilltrace
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=production
       - PORT=8000
@@ -64,7 +64,7 @@ services:
     restart: always
     command: celery -A app.core.celery_app.celery_app worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/skilltrace
+      - DATABASE_URL=postgresql://vigneshb:CB9uRRDvglD986DGdJWK7RpUAXFmrGj0@db:5432/skilltrace
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=production
     depends_on:

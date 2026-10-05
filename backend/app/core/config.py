@@ -10,10 +10,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     
     # Primary PostgreSQL Database URL with pgvector support
-    # In Docker: postgresql://postgres:postgres@db:5432/skilltrace
+    # In Docker: postgresql://vigneshb:CB9uRRDvglD986DGdJWK7RpUAXFmrGj0@db:5432/skilltrace
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL", 
-        "postgresql://postgres:postgres@localhost:5432/skilltrace"
+        "postgresql://vigneshb:CB9uRRDvglD986DGdJWK7RpUAXFmrGj0@localhost:5432/skilltrace"
     )
     SQLITE_FALLBACK_URL: str = "sqlite:///./skilltrace.db"
     
