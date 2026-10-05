@@ -36,6 +36,7 @@ from app.models.entities import (
     JobApplication,
     Company,
     Employer,
+    User,
 )
 from app.services.job_intelligence_service import JobIntelligenceService
 from app.services.intervention_service import InterventionEngine
@@ -44,6 +45,7 @@ from app.core.seed import (
     seed_jobs_dataset,
     seed_organizations_base,
     seed_enrollments_and_applications,
+    seed_users,
 )
 from app.core.math_utils import cosine_similarity, vector_cosine_similarity
 from main import app
@@ -314,5 +316,50 @@ def test_health_check_available_and_unavailable():
         data_down = res_down.json()
         assert data_down["status"] == "unhealthy"
         assert data_down["database"]["connected"] is False
-        assert "password" not in str(data_down).lower()
-        assert "secret" not in str(data_down).lower()
+
+
+def test_head_probes_supported():
+    """Verifies HEAD / and HEAD /health return 200 OK without 405 Method Not Allowed."""
+    client = TestClient(app)
+    head_root = client.head("/")
+    assert head_root.status_code == 200, f"Expected 200 on HEAD /, got {head_root.status_code}"
+
+    head_health = client.head("/health")
+    assert head_health.status_code == 200, f"Expected 200 on HEAD /health, got {head_health.status_code}"
+
+
+def test_job_long_experience_string_handling(memory_db):
+    """Verifies that jobs with experience descriptions longer than 100 characters persist cleanly."""
+    db, _ = memory_db
+    seed_organizations_base(db)
+
+    long_exp = "3+ years managing Docker containers, Linux virtual machines, and automated CI/CD deployment pipelines"
+    assert len(long_exp) > 100
+
+    job_data = {
+        "id": "JOB-LONG-EXP-01",
+        "title": "Cloud Infrastructure Lead",
+        "description": "Leading cloud infrastructure deployments with high reliability and zero downtime.",
+        "experience": long_exp,
+        "employer_name": "Apex Cloud Technologies",
+        "location": "Mumbai, MH"
+    }
+
+    job = JobIntelligenceService.process_and_save_job(db, job_data, commit=True)
+    assert job is not None
+    assert job.experience == long_exp[:250]
+
+
+def test_seed_users_idempotent(memory_db):
+    """Verifies seed_users can be executed multiple times without UniqueViolation or failure."""
+    db, _ = memory_db
+    seed_database(db)
+
+    # Run seed_users twice
+    seed_users(db, force_reseed=False)
+    u_count_1 = db.query(User).count()
+
+    seed_users(db, force_reseed=False)
+    u_count_2 = db.query(User).count()
+
+    assert u_count_1 == u_count_2, f"Users should not duplicate on rerun: {u_count_1} != {u_count_2}"

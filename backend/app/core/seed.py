@@ -599,19 +599,7 @@ def seed_database(db: Session, force_reseed: bool = False):
         db.query(Trainee).delete()
         db.query(JobExtractedSkill).delete()
         db.query(Job).delete()
-        db.commit()
-    elif db.query(Trainee).first():
-        logger.info("Trainee records already exist. Verifying jobs, enrollments, skill evidence, longitudinal intelligence, and users...")
-        seed_jobs_dataset(db, force_reseed)
-        associate_jobs_with_companies(db)
-        seed_enrollments_and_applications(db, force_reseed)
-        seed_longitudinal_outcome_intelligence(db, force_reseed)
-        seed_trainee_skill_evidence(db)
-        seed_digital_twins(db, force_reseed)
-        seed_users(db, force_reseed)
-        return
-
-    logger.info("Seeding complete Trainee Outcome Passport workforce dataset...")
+    logger.info("Verifying and seeding Trainee Outcome Passport workforce dataset...")
 
     # 4. Comprehensive Synthetic Trainees Representing All 6 Outcome Pathways:
     # 1) Employment, 2) Self-Employment, 3) Freelancing, 4) Apprenticeship, 5) Entrepreneurship, 6) Further Education
@@ -1318,7 +1306,9 @@ def seed_database(db: Session, force_reseed: bool = False):
         ),
     ]
 
-    db.add_all(trainees_data)
+    for trn in trainees_data:
+        if not db.query(Trainee).filter(Trainee.id == trn.id).first():
+            db.add(trn)
     db.commit()
 
     # Trainee Skills relationships
@@ -1350,7 +1340,12 @@ def seed_database(db: Session, force_reseed: bool = False):
         TraineeSkill(trainee_id="TRN-2024-006", skill_id="sk-6", name="Python / FastAPI", level="expert", verified=True, score=99),
         TraineeSkill(trainee_id="TRN-2024-006", skill_id="sk-8", name="PostgreSQL & pgvector", level="expert", verified=True, score=97),
     ]
-    db.add_all(skills_map)
+    for sk in skills_map:
+        if not db.query(TraineeSkill).filter(
+            TraineeSkill.trainee_id == sk.trainee_id,
+            TraineeSkill.skill_id == sk.skill_id
+        ).first():
+            db.add(sk)
     db.commit()
 
     # 5. Follow-ups Table
@@ -1380,7 +1375,9 @@ def seed_database(db: Session, force_reseed: bool = False):
             notes="NAPS milestone verification check with Hospital SOC supervisor.",
         ),
     ]
-    db.add_all(followups_data)
+    for flw in followups_data:
+        if not db.query(FollowUp).filter(FollowUp.id == flw.id).first():
+            db.add(flw)
     db.commit()
 
     # 6. Skill Gaps Table
@@ -1401,7 +1398,9 @@ def seed_database(db: Session, force_reseed: bool = False):
             recommendation="Complete a 1-week micro-credential in vector indexing and relational schema isolation.",
         ),
     ]
-    db.add_all(gaps_data)
+    for gap in gaps_data:
+        if not db.query(SkillGap).filter(SkillGap.id == gap.id).first():
+            db.add(gap)
     db.commit()
 
     # 7. Career Paths Table
@@ -2082,8 +2081,38 @@ def seed_users(db: Session, force_reseed: bool = False):
 
     logger.info("Seeding protected multi-role users (Admin, Coach, Employer, Trainee)...")
 
+    def upsert_user(user_obj, profile_obj=None, trainee_id_to_link=None):
+        try:
+            with db.begin_nested():
+                existing = db.query(User).filter(
+                    (User.id == user_obj.id) | (User.email == user_obj.email)
+                ).first()
+                target_user = existing
+                if not existing:
+                    db.add(user_obj)
+                    db.flush()
+                    target_user = user_obj
+
+                if profile_obj:
+                    profile_cls = type(profile_obj)
+                    existing_prof = db.query(profile_cls).filter(
+                        (profile_cls.id == profile_obj.id) | (profile_cls.user_id == target_user.id)
+                    ).first()
+                    if not existing_prof:
+                        profile_obj.user_id = target_user.id
+                        db.add(profile_obj)
+                        db.flush()
+
+                if trainee_id_to_link:
+                    t_record = db.query(Trainee).filter(Trainee.id == trainee_id_to_link).first()
+                    if t_record:
+                        t_record.user_id = target_user.id
+                        db.flush()
+        except Exception as e:
+            logger.warning(f"Notice during user upsert for {user_obj.email}: {e}")
+
     # 1. Platform Admin (Provisioned account)
-    admin_user = User(
+    upsert_user(User(
         id="USR-ADMIN-001",
         email="admin@skilltrace.gov",
         hashed_password=get_password_hash("Admin@123456"),
@@ -2093,10 +2122,9 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_active=True,
         is_verified=True,
         created_at="2024-01-01T09:00:00"
-    )
-    db.add(admin_user)
+    ))
 
-    admin_user_org = User(
+    upsert_user(User(
         id="USR-ADMIN-002",
         email="admin@skilltrace.org",
         hashed_password=get_password_hash("Admin@123456"),
@@ -2106,8 +2134,7 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_active=True,
         is_verified=True,
         created_at="2024-01-01T09:00:00"
-    )
-    db.add(admin_user_org)
+    ))
 
     # 2. Coaches
     coach_1 = User(
@@ -2121,11 +2148,9 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_verified=True,
         created_at="2024-01-15T10:00:00"
     )
-    db.add(coach_1)
-    db.flush()
-    db.add(CoachProfile(
+    upsert_user(coach_1, CoachProfile(
         id="CP-001",
-        user_id=coach_1.id,
+        user_id="USR-COACH-001",
         training_institute_id="INST-01",
         full_name="Sarah Jenkins",
         title="Lead Cloud & AI Workforce Coach",
@@ -2148,11 +2173,9 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_verified=True,
         created_at="2024-01-20T10:00:00"
     )
-    db.add(coach_2)
-    db.flush()
-    db.add(CoachProfile(
+    upsert_user(coach_2, CoachProfile(
         id="CP-002",
-        user_id=coach_2.id,
+        user_id="USR-COACH-002",
         training_institute_id="INST-02",
         full_name="Arun Kumar",
         title="Healthcare & Data Systems Coach",
@@ -2165,7 +2188,6 @@ def seed_users(db: Session, force_reseed: bool = False):
     ))
 
     # 3. Employers (Multi-Tenant Companies)
-    # Employer 1: Apex Cloud Technologies (CMP-01)
     employer_user_1 = User(
         id="USR-EMP-001",
         email="recruiter@apexcloud.io",
@@ -2177,11 +2199,9 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_verified=True,
         created_at="2024-02-01T08:30:00"
     )
-    db.add(employer_user_1)
-    db.flush()
-    db.add(EmployerProfile(
+    upsert_user(employer_user_1, EmployerProfile(
         id="EP-001",
-        user_id=employer_user_1.id,
+        user_id="USR-EMP-001",
         company_id="CMP-01",
         employer_id="EMP-01",
         company_name="Apex Cloud Technologies India Pvt. Ltd.",
@@ -2192,7 +2212,6 @@ def seed_users(db: Session, force_reseed: bool = False):
         authorized_candidate_ids=["TRN-2024-001", "TRN-2024-004"]
     ))
 
-    # Employer 2: Meridian MedTech (CMP-02)
     employer_user_2 = User(
         id="USR-EMP-002",
         email="recruiter@meridianmedtech.co.in",
@@ -2204,11 +2223,9 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_verified=True,
         created_at="2024-02-05T09:00:00"
     )
-    db.add(employer_user_2)
-    db.flush()
-    db.add(EmployerProfile(
+    upsert_user(employer_user_2, EmployerProfile(
         id="EP-002",
-        user_id=employer_user_2.id,
+        user_id="USR-EMP-002",
         company_id="CMP-02",
         employer_id="EMP-02",
         company_name="Meridian MedTech India Pvt. Ltd.",
@@ -2220,7 +2237,7 @@ def seed_users(db: Session, force_reseed: bool = False):
     ))
 
     # 3b. Verification Authority & Auditor
-    verifier_user = User(
+    upsert_user(User(
         id="USR-VA-001",
         email="verifier@skilltrace.gov",
         hashed_password=get_password_hash("Verifier@123456"),
@@ -2230,10 +2247,9 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_active=True,
         is_verified=True,
         created_at="2024-01-10T09:00:00"
-    )
-    db.add(verifier_user)
+    ))
 
-    auditor_user = User(
+    upsert_user(User(
         id="USR-AUD-001",
         email="auditor@skilltrace.org",
         hashed_password=get_password_hash("Auditor@123456"),
@@ -2243,8 +2259,7 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_active=True,
         is_verified=True,
         created_at="2024-01-12T09:00:00"
-    )
-    db.add(auditor_user)
+    ))
 
     # 4. Trainees
     t1_user = User(
@@ -2258,26 +2273,23 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_verified=True,
         created_at="2024-01-15T09:00:00"
     )
-    db.add(t1_user)
-    db.flush()
-    db.add(TraineeProfile(
-        id="TP-001",
-        user_id=t1_user.id,
-        trainee_id="TRN-2024-001",
-        headline="Full Stack Cloud & AI Engineer Trainee",
-        bio="Passionate developer specializing in React, Python, and cloud microservices.",
-        education="B.Tech in Computer Science & Engineering",
-        experience_years=0.5,
-        assigned_coach_id="USR-COACH-001",
-        resume_filename="Priya_Sharma_Resume.pdf",
-        resume_url="/uploads/resumes/Priya_Sharma_Resume.pdf",
-        resume_parsed_skills=["React.js", "Python", "TypeScript", "PostgreSQL", "Docker"]
-    ))
-
-    # Link trainee record to user_id
-    t1_record = db.query(Trainee).filter(Trainee.id == "TRN-2024-001").first()
-    if t1_record:
-        t1_record.user_id = t1_user.id
+    upsert_user(
+        t1_user,
+        TraineeProfile(
+            id="TP-001",
+            user_id="USR-TRN-001",
+            trainee_id="TRN-2024-001",
+            headline="Full Stack Cloud & AI Engineer Trainee",
+            bio="Passionate developer specializing in React, Python, and cloud microservices.",
+            education="B.Tech in Computer Science & Engineering",
+            experience_years=0.5,
+            assigned_coach_id="USR-COACH-001",
+            resume_filename="Priya_Sharma_Resume.pdf",
+            resume_url="/uploads/resumes/Priya_Sharma_Resume.pdf",
+            resume_parsed_skills=["React.js", "Python", "TypeScript", "PostgreSQL", "Docker"]
+        ),
+        trainee_id_to_link="TRN-2024-001"
+    )
 
     t2_user = User(
         id="USR-TRN-002",
@@ -2290,24 +2302,23 @@ def seed_users(db: Session, force_reseed: bool = False):
         is_verified=True,
         created_at="2024-02-01T09:00:00"
     )
-    db.add(t2_user)
-    db.flush()
-    db.add(TraineeProfile(
-        id="TP-002",
-        user_id=t2_user.id,
-        trainee_id="TRN-2024-002",
-        headline="Cloud Solutions Architecture Apprentice",
-        bio="Designing scalable multi-cloud infrastructure and DevOps delivery pipelines.",
-        education="B.Tech in Information Technology",
-        experience_years=1.0,
-        assigned_coach_id="USR-COACH-001",
-        resume_filename="Rajesh_Kumar_Resume.pdf",
-        resume_url="/uploads/resumes/Rajesh_Kumar_Resume.pdf",
-        resume_parsed_skills=["AWS Architecture", "Docker", "Kubernetes", "Terraform", "CI/CD"]
-    ))
-    t2_record = db.query(Trainee).filter(Trainee.id == "TRN-2024-002").first()
-    if t2_record:
-        t2_record.user_id = t2_user.id
+    upsert_user(
+        t2_user,
+        TraineeProfile(
+            id="TP-002",
+            user_id="USR-TRN-002",
+            trainee_id="TRN-2024-002",
+            headline="Cloud Solutions Architecture Apprentice",
+            bio="Designing scalable multi-cloud infrastructure and DevOps delivery pipelines.",
+            education="B.Tech in Information Technology",
+            experience_years=1.0,
+            assigned_coach_id="USR-COACH-001",
+            resume_filename="Rajesh_Kumar_Resume.pdf",
+            resume_url="/uploads/resumes/Rajesh_Kumar_Resume.pdf",
+            resume_parsed_skills=["AWS Architecture", "Docker", "Kubernetes", "Terraform", "CI/CD"]
+        ),
+        trainee_id_to_link="TRN-2024-002"
+    )
 
     db.commit()
     logger.info("Successfully seeded multi-role users and role profiles.")
@@ -2781,6 +2792,8 @@ def seed_longitudinal_outcome_intelligence(db: Session, force_reseed: bool = Fal
     ]
 
     for ev in timeline_events:
+        if not db.query(Trainee).filter(Trainee.id == ev.trainee_id).first():
+            continue
         if not db.query(CareerTimelineEvent).filter(CareerTimelineEvent.id == ev.id).first():
             db.add(ev)
     db.commit()
@@ -2917,6 +2930,8 @@ def seed_longitudinal_outcome_intelligence(db: Session, force_reseed: bool = Fal
     ]
 
     for fu in longitudinal_fus:
+        if not db.query(Trainee).filter(Trainee.id == fu.trainee_id).first():
+            continue
         if not db.query(LongitudinalFollowUp).filter(LongitudinalFollowUp.id == fu.id).first():
             db.add(fu)
     db.commit()
@@ -2983,6 +2998,8 @@ def seed_longitudinal_outcome_intelligence(db: Session, force_reseed: bool = Fal
     ]
 
     for ev in employer_verifs:
+        if not db.query(Trainee).filter(Trainee.id == ev.trainee_id).first():
+            continue
         if not db.query(EmployerFeedbackVerification).filter(EmployerFeedbackVerification.id == ev.id).first():
             db.add(ev)
     db.commit()

@@ -672,7 +672,7 @@ class Job(Base):
     workplace_type = Column(String(50), default="Hybrid")
     salary_range = Column(String(100), nullable=False)
     required_skills = Column(JSON, default=list)
-    experience = Column(String(100), nullable=True)
+    experience = Column(String(255), nullable=True)
     experience_level = Column(String(255), nullable=True)
     education_level = Column(String(255), nullable=True)
     openings_count = Column(Integer, default=1)

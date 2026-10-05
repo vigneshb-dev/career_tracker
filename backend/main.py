@@ -172,8 +172,8 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Root API Information Endpoint (Eliminates 404s on platform root probes)
-@app.get("/", tags=["System"])
+# Root API Information Endpoint (Eliminates 404s and 405s on platform root probes)
+@app.api_route("/", methods=["GET", "HEAD"], tags=["System"])
 def root_endpoint():
     return {
         "service": settings.PROJECT_NAME,
@@ -185,8 +185,8 @@ def root_endpoint():
     }
 
 # Health & Status Endpoint (Actively verifies database connectivity)
-@app.get("/health", tags=["System"])
-@app.get("/api/health", tags=["System"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["System"])
+@app.api_route("/api/health", methods=["GET", "HEAD"], tags=["System"])
 def health_check(response: Response):
     from app.core.diagnostics import get_memory_diagnostics
     db_connected = False

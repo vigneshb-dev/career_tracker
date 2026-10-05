@@ -621,7 +621,16 @@ class CareerProgressionService:
         ]
 
         all_events = events_trn1 + events_trn2 + events_trn3 + events_trn4 + events_trn5 + events_trn6 + events_trn7
-        db.add_all(all_events)
+        for ev in all_events:
+            try:
+                with db.begin_nested():
+                    if not db.query(Trainee).filter(Trainee.id == ev.trainee_id).first():
+                        continue
+                    if not db.query(CareerTimelineEvent).filter(CareerTimelineEvent.id == ev.id).first():
+                        db.add(ev)
+                        db.flush()
+            except Exception as e:
+                logger.warning(f"Error seeding career event {ev.id}: {e}")
         db.commit()
 
         # Seed automated longitudinal 30 / 90 / 180 / 365 day follow-ups for all trainees

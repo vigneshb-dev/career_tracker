@@ -634,11 +634,19 @@ class EmployerVerificationService:
         ]
 
         for v in seed_data:
-            db.add(v)
-            # Update trainee evidence level in DB
-            t = db.query(Trainee).filter(Trainee.id == v.trainee_id).first()
-            if t:
-                t.evidence_level = v.evidence_level
+            try:
+                with db.begin_nested():
+                    if not db.query(Trainee).filter(Trainee.id == v.trainee_id).first():
+                        continue
+                    if not db.query(EmployerFeedbackVerification).filter(EmployerFeedbackVerification.id == v.id).first():
+                        db.add(v)
+                        db.flush()
+                    t = db.query(Trainee).filter(Trainee.id == v.trainee_id).first()
+                    if t:
+                        t.evidence_level = v.evidence_level
+            except Exception as e:
+                logger.warning(f"Error seeding employer verification {v.id}: {e}")
+        db.commit()
 
         # Also set David Chen (Self-Employment) as evidence_backed (LLC registration + client contracts)
         t_david = db.query(Trainee).filter(Trainee.id == "TRN-2024-006").first()

@@ -503,6 +503,18 @@ class JobIntelligenceService:
 
         mapped_occ = analysis.get("mapped_occupation") or {}
 
+        exp_val = job_data.get("experience") or analysis.get("experience_requirements")
+        if exp_val:
+            exp_val = str(exp_val)[:250]
+
+        exp_lvl_val = job_data.get("experience_level") or analysis.get("experience_requirements")
+        if exp_lvl_val:
+            exp_lvl_val = str(exp_lvl_val)[:250]
+
+        edu_lvl_val = job_data.get("education_level") or analysis.get("education_requirements")
+        if edu_lvl_val:
+            edu_lvl_val = str(edu_lvl_val)[:250]
+
         # Create or update Job record
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job:
@@ -511,7 +523,7 @@ class JobIntelligenceService:
                 title=job_data.get("title") or analysis["title"],
                 company_id=job_data.get("company_id"),
                 created_by=job_data.get("created_by"),
-                experience=job_data.get("experience") or (analysis["experience_requirements"][:250] if analysis.get("experience_requirements") else None),
+                experience=exp_val,
                 employer_id=job_data.get("employer_id"),
                 employer_name=job_data.get("employer_name") or analysis["employer_name"],
                 location=job_data.get("location") or analysis["location"],
@@ -528,8 +540,8 @@ class JobIntelligenceService:
                 domain=job_data.get("domain") or analysis["domain"],
                 mapped_occupation_id=mapped_occ.get("id"),
                 mapped_occupation_title=mapped_occ.get("title"),
-                experience_level=(analysis["experience_requirements"][:250] if analysis.get("experience_requirements") else None),
-                education_level=(analysis["education_requirements"][:250] if analysis.get("education_requirements") else None),
+                experience_level=exp_lvl_val,
+                education_level=edu_lvl_val,
                 source=job_data.get("source", "direct_submission"),
                 extracted_metadata={
                     "hard_skills": analysis["extracted_hard_skills"],
@@ -546,8 +558,8 @@ class JobIntelligenceService:
                 job.company_id = job_data["company_id"]
             if job_data.get("created_by"):
                 job.created_by = job_data["created_by"]
-            if job_data.get("experience"):
-                job.experience = job_data["experience"]
+            if exp_val:
+                job.experience = exp_val
             job.employer_name = job_data.get("employer_name") or analysis["employer_name"]
             job.location = job_data.get("location") or analysis["location"]
             job.salary_range = job_data.get("salary_range") or analysis["salary"] or "₹7,50,000 - ₹9,50,000"
@@ -555,8 +567,8 @@ class JobIntelligenceService:
             job.domain = job_data.get("domain") or analysis["domain"]
             job.mapped_occupation_id = mapped_occ.get("id")
             job.mapped_occupation_title = mapped_occ.get("title")
-            job.experience_level = (analysis["experience_requirements"][:250] if analysis.get("experience_requirements") else None)
-            job.education_level = (analysis["education_requirements"][:250] if analysis.get("education_requirements") else None)
+            job.experience_level = exp_lvl_val
+            job.education_level = edu_lvl_val
             job.required_skills = req_skills_list
             job.extracted_metadata = {
                 "hard_skills": analysis["extracted_hard_skills"],

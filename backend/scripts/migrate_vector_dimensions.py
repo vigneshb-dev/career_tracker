@@ -57,6 +57,14 @@ def check_and_migrate_vector_dimensions(db_engine=None) -> dict:
 
     try:
         with eng.connect() as conn:
+            # Upgrade string column constraints safely on PostgreSQL
+            try:
+                conn.execute(text("ALTER TABLE jobs ALTER COLUMN experience TYPE VARCHAR(255);"))
+                conn.execute(text("ALTER TABLE jobs ALTER COLUMN experience_level TYPE VARCHAR(255);"))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
             # Query pg_attribute and pg_type for vector column dimensions
             query = text("""
                 SELECT 
