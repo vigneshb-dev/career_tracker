@@ -3,8 +3,10 @@ Mathematical and Vector Utilities for SkillTrace.
 Canonical implementations for vector similarities, normalization, and metrics.
 """
 
+from __future__ import annotations
+
 import math
-from typing import List, Dict, Union
+from typing import Any, Dict, List, Optional, Union
 
 
 def cosine_similarity(

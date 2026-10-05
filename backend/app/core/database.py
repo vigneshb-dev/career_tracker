@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from sqlalchemy import create_engine, text, Column, JSON, String
 from sqlalchemy.orm import declarative_base, sessionmaker
