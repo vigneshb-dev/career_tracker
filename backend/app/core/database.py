@@ -51,7 +51,12 @@ try:
             connect_args={"check_same_thread": False}
         )
 except Exception as e:
-    logger.warning(f"PostgreSQL connection to {settings.DATABASE_URL} unavailable: {e}. Falling back to SQLite for local development.")
+    logger.error(f"PostgreSQL connection failed: {e}")
+
+    if settings.ENVIRONMENT == "production":
+        raise
+
+    logger.warning("Falling back to SQLite for local development.")
     engine = create_engine(
         settings.SQLITE_FALLBACK_URL,
         connect_args={"check_same_thread": False}
