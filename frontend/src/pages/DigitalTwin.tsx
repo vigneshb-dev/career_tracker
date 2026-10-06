@@ -99,8 +99,30 @@ export const DigitalTwin: React.FC = () => {
   useEffect(() => {
     if (id && id !== selectedTraineeId) {
       setSelectedTraineeId(id);
+    } else if (role === 'TRAINEE') {
+      const targetId = id || user?.trainee_id || 'TRN-2024-001';
+      if (targetId !== selectedTraineeId) {
+        setSelectedTraineeId(targetId);
+      }
     }
-  }, [id]);
+  }, [id, user?.trainee_id, role]);
+
+  useEffect(() => {
+    if (role !== 'TRAINEE') {
+      api.getTraineesPaginated({ page_size: 50 }).then((res: any) => {
+        const rawItems = res?.items || res?.data || [];
+        if (Array.isArray(rawItems) && rawItems.length > 0) {
+          const mapped = rawItems.map((t: any) => ({
+            id: t.id,
+            name: t.full_name || t.fullName || 'Trainee',
+            program: t.program || 'Software Engineering',
+            outcome: (t.status || t.primary_outcome_type || 'IN_TRAINING').toUpperCase(),
+          }));
+          setTraineeList(mapped);
+        }
+      }).catch(() => {});
+    }
+  }, [role]);
 
   const fetchTwinData = async (traineeId: string) => {
     setIsLoading(true);

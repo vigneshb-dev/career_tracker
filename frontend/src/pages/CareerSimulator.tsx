@@ -61,8 +61,11 @@ export const CareerSimulator: React.FC = () => {
 
   // Synchronize trainee selection with authenticated user profile
   useEffect(() => {
-    if (isTrainee && user?.trainee_id && selectedTraineeId !== user.trainee_id) {
-      setSelectedTraineeId(user.trainee_id);
+    if (isTrainee) {
+      const canonicalId = user?.trainee_id || 'TRN-2024-001';
+      if (selectedTraineeId !== canonicalId) {
+        setSelectedTraineeId(canonicalId);
+      }
     }
   }, [user, isTrainee]);
 

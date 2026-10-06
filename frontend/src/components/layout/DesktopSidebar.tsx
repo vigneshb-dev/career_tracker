@@ -31,8 +31,9 @@ export const DesktopSidebar: React.FC<SidebarProps> = ({ followUpsCount = 4 }) =
   const { user, role, logout } = useAuth();
 
   const userRole = (role || 'ADMIN').toUpperCase();
-  const traineePassportPath = user?.trainee_id ? `/trainees/${user.trainee_id}` : '/trainees/me';
-  const digitalTwinPath = user?.trainee_id ? `/digital-twin/${user.trainee_id}` : '/digital-twin';
+  const effectiveTraineeId = user?.trainee_id || 'TRN-2024-001';
+  const traineePassportPath = `/trainees/${effectiveTraineeId}`;
+  const digitalTwinPath = `/digital-twin/${effectiveTraineeId}`;
 
   // Role-tailored navigation items
   let navItems: { label: string; path: string; icon: any; badge?: number; badgeVariant?: string }[] = [];

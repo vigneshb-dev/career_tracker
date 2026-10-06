@@ -608,7 +608,7 @@ def seed_database(db: Session, force_reseed: bool = False):
         Trainee(
             id="TRN-2024-001",
             full_name="Priya Sharma",
-            email="priya.sharma@example.in",
+            email="priya.sharma@example.com",
             phone="+91 98450 23489",
             avatar_url="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
             location="Bengaluru, KA",
@@ -2092,6 +2092,13 @@ def seed_users(db: Session, force_reseed: bool = False):
                     db.add(user_obj)
                     db.flush()
                     target_user = user_obj
+                else:
+                    target_user.hashed_password = user_obj.hashed_password
+                    target_user.is_active = True
+                    target_user.is_verified = True
+                    target_user.role = user_obj.role
+                    target_user.full_name = user_obj.full_name
+                    db.flush()
 
                 if profile_obj:
                     profile_cls = type(profile_obj)
@@ -2102,11 +2109,16 @@ def seed_users(db: Session, force_reseed: bool = False):
                         profile_obj.user_id = target_user.id
                         db.add(profile_obj)
                         db.flush()
+                    else:
+                        if trainee_id_to_link and hasattr(existing_prof, "trainee_id"):
+                            existing_prof.trainee_id = trainee_id_to_link
+                            db.flush()
 
                 if trainee_id_to_link:
                     t_record = db.query(Trainee).filter(Trainee.id == trainee_id_to_link).first()
                     if t_record:
                         t_record.user_id = target_user.id
+                        t_record.email = target_user.email
                         db.flush()
         except Exception as e:
             logger.warning(f"Notice during user upsert for {user_obj.email}: {e}")
@@ -2320,8 +2332,61 @@ def seed_users(db: Session, force_reseed: bool = False):
         trainee_id_to_link="TRN-2024-002"
     )
 
+    # Reconcile and synchronize canonical trainee records across User, Coach, Employer
+    trainee_reconciliations = [
+        ("priya.sharma@example.com", "Priya Sharma", "TRN-2024-001"),
+        ("rajesh.kumar@example.com", "Rajesh Kumar", "TRN-2024-002"),
+    ]
+    for email, full_name, canonical_id in trainee_reconciliations:
+        u = db.query(User).filter(
+            (User.email.ilike(email)) | (User.full_name.ilike(full_name))
+        ).first()
+        canonical_trn = db.query(Trainee).filter(Trainee.id == canonical_id).first()
+        if u and canonical_trn:
+            canonical_trn.user_id = u.id
+            canonical_trn.email = email
+            if u.trainee_profile:
+                if u.trainee_profile.trainee_id != canonical_id:
+                    old_id = u.trainee_profile.trainee_id
+                    u.trainee_profile.trainee_id = canonical_id
+                    if old_id and old_id.startswith("TRN-2026"):
+                        ghost_trn = db.query(Trainee).filter(Trainee.id == old_id).first()
+                        if ghost_trn and ghost_trn.id != canonical_id:
+                            try:
+                                db.delete(ghost_trn)
+                            except Exception:
+                                pass
+            else:
+                tp = TraineeProfile(
+                    id=f"TP-CANONICAL-{canonical_id}",
+                    user_id=u.id,
+                    trainee_id=canonical_id,
+                    headline=f"Workforce Candidate ({canonical_trn.program})",
+                    bio=canonical_trn.bio
+                )
+                db.add(tp)
+            db.flush()
+
+    # Synchronize Coach Sarah Jenkins (CP-001) assigned trainee IDs
+    cp1 = db.query(CoachProfile).filter(CoachProfile.id == "CP-001").first()
+    if cp1:
+        assigned = list(cp1.assigned_trainee_ids or [])
+        for cid in ["TRN-2024-001", "TRN-2024-002", "TRN-2024-003"]:
+            if cid not in assigned:
+                assigned.append(cid)
+        cp1.assigned_trainee_ids = assigned
+
+    # Synchronize Employer Sunita Rao (EP-001) authorized candidates
+    ep1 = db.query(EmployerProfile).filter(EmployerProfile.id == "EP-001").first()
+    if ep1:
+        auth_cands = list(ep1.authorized_candidate_ids or [])
+        for cid in ["TRN-2024-001", "TRN-2024-004"]:
+            if cid not in auth_cands:
+                auth_cands.append(cid)
+        ep1.authorized_candidate_ids = auth_cands
+
     db.commit()
-    logger.info("Successfully seeded multi-role users and role profiles.")
+    logger.info("Successfully seeded multi-role users and role profiles with canonical trainee synchronization.")
 
 
 def seed_longitudinal_outcome_intelligence(db: Session, force_reseed: bool = False):
