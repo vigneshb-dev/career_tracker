@@ -1307,8 +1307,35 @@ def seed_database(db: Session, force_reseed: bool = False):
     ]
 
     for trn in trainees_data:
-        if not db.query(Trainee).filter(Trainee.id == trn.id).first():
-            db.add(trn)
+        try:
+            with db.begin_nested():
+                existing = db.query(Trainee).filter(Trainee.id == trn.id).first()
+                if not existing:
+                    # Clear conflict if another record holds this email
+                    conflicts = db.query(Trainee).filter(Trainee.email == trn.email).all()
+                    for c in conflicts:
+                        c.email = f"{c.id.lower()}@skilltrace.archive"
+                    db.flush()
+                    db.add(trn)
+                    db.flush()
+                else:
+                    if existing.email != trn.email:
+                        conflicts = db.query(Trainee).filter(
+                            Trainee.email == trn.email,
+                            Trainee.id != existing.id
+                        ).all()
+                        for c in conflicts:
+                            c.email = f"{c.id.lower()}@skilltrace.archive"
+                        db.flush()
+                        existing.email = trn.email
+                    existing.full_name = trn.full_name
+                    existing.program = trn.program
+                    existing.cohort = trn.cohort
+                    existing.status = trn.status
+                    existing.primary_outcome_type = trn.primary_outcome_type
+                    db.flush()
+        except Exception as e:
+            logger.warning(f"Notice seeding trainee {trn.id}: {e}")
     db.commit()
 
     # Trainee Skills relationships
@@ -2076,10 +2103,9 @@ def seed_users(db: Session, force_reseed: bool = False):
         ]
         all_exist = all(db.query(User).filter(User.email == e).first() is not None for e in required_demo_emails)
         if all_exist:
-            logger.info("All default demo accounts verified. Skipping.")
-            return
-
-    logger.info("Seeding protected multi-role users (Admin, Coach, Employer, Trainee)...")
+            logger.info("Default demo accounts detected. Synchronizing credentials & canonical profiles...")
+        else:
+            logger.info("Seeding protected multi-role users (Admin, Coach, Employer, Trainee)...")
 
     def upsert_user(user_obj, profile_obj=None, trainee_id_to_link=None):
         try:
@@ -2118,7 +2144,15 @@ def seed_users(db: Session, force_reseed: bool = False):
                     t_record = db.query(Trainee).filter(Trainee.id == trainee_id_to_link).first()
                     if t_record:
                         t_record.user_id = target_user.id
-                        t_record.email = target_user.email
+                        if target_user.email and t_record.email != target_user.email:
+                            ghost_trns = db.query(Trainee).filter(
+                                Trainee.email == target_user.email,
+                                Trainee.id != t_record.id
+                            ).all()
+                            for gt in ghost_trns:
+                                gt.email = f"{gt.id.lower()}@skilltrace.archive"
+                            db.flush()
+                            t_record.email = target_user.email
                         db.flush()
         except Exception as e:
             logger.warning(f"Notice during user upsert for {user_obj.email}: {e}")
@@ -2343,29 +2377,42 @@ def seed_users(db: Session, force_reseed: bool = False):
         ).first()
         canonical_trn = db.query(Trainee).filter(Trainee.id == canonical_id).first()
         if u and canonical_trn:
-            canonical_trn.user_id = u.id
-            canonical_trn.email = email
-            if u.trainee_profile:
-                if u.trainee_profile.trainee_id != canonical_id:
-                    old_id = u.trainee_profile.trainee_id
-                    u.trainee_profile.trainee_id = canonical_id
-                    if old_id and old_id.startswith("TRN-2026"):
-                        ghost_trn = db.query(Trainee).filter(Trainee.id == old_id).first()
-                        if ghost_trn and ghost_trn.id != canonical_id:
-                            try:
-                                db.delete(ghost_trn)
-                            except Exception:
-                                pass
-            else:
-                tp = TraineeProfile(
-                    id=f"TP-CANONICAL-{canonical_id}",
-                    user_id=u.id,
-                    trainee_id=canonical_id,
-                    headline=f"Workforce Candidate ({canonical_trn.program})",
-                    bio=canonical_trn.bio
-                )
-                db.add(tp)
-            db.flush()
+            try:
+                with db.begin_nested():
+                    # Archive any other trainee that conflicts on this email
+                    conflicts = db.query(Trainee).filter(
+                        Trainee.email == email,
+                        Trainee.id != canonical_id
+                    ).all()
+                    for c in conflicts:
+                        c.email = f"{c.id.lower()}@skilltrace.archive"
+                    db.flush()
+
+                    canonical_trn.user_id = u.id
+                    canonical_trn.email = email
+                    if u.trainee_profile:
+                        if u.trainee_profile.trainee_id != canonical_id:
+                            old_id = u.trainee_profile.trainee_id
+                            u.trainee_profile.trainee_id = canonical_id
+                            if old_id and old_id.startswith("TRN-2026"):
+                                ghost_trn = db.query(Trainee).filter(Trainee.id == old_id).first()
+                                if ghost_trn and ghost_trn.id != canonical_id:
+                                    try:
+                                        db.delete(ghost_trn)
+                                    except Exception:
+                                        pass
+                    else:
+                        tp = TraineeProfile(
+                            id=f"TP-CANONICAL-{canonical_id}",
+                            user_id=u.id,
+                            trainee_id=canonical_id,
+                            headline=f"Workforce Candidate ({canonical_trn.program})",
+                            bio=canonical_trn.bio
+                        )
+                        db.add(tp)
+                    db.flush()
+            except Exception as e:
+                logger.warning(f"Notice reconciling canonical trainee {canonical_id}: {e}")
 
     # Synchronize Coach Sarah Jenkins (CP-001) assigned trainee IDs
     cp1 = db.query(CoachProfile).filter(CoachProfile.id == "CP-001").first()

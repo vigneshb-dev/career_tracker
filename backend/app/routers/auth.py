@@ -85,25 +85,8 @@ def build_user_response(user: User, db: Session) -> UserProfileResponse:
 
         if trn:
             trainee_id = trn.id
-            if user.trainee_profile:
-                if user.trainee_profile.trainee_id != trn.id:
-                    user.trainee_profile.trainee_id = trn.id
-                    try:
-                        db.flush()
-                    except Exception:
-                        pass
-            if trn.user_id != user.id:
-                trn.user_id = user.id
-                try:
-                    db.flush()
-                except Exception:
-                    pass
-            if email_clean and trn.email != email_clean:
-                trn.email = email_clean
-                try:
-                    db.flush()
-                except Exception:
-                    pass
+        elif user.trainee_profile and user.trainee_profile.trainee_id:
+            trainee_id = user.trainee_profile.trainee_id
 
         if user.trainee_profile:
             profile_id = user.trainee_profile.id
