@@ -1,5 +1,6 @@
 # 🌟 SkillTrace – Longitudinal Skill, Career & Employment Outcome Intelligence Platform
 
+[![Render App](https://img.shields.io/badge/Render-Live_App-46E3B7.svg?style=for-the-badge&logo=render&logoColor=white)](https://skilltracer-app.onrender.com/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-19.2+-61DAFB.svg?style=flat&logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0+-3178C6.svg?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -9,20 +10,28 @@
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?style=flat&logo=docker&logoColor=white)](https://www.docker.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](LICENSE)
 
-**SkillTrace** is an enterprise-grade longitudinal workforce outcome intelligence platform. It tracks, audits, verifies, and analyzes candidate skills, institutional training programs, and longitudinal post-program employment outcomes over 30, 90, 180, and 365-day horizons.
+> 🚀 **Live Production Deployment:** **[https://skilltracer-app.onrender.com/](https://skilltracer-app.onrender.com/)**  
+> *Fully deployed and operational on Render with unified Docker container orchestration, PostgreSQL + pgvector capability, and real-time frontend-backend routing.*
+
+---
+
+**SkillTrace** is an enterprise-grade longitudinal workforce outcome intelligence platform. It tracks, audits, verifies, simulates, and analyzes candidate competencies, institutional training programs, and longitudinal post-program employment outcomes over 30, 90, 180, and 365-day horizons.
 
 ---
 
 ## 📑 Table of Contents
 
+- [Live Deployment](#-live-deployment)
 - [Vision & Core Product Principles](#-vision--core-product-principles)
-- [Key Features](#-key-features)
+- [Key Features & Core Modules](#-key-features--core-modules)
   - [1. Living Trainee Outcome Passport](#1-living-trainee-outcome-passport)
-  - [2. Multi-Source Evidence Architecture](#2-multi-source-evidence-architecture)
-  - [3. Role-Based Access Control (RBAC)](#3-role-based-access-control-rbac)
-  - [4. AI Resume Analyzer & Competency Ontology](#4-ai-resume-analyzer--competency-ontology)
-  - [5. Career Progression & Gap Analysis](#5-career-progression--gap-analysis)
-  - [6. Longitudinal Retention Audits & Triage Logic](#6-longitudinal-retention-audits--triage-logic)
+  - [2. What-If Career Simulator](#2-what-if-career-simulator)
+  - [3. Skill Gap Diagnostic & Cause Intelligence](#3-skill-gap-diagnostic--cause-intelligence)
+  - [4. Career Digital Twin & Uncertainty Modeling](#4-career-digital-twin--uncertainty-modeling)
+  - [5. Outcome Risk Engine & Closed-Loop Intervention System](#5-outcome-risk-engine--closed-loop-intervention-system)
+  - [6. AI Resume Analyzer & Competency Ontology](#6-ai-resume-analyzer--competency-ontology)
+  - [7. Multi-Source Evidence Architecture & Immutability](#7-multi-source-evidence-architecture--immutability)
+  - [8. Role-Based Access Control (RBAC)](#8-role-based-access-control-rbac)
 - [Architecture & Tech Stack](#-architecture--tech-stack)
 - [Project Directory Structure](#-project-directory-structure)
 - [Quick Start Guide](#-quick-start-guide)
@@ -30,15 +39,27 @@
   - [Option B: Running Locally for Development](#option-b-running-locally-for-development)
 - [Default Demo Credentials](#-default-demo-credentials)
 - [API Reference](#-api-reference)
-- [End-to-End Testing](#-end-to-end-testing)
-- [Deployment](#-deployment)
+- [Automated Testing Suite](#-automated-testing-suite)
+- [Production Deployment on Render](#-production-deployment-on-render)
 - [Contributing & License](#-contributing--license)
+
+---
+
+## 🌐 Live Deployment
+
+The SkillTrace application is deployed and hosted on Render:
+
+| Service | URL | Notes |
+|---|---|---|
+| **Production Web App** | [https://skilltracer-app.onrender.com/](https://skilltracer-app.onrender.com/) | Live React SPA + FastAPI API backend |
+| **API Health Endpoint** | [https://skilltracer-app.onrender.com/health](https://skilltracer-app.onrender.com/health) | System health & status check |
+| **Interactive API Docs** | [https://skilltracer-app.onrender.com/docs](https://skilltracer-app.onrender.com/docs) | Swagger UI specifications |
 
 ---
 
 ## 🎯 Vision & Core Product Principles
 
-SkillTrace shifts career and workforce tracking from static resume snapshots into a **Living, Evidence-Based Longitudinal Career Record**:
+SkillTrace shifts workforce and vocational training from static resume snapshots into a **Living, Evidence-Based Longitudinal Career Record**:
 
 1. **Evidence-Backed Claims**: Skills are not merely self-declared; they corroborate multi-source proof points (Coursework Labs, Practical Projects, AI Resume Analysis, Coach Evaluations, and Employer Verifications).
 2. **Non-Destructive History**: Verified records cannot be silently overwritten. Editing a verified record creates an audit event and resets verification status to `pending`, preserving previous verified values in the immutable audit ledger.
@@ -47,11 +68,11 @@ SkillTrace shifts career and workforce tracking from static resume snapshots int
 
 ---
 
-## 🚀 Key Features
+## 🚀 Key Features & Core Modules
 
 ### 1. Living Trainee Outcome Passport
 
-The Trainee Passport provides six core sections equipped with dynamic real-time record counters:
+The Trainee Passport provides a comprehensive, self-service career record equipped with real-time dynamic counters and cryptographic audit tracing:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -77,15 +98,52 @@ The Trainee Passport provides six core sections equipped with dynamic real-time 
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-Visual state badges clearly signal trust levels across all records:
-* `[Editable]` – Fields modifiable by candidate.
-* `[Verified ✓]` – Formally audited by coach, institution, or employer.
-* `[Pending Verification ◷]` – Submitted and awaiting review.
-* `[AI Extracted]` – Discovered via NLP parsing (does not auto-assume proficiency).
-* `[System Generated]` – Algorithmic match scores and progress indicators.
-* `[Locked 🔒]` – Immutable system identifiers (e.g. Outcome Passport ID).
+* **ID Mismatch Self-Healing**: Resolves passport routing dynamically across `/trainees/me`, authentication tokens, and user/trainee foreign key associations.
+* **Visual State Badges**:
+  * `[Editable]` – Fields modifiable by candidate.
+  * `[Verified ✓]` – Formally audited by coach, institution, or employer.
+  * `[Pending Verification ◷]` – Submitted and awaiting review.
+  * `[AI Extracted]` – Discovered via NLP parsing (does not auto-assume proficiency).
+  * `[System Generated]` – Algorithmic match scores and progress indicators.
+  * `[Locked 🔒]` – Immutable system identifiers (e.g. Outcome Passport ID).
 
-### 2. Multi-Source Evidence Architecture
+### 2. What-If Career Simulator
+
+Simulate future career trajectories and strategic upskilling decisions:
+* **Baseline vs. Simulated Profile**: Compare current competencies and target role requirements against simulated credentials, interventions, and newly acquired skills.
+* **Outcome Shift Calculation**: Computes newly matched positions, remaining gaps, changes in eligibility scores, and pathway transitions.
+* **Honest Guardrails**: Labeled strictly with `SIMULATION` and `ESTIMATION` badges. Displays an explicit disclaimer: *"Simulation based on available profile and job requirement data."*
+* **Data Safety Guard**: Triggers `INSUFFICIENT_DATA` warning if active industry benchmarks are fewer than 2. Zero hallucinated or fabricated wages.
+
+### 3. Skill Gap Diagnostic & Cause Intelligence
+
+An institutional diagnostic suite built with a **modern light theme** (`AdminSkillIntelligence.tsx` and `CourseSkillAnalysis.tsx`):
+* **Longitudinal Cohort Analytics**: Diagnostic drill-down into curriculum misalignments, emerging employer skill demand, and historical placement trends.
+* **Attrition & Non-Placement Drivers**: Identifies top causal factors behind attrition (compensation mismatch, commute hurdles, prerequisite skill deficit).
+* **Self-Employment & Freelance Tracking**: Measures alternative economic outcomes alongside direct corporate placements.
+* **Course Skill Alignment**: Real-time comparison between syllabus coverage and live employer job vacancy requirements.
+
+### 4. Career Digital Twin & Uncertainty Modeling
+
+* **Latent Competency Representations**: Models candidate skill depth and versatility using multi-dimensional embedding projections.
+* **Career Trajectory Forecasting**: Projects career progression corridors with 30, 90, 180, and 365-day placement confidence bands.
+* **Cohort Benchmarking**: Visualizes peer skill distributions, identifying velocity outliers and stagnation areas.
+
+### 5. Outcome Risk Engine & Closed-Loop Intervention System
+
+* **10 Automated Risk Signals**: Scans across 6 canonical risk types (skill deficit, attendance attrition, survey non-response, wage stagnation, certification lapse, placement delay).
+* **Explainable Signals**: Every detected risk provides explainability breakdown: `Signal 1`, `Signal 2`, and `Signal 3` with underlying evidence metrics.
+* **Full Intervention Lifecycle**:
+  $$\text{Detect Risk} \longrightarrow \text{Suggest Remediation} \longrightarrow \text{Accept/Reject} \longrightarrow \text{In Progress} \longrightarrow \text{Complete} \longrightarrow \text{Reassess & Resolve}$$
+* **Audit Trail Integration**: Every lifecycle transition writes an immutable event record into the timeline.
+
+### 6. AI Resume Analyzer & Competency Ontology
+
+* Parses PDF, DOCX, and TXT resumes using `spaCy` (`en_core_web_sm`) and semantic embeddings (`SentenceTransformers: all-MiniLM-L6-v2` or deterministic projection).
+* Normalizes candidate skills against a canonical taxonomy (e.g., *"Python Dev"*, *"Python Programming"* $\to$ `Python`).
+* Labels extracted skills as `Source: Resume Analyzer` without silently overwriting existing human-verified scores.
+
+### 7. Multi-Source Evidence Architecture & Immutability
 
 Skills support multi-source corroboration with source weights and confidence scores:
 
@@ -99,7 +157,7 @@ Analyzer          Lab         Project      Assessment     Feedback
 (86% conf)    (Attendance)  (Dashboard)     (4.5/5.0)    (Confirmed)
 ```
 
-### 3. Role-Based Access Control (RBAC)
+### 8. Role-Based Access Control (RBAC)
 
 Strictly enforced at the backend API layer:
 
@@ -109,24 +167,6 @@ Strictly enforced at the backend API layer:
 | **`COACH`** | Can audit assigned trainees, review submitted coursework, score skills on 0–5 rubrics, assign interventions, and verify candidate claims. |
 | **`EMPLOYER`** | Can verify candidate employment, confirm placement role, start date, retention period, and submit workplace skill ratings. **Cannot** alter trainee profile or audit trail (`403 Forbidden`). |
 | **`ADMIN`** | Full governance over taxonomy mappings, institutes, compliance rules, and user roles. |
-
-### 4. AI Resume Analyzer & Competency Ontology
-
-* Parses PDF, DOCX, and TXT resumes via `spaCy` (`en_core_web_sm`) and semantic embeddings (`SentenceTransformers: all-MiniLM-L6-v2`).
-* Normalizes candidate skills against a canonical taxonomy (e.g., *"Python Dev"*, *"Python Programming"* $\to$ `Python`).
-* Labels extracted skills as `Source: Resume Analyzer` without silently overwriting existing human-verified scores.
-
-### 5. Career Progression & Gap Analysis
-
-Implements a 6-stage Career Progression Architecture:
-$$\text{Current Profile} \longrightarrow \text{Verified Skills} \longrightarrow \text{Required Role Skills} \longrightarrow \text{Skill Gap Recalculation} \longrightarrow \text{Recommended Learning} \longrightarrow \text{Target Placement}$$
-When a trainee changes their target role (e.g. to *Data Analyst*), downstream skill gaps and recommended interventions are automatically synchronized.
-
-### 6. Longitudinal Retention Audits & Triage Logic
-
-* Tracks post-completion retention at **30, 90, 180, and 365 days**.
-* Incorporates the **7 standard retention survey questions** (employment status, role, employer, compensation, skill utilization, occupation shift, and additional learning needs).
-* Distinguishes non-responses from unemployment using `OUTCOME_UNKNOWN`.
 
 ---
 
@@ -157,7 +197,7 @@ When a trainee changes their target role (e.g. to *Data Analyst*), downstream sk
 * **Backend**: Python 3.11+, FastAPI, SQLAlchemy, Pydantic v2, PostgreSQL + pgvector (with automatic SQLite fallback for rapid local testing), Celery, Redis.
 * **NLP & ML**: spaCy (`en_core_web_sm`), Sentence Transformers (`all-MiniLM-L6-v2`).
 * **Containerization**: Docker, Docker Compose (`pgvector/pgvector:pg16`, `redis:7-alpine`, multi-stage frontend/backend builds).
-* **Cloud Deployment**: Configured for Vercel Serverless (`vercel.json`) or standalone containerized deployments.
+* **Cloud Hosting**: Render Cloud Application with automated Docker builds, health checks, and managed database connectivity.
 
 ---
 
@@ -167,28 +207,31 @@ When a trainee changes their target role (e.g. to *Data Analyst*), downstream sk
 skill_trace/
 ├── backend/
 │   ├── app/
-│   │   ├── models/            # SQLAlchemy database entities (Trainee, Skill, Events, Outcomes)
-│   │   ├── routers/           # FastAPI routers (trainees, auth, skills, interventions, analytics)
+│   │   ├── models/            # SQLAlchemy database entities (Trainee, Skill, Events, Outcomes, Risks)
+│   │   ├── routers/           # FastAPI routers (trainees, auth, skills, interventions, simulator, risks)
 │   │   ├── schemas/           # Pydantic validation models & request/response contracts
-│   │   ├── services/          # Business logic (trainee_service, resume_analyzer, scoring_engine)
+│   │   ├── services/          # Business logic (trainee_service, career_simulator, outcome_risk, resume_analyzer)
 │   │   └── uploads/           # Upload storage for resumes and certifications
+│   ├── scripts/               # Migration and maintenance utilities (migrate_sqlite_schema.py)
+│   ├── tests/                 # Pytest test suites (career_simulator, digital_twin, outcome_risks, etc.)
 │   ├── Dockerfile             # Multi-stage container for FastAPI backend
-│   ├── main.py                # FastAPI entry point & lifespan configuration
+│   ├── main.py                # FastAPI entry point, CORS, lifespan, and SQLite auto-migration
 │   └── requirements.txt       # Python dependencies
 ├── frontend/
 │   ├── src/
-│   │   ├── components/        # Reusable UI primitives (Card, Badge, Modal, Button)
-│   │   ├── pages/             # Application views (TraineeDetail, Trainees, Dashboard, Login)
-│   │   ├── services/          # API client with token management and /me endpoints
+│   │   ├── components/        # Reusable UI primitives (Card, Badge, Modal, Button, Sidebar)
+│   │   ├── pages/             # Application views (TraineeDetail, CareerSimulator, SkillGaps, DigitalTwin, etc.)
+│   │   ├── services/          # Axios API client with token management and /me endpoints
 │   │   └── types/             # TypeScript type definitions and interfaces
-│   ├── Dockerfile             # Nginx-based production frontend build
+│   ├── Dockerfile             # Production container for web application
 │   ├── package.json           # Frontend dependencies & scripts
 │   ├── tailwind.config.js     # Tailwind design system configuration
 │   └── vite.config.ts         # Vite build configuration
 ├── docker-compose.yml         # Multi-service stack (Postgres+pgvector, Redis, Backend, Frontend)
-├── vercel.json                # Vercel deployment specification
+├── render.yaml                # Render Cloud deployment infrastructure-as-code specification
 ├── test_e2e_passport.py       # Comprehensive 22-criteria E2E acceptance test suite
 ├── test_me_and_roles.py       # RBAC & self-service /me verification test suite
+├── test_resume_analyzer.py    # AI resume parsing and semantic skill extraction test
 └── README.md                  # Project documentation
 ```
 
@@ -302,45 +345,43 @@ The platform seeds a realistic workforce cohort with pre-configured personas acr
 | `GET` | `/api/trainees/me/passport/timeline` | Retrieves chronological passport events timeline |
 | `GET` | `/api/trainees/me/audit-history` | Retrieves immutable audit trail ledger |
 
-### Staff & Partner Verification Endpoints
+### What-If Career Simulator Endpoints (`/api/simulator/...`)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/simulator/run` | Simulates profile changes, new skills, and estimated readiness shifts |
+| `GET` | `/api/simulator/trainee/{id}/baseline` | Fetches authentic baseline skills, target roles, and credentials |
+| `GET` | `/api/simulator/options` | Returns taxonomy of available roles, skills, and interventions |
+
+### Outcome Risk Engine & Closed-Loop Remediation (`/api/outcome-risks/...`)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/outcome-risks` | Lists detected outcome risks with explainable 3-signal evidence |
+| `GET` | `/api/outcome-risks/summary` | Executive summary grouped by severity, canonical type, and status |
+| `GET` | `/api/outcome-risks/{id}` | Comprehensive risk diagnosis with structured evidence |
+| `POST` | `/api/outcome-risks/scan` | Initiates workforce scan across 10 signals |
+| `POST` | `/api/outcome-risks/{id}/accept` | Trainee/Coach accepts suggested remediation intervention |
+| `POST` | `/api/outcome-risks/{id}/reject` | Declines suggested intervention with reason audit |
+| `POST` | `/api/outcome-risks/{id}/start` | Commences active remediation tasks |
+| `POST` | `/api/outcome-risks/{id}/complete` | Marks intervention ready for reassessment |
+| `POST` | `/api/outcome-risks/{id}/reassess` | Submits verification score, updates risk level, and writes audit event |
+
+### Partner & Staff Verification Endpoints
 
 * `PATCH /api/trainees/{id}/training/{record_id}/verify` – Coach/Admin audit verification.
 * `PATCH /api/trainees/{id}/skills/{skill_id}/verify` – Coach 0–5 skill rubric scoring.
 * `PATCH /api/trainees/{id}/outcomes/{outcome_id}/verify` – Employer official placement confirmation.
 
-### What-If Career Simulator Endpoints (`/api/simulator/...`)
-
-* `POST /api/simulator/run` – Compares Current Profile vs. Simulated Profile (additional skills, certifications, target roles, locations, interventions). Calculates newly matched jobs, remaining gaps, changed match scores, newly eligible pathways, required training, and estimated readiness change.
-* `GET /api/simulator/trainee/{id}/baseline` – Retrieves actual trainee baseline skills, target roles, and certifications.
-* `GET /api/simulator/options` – Provides available skills, roles, certifications, and catalog interventions.
-* *Output Labels*: `SIMULATION`, `ESTIMATION`.
-* *Mandatory Disclaimer*: *"Simulation based on available profile and job requirement data."*
-* *Data Safety Guard*: Automatically flags `INSUFFICIENT_DATA` if active job benchmarks < 2. Zero fabricated salaries or employment probabilities.
-
-### Outcome Risk Engine & Intervention Loop Endpoints (`/api/outcome-risks/...`)
-
-* `GET /api/outcome-risks` – Lists detected outcome risks with explainable signals (Signal 1, Signal 2, Signal 3) and structured evidence. Filterable by type, severity, and status.
-* `GET /api/outcome-risks/summary` – Executive summary of risks by severity (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`), canonical type, and active remediation count.
-* `GET /api/outcome-risks/{id}` – Full detail of specific risk with complete evidence diagnostic.
-* `POST /api/outcome-risks/scan` – Automated multi-signal workforce scan detecting 10 risk signals across 6 canonical types.
-* `POST /api/outcome-risks/{id}/accept` – Intervention Loop: Trainee/Coach accepts suggested remediation intervention.
-* `POST /api/outcome-risks/{id}/reject` – Intervention Loop: Trainee declines intervention with reason audit.
-* `POST /api/outcome-risks/{id}/start` – Intervention Loop: Commences remediation tasks.
-* `POST /api/outcome-risks/{id}/complete` – Intervention Loop: Marks intervention completed, ready for reassessment.
-* `POST /api/outcome-risks/{id}/reassess` – Intervention Loop: Submits verified reassessment score, recalculates risk severity (&ge;80% resolves to `LOW`/`RESOLVED`), and records permanent audit entry.
-* *Output Label*: `RISK SIGNAL`.
-
-Interactive Swagger documentation is available at `http://localhost:8000/docs`.
+Interactive Swagger documentation is available at `http://localhost:8000/docs` (or `/docs` on the live Render app).
 
 ---
 
-## 🧪 End-to-End Testing
+## 🧪 Automated Testing Suite
 
-SkillTrace includes automated test suites covering the entire user journey and security constraints:
+SkillTrace provides comprehensive automated test coverage for backend APIs, security rules, and user interfaces:
 
 ### 1. Full Trainee Passport Lifecycle Test (22 Acceptance Criteria)
-
-Validates the full lifecycle: login, profile updates, training entry, certificate OCR, skill taxonomy mapping, resume analysis, career goal updates, outcome reporting, follow-up submissions, coach verification, employer outcome verification, timeline generation, and audit trail immutability.
 
 ```bash
 python test_e2e_passport.py
@@ -351,9 +392,7 @@ ALL 22 ACCEPTANCE CRITERIA PASSED SUCCESSFULLY!
 ==================================================
 ```
 
-### 2. Role Permissions & Security Test
-
-Validates RBAC enforcement (e.g. Trainees cannot self-verify credentials; Employers cannot alter personal profiles or training history).
+### 2. Role Permissions & Security RBAC Test
 
 ```bash
 python test_me_and_roles.py
@@ -364,7 +403,22 @@ ALL ROLE-BASED ACCESS CONTROL & /ME TESTS PASSED PERFECTLY!
 ============================================================
 ```
 
-### 3. Frontend Type Check & Build Validation
+### 3. AI Resume Analyzer Integration Test
+
+```bash
+python test_resume_analyzer.py
+```
+
+### 4. Pytest Core Intelligence Suites (40+ Test Cases)
+
+```bash
+python -m pytest backend/tests/test_career_simulator.py backend/tests/test_skill_gap_intelligence.py backend/tests/test_digital_twin.py backend/tests/test_outcome_risks.py backend/tests/test_outcome_verification_permissions.py backend/tests/test_outcome_cause_intelligence.py
+```
+```text
+====================== 40 passed in 28.24s =======================
+```
+
+### 5. Frontend Production Build & Type Checking
 
 ```bash
 cd frontend
@@ -373,13 +427,17 @@ npm run build
 
 ---
 
-## ☁️ Deployment
+## ☁️ Production Deployment on Render
 
-### Vercel Deployment
-The repository includes a ready-to-deploy [`vercel.json`](vercel.json) orchestrating FastAPI serverless functions and Vite static hosting with appropriate route rewrites.
+SkillTrace is configured for seamless deployment on Render using the included [`render.yaml`](render.yaml) blueprint:
 
-### Production Docker Deployment
-Use the included [`docker-compose.yml`](docker-compose.yml) configured with production restarts, environment variables, and healthchecks.
+1. **Link Repository**: Connect your GitHub repository on the [Render Dashboard](https://dashboard.render.com).
+2. **Apply Blueprint**: Render will automatically detect `render.yaml` and configure:
+   - Dockerized FastAPI application
+   - Managed environment variables and secrets
+   - Healthcheck monitoring at `/health`
+   - Memory management and concurrency limits suitable for standard Render web services
+3. **Connect Frontend**: Host the Vite React SPA alongside the backend container or as a static site pointing `VITE_API_URL` to `https://skilltracer-app.onrender.com/api`.
 
 ---
 

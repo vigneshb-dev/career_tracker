@@ -41,9 +41,33 @@ def build_user_response(user: User, db: Session) -> UserProfileResponse:
 
     user_role = (user.role or "").upper()
     if user_role == "TRAINEE":
+        trn = None
+        if user.trainee_profile and user.trainee_profile.trainee_id:
+            trn = db.query(Trainee).filter(Trainee.id == user.trainee_profile.trainee_id).first()
+        if not trn:
+            trn = db.query(Trainee).filter(
+                (Trainee.user_id == user.id) | 
+                (Trainee.email.ilike(user.email))
+            ).first()
+
+        if trn:
+            trainee_id = trn.id
+            if user.trainee_profile:
+                if user.trainee_profile.trainee_id != trn.id:
+                    user.trainee_profile.trainee_id = trn.id
+                    try:
+                        db.flush()
+                    except Exception:
+                        pass
+            if trn.user_id != user.id:
+                trn.user_id = user.id
+                try:
+                    db.flush()
+                except Exception:
+                    pass
+
         if user.trainee_profile:
             profile_id = user.trainee_profile.id
-            trainee_id = user.trainee_profile.trainee_id
             details = {
                 "headline": user.trainee_profile.headline,
                 "bio": user.trainee_profile.bio,
@@ -52,11 +76,15 @@ def build_user_response(user: User, db: Session) -> UserProfileResponse:
                 "resume_filename": user.trainee_profile.resume_filename,
                 "resume_parsed_skills": user.trainee_profile.resume_parsed_skills or []
             }
-        else:
-            # Fallback check direct trainee link
-            trn = db.query(Trainee).filter((Trainee.user_id == user.id) | (Trainee.email == user.email)).first()
-            if trn:
-                trainee_id = trn.id
+        elif trn:
+            details = {
+                "headline": f"Workforce Candidate ({trn.program})",
+                "bio": trn.bio,
+                "education": "Technical Certification",
+                "resume_url": None,
+                "resume_filename": None,
+                "resume_parsed_skills": []
+            }
 
     elif user_role == "COACH":
         if user.coach_profile:

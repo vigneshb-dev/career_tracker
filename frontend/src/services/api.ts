@@ -664,7 +664,7 @@ export const api = {
   },
 
   async getTraineeById(id: string): Promise<Trainee | null> {
-    const fallback = localTrainees.find(t => t.id === id) || null;
+    const fallback = (id === 'me' ? localTrainees[0] : localTrainees.find(t => t.id === id)) || null;
     return fetchWithFallback<Trainee | null>(`/trainees/${id}`, fallback);
   },
 
@@ -2949,14 +2949,23 @@ export const outcomeIntelligenceApi = {
     return await res.json();
   },
 
-  async recordOutcomeReason(outcomeId: string, payload: { reason_key: string; reason_label: string; notes?: string }): Promise<any> {
-    const res = await fetch(`${BASE_URL}/outcomes/${outcomeId}/reason`, {
+  async recordOutcomeReason(targetId: string, payload: any): Promise<any> {
+    const bodyPayload = {
+      outcome_type: payload.outcome_type || 'NON_PLACEMENT',
+      reason_category: payload.reason_category || 'NON_PLACEMENT',
+      reason_code: payload.reason_code || payload.reason_key || 'SKILL_MISMATCH',
+      reason_text: payload.reason_text || payload.notes || payload.reason_label || 'Outcome reason recorded',
+      outcome_id: payload.outcome_id,
+      tenure_months: payload.tenure_months,
+      metadata_json: payload.metadata_json || { label: payload.reason_label || payload.reason_code }
+    };
+    const res = await fetch(`${BASE_URL}/outcomes/${targetId}/reason`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...getAuthHeader()
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(bodyPayload)
     });
     if (!res.ok) throw new Error('Failed to record outcome reason');
     return await res.json();

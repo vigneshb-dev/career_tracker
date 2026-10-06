@@ -31,7 +31,8 @@ export const DesktopSidebar: React.FC<SidebarProps> = ({ followUpsCount = 4 }) =
   const { user, role, logout } = useAuth();
 
   const userRole = (role || 'ADMIN').toUpperCase();
-  const traineePassportPath = `/trainees/${user?.trainee_id || 'TRN-2024-001'}`;
+  const traineePassportPath = user?.trainee_id ? `/trainees/${user.trainee_id}` : '/trainees/me';
+  const digitalTwinPath = user?.trainee_id ? `/digital-twin/${user.trainee_id}` : '/digital-twin';
 
   // Role-tailored navigation items
   let navItems: { label: string; path: string; icon: any; badge?: number; badgeVariant?: string }[] = [];
@@ -39,7 +40,7 @@ export const DesktopSidebar: React.FC<SidebarProps> = ({ followUpsCount = 4 }) =
   if (userRole === 'TRAINEE') {
     navItems = [
       { label: 'My Trainee Passport', path: traineePassportPath, icon: UserCheck },
-      { label: 'Career Digital Twin', path: `/digital-twin/${user?.trainee_id || 'TRN-2024-001'}`, icon: Sparkles },
+      { label: 'Career Digital Twin', path: digitalTwinPath, icon: Sparkles },
       { label: 'What-If Simulator', path: '/career-simulator', icon: Sliders },
       { label: 'My Outcome Risks', path: '/outcome-risks', icon: ShieldAlert },
       { label: 'Skill Gap Diagnostic', path: '/trainee/skill-gap', icon: BrainCircuit },

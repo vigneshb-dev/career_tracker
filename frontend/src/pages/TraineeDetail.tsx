@@ -304,19 +304,31 @@ export const TraineeDetail: React.FC = () => {
     }, 4500);
   };
 
+  // Resolve effective trainee ID: handles 'me', user.id, or explicit candidate id
+  const effectiveId = (id === 'me' || (authUser?.role === 'TRAINEE' && id === authUser?.id))
+    ? (authUser?.trainee_id || id)
+    : id;
+
   const loadTrainee = async () => {
-    if (!id) return;
+    const targetId = effectiveId || id;
+    if (!targetId) return;
     setIsLoading(true);
     try {
       const [data, radar, training, timeline, audit] = await Promise.all([
-        api.getTraineeById(id),
-        api.getTraineeRadarProfile(id),
-        api.getTrainingRecords(id),
-        api.getPassportTimeline(id),
-        api.getPassportAuditHistory(id),
+        api.getTraineeById(targetId),
+        api.getTraineeRadarProfile(targetId),
+        api.getTrainingRecords(targetId),
+        api.getPassportTimeline(targetId),
+        api.getPassportAuditHistory(targetId),
       ]);
       if (data) {
         setTrainee(data);
+        if (authUser && authUser.role === 'TRAINEE' && !authUser.trainee_id) {
+          authUser.trainee_id = data.id;
+          try {
+            localStorage.setItem('skilltrace_auth_user', JSON.stringify(authUser));
+          } catch {}
+        }
         // Pre-fill forms
         setProfileForm({
           full_name: data.fullName || data.full_name,
@@ -546,11 +558,12 @@ export const TraineeDetail: React.FC = () => {
     setIsSavingTimelineReason(true);
     try {
       await outcomeIntelligenceApi.recordOutcomeReason(
-        selectedTimelineStage.id || trainee.id,
+        trainee.id,
         {
           reason_key: timelineReasonKey,
           reason_label: timelineReasonLabel,
-          notes: timelineReasonNotes
+          notes: timelineReasonNotes,
+          outcome_id: selectedTimelineStage.id !== trainee.id ? selectedTimelineStage.id : undefined
         }
       );
       setSelectedTimelineStage({

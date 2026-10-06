@@ -133,6 +133,15 @@ async def lifespan(app: FastAPI):
             check_and_migrate_vector_dimensions(engine)
         except Exception as mig_err:
             logger.warning(f"Vector dimension migration check notice: {mig_err}")
+
+        # Safe SQLite column migration check
+        if settings.DATABASE_URL.startswith("sqlite"):
+            try:
+                from scripts.migrate_sqlite_schema import migrate_db
+                migrate_db("skilltrace.db")
+                migrate_db("backend/skilltrace.db")
+            except Exception as sql_mig_err:
+                logger.warning(f"SQLite migration check notice: {sql_mig_err}")
     except Exception as e:
         logger.error(f"Error creating database tables: {e}")
         if settings.ENVIRONMENT == "production" and not settings.DATABASE_URL.startswith("sqlite"):

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, require_roles, verify_trainee_resource_access
-from app.models.entities import User
+from app.models.entities import User, Trainee
 from app.schemas.schemas import (
     OutcomeReasonConfigRead,
     NonPlacementResponse,
@@ -115,11 +115,27 @@ def record_outcome_reason_endpoint(
     Records an explicit, structured reason explaining non-placement or attrition for a trainee.
     Audited directly to the trainee's PassportEvent log.
     """
-    verify_trainee_resource_access(id, current_user, db, require_write=True)
+    target_trainee_id = id
+    # If id is not a trainee, check if it's an outcome record id
+    existing_trainee = db.query(Trainee).filter((Trainee.id == id) | (Trainee.user_id == id)).first()
+    if not existing_trainee and payload.outcome_id:
+        existing_trainee = db.query(Trainee).filter(Trainee.id == payload.outcome_id).first()
+    if not existing_trainee:
+        # Check if id is an outcome record id across trainees
+        for t in db.query(Trainee).all():
+            if any(isinstance(o, dict) and o.get("id") == id for o in (t.outcome_history or [])):
+                existing_trainee = t
+                target_trainee_id = t.id
+                break
+
+    if existing_trainee:
+        target_trainee_id = existing_trainee.id
+
+    trainee = verify_trainee_resource_access(target_trainee_id, current_user, db, require_write=True)
     try:
         actor_name = current_user.full_name or current_user.email
         rec = OutcomeCauseIntelligenceService.record_outcome_reason(
-            trainee_id=id,
+            trainee_id=trainee.id,
             reason_category=payload.reason_category,
             reason_code=payload.reason_code,
             outcome_type=payload.outcome_type,
@@ -127,7 +143,7 @@ def record_outcome_reason_endpoint(
             tenure_months=payload.tenure_months,
             metadata_json=payload.metadata_json,
             reported_by=actor_name,
-            outcome_id=payload.outcome_id,
+            outcome_id=payload.outcome_id or (id if id != trainee.id else None),
             db=db,
         )
         return {

@@ -46,7 +46,7 @@ router = APIRouter(prefix="/trainees", tags=["Trainee Outcome Passport"])
 RESUME_UPLOAD_DIR = os.getenv(
     "RESUME_UPLOAD_DIR",
     os.path.join(
-        tempfile.gettempdir() if os.getenv("VERCEL") else os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         "uploads",
         "resumes"
     )
@@ -136,6 +136,15 @@ def _build_passport_response(trainee: Trainee, db: Session) -> Dict[str, Any]:
 # ========================================================
 # /me Self-Service Routes (Trainee Outcome Passport)
 # ========================================================
+
+@router.get("/me", response_model=TraineeRead)
+def get_my_trainee_record(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Convenience endpoint returning the authenticated caller's own Trainee record."""
+    return _get_caller_trainee(current_user, db)
+
 
 @router.get("/me/passport")
 def get_my_passport(

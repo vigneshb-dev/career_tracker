@@ -147,7 +147,23 @@ def verify_trainee_resource_access(
     - EMPLOYER: Access if candidate is authorized, or current employer/outcome organization matches
     """
     user_role = (current_user.role or "").strip().upper()
+    
+    # 1. Direct Trainee ID lookup
     trainee = db.query(Trainee).filter(Trainee.id == trainee_id).first()
+    
+    # 2. Self-referential resolution ("me" or current_user.id)
+    if not trainee and (str(trainee_id).lower() == "me" or str(trainee_id) == str(current_user.id)):
+        trainee = db.query(Trainee).filter(
+            (Trainee.user_id == current_user.id) | 
+            (Trainee.email.ilike(current_user.email))
+        ).first()
+        if not trainee and current_user.trainee_profile and current_user.trainee_profile.trainee_id:
+            trainee = db.query(Trainee).filter(Trainee.id == current_user.trainee_profile.trainee_id).first()
+
+    # 3. Lookup by User ID foreign key fallback
+    if not trainee:
+        trainee = db.query(Trainee).filter(Trainee.user_id == trainee_id).first()
+
     if not trainee:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trainee record not found.")
 
@@ -177,6 +193,20 @@ def verify_trainee_resource_access(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Trainees are strictly restricted to their own record."
             )
+        
+        # Self-heal linkage if user_id or profile is missing
+        if trainee.user_id != current_user.id:
+            trainee.user_id = current_user.id
+            try:
+                db.flush()
+            except Exception:
+                pass
+        if current_user.trainee_profile and current_user.trainee_profile.trainee_id != trainee.id:
+            current_user.trainee_profile.trainee_id = trainee.id
+            try:
+                db.flush()
+            except Exception:
+                pass
         return trainee
 
     if user_role in ["COACH", "TRAINING_PROVIDER", "PROVIDER"]:

@@ -22,7 +22,25 @@ def migrate_db(db_path):
         "ALTER TABLE courses ADD COLUMN eligibility VARCHAR(255)",
         "ALTER TABLE courses ADD COLUMN capacity INTEGER DEFAULT 30",
         "ALTER TABLE courses ADD COLUMN status VARCHAR(50) DEFAULT 'active'",
-        "ALTER TABLE courses ADD COLUMN created_by VARCHAR(50)"
+        "ALTER TABLE courses ADD COLUMN created_by VARCHAR(50)",
+        "ALTER TABLE jobs ADD COLUMN company_id VARCHAR(50)",
+        "ALTER TABLE jobs ADD COLUMN experience VARCHAR(255)",
+        "ALTER TABLE jobs ADD COLUMN created_by VARCHAR(50)",
+        "ALTER TABLE trainees ADD COLUMN outcome_state VARCHAR(50) DEFAULT 'UNKNOWN'",
+        "ALTER TABLE trainees ADD COLUMN outcome_verification_level VARCHAR(50) DEFAULT 'UNVERIFIED'",
+        "ALTER TABLE trainees ADD COLUMN outcome_confidence FLOAT DEFAULT 0.0",
+        "ALTER TABLE trainees ADD COLUMN outcome_last_verified_at VARCHAR(50)",
+        "ALTER TABLE trainees ADD COLUMN outcome_source VARCHAR(150)",
+        "ALTER TABLE trainees ADD COLUMN district VARCHAR(100)",
+        "ALTER TABLE trainees ADD COLUMN provider_name VARCHAR(150)",
+        "ALTER TABLE trainees ADD COLUMN batch VARCHAR(100)",
+        "ALTER TABLE trainees ADD COLUMN current_wage_numeric FLOAT",
+        "ALTER TABLE trainees ADD COLUMN placement_wage_numeric FLOAT",
+        "ALTER TABLE trainees ADD COLUMN is_synthetic BOOLEAN DEFAULT 0",
+        "ALTER TABLE trainees ADD COLUMN data_source VARCHAR(100)",
+        "ALTER TABLE trainees ADD COLUMN data_quality_score FLOAT",
+        "ALTER TABLE trainees ADD COLUMN data_quality_breakdown JSON",
+        "ALTER TABLE trainees ADD COLUMN embedding JSON"
     ]
     
     for stmt in statements:

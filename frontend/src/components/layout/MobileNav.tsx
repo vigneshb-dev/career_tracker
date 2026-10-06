@@ -32,7 +32,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onOpenDra
   const navigate = useNavigate();
   const { user, role, logout } = useAuth();
   const userRole = (role || 'ADMIN').toUpperCase();
-  const traineePassportPath = `/trainees/${user?.trainee_id || 'TRN-2024-001'}`;
+  const traineePassportPath = user?.trainee_id ? `/trainees/${user.trainee_id}` : '/trainees/me';
 
   // Role-tailored drawer items
   let drawerItems: { label: string; path: string; icon: any; badge?: number }[] = [];

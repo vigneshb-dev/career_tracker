@@ -76,7 +76,11 @@ class OutcomeRiskService:
         declining_assessments = False
         if len(evidences) >= 2:
             sorted_evs = sorted(evidences, key=lambda e: e.assessment_date or "")
-            if sorted_evs[-1].score < sorted_evs[-2].score:
+            if (
+                sorted_evs[-1].score is not None and 
+                sorted_evs[-2].score is not None and 
+                sorted_evs[-1].score < sorted_evs[-2].score
+            ):
                 declining_assessments = True
                 skill_signals.append(f"Signal: Declining assessment performance ({sorted_evs[-2].score}/5.0 down to {sorted_evs[-1].score}/5.0).")
                 skill_evidence["declining_assessments"] = {
@@ -242,7 +246,8 @@ class OutcomeRiskService:
             stale_signals.append("Signal: Reliance on unverified self-reported outcome claim without employer corroboration.")
             stale_evidence["verification_level"] = "SELF_REPORTED"
 
-        if getattr(trainee, "data_quality_score", 100) < 60:
+        dq_score = getattr(trainee, "data_quality_score", None)
+        if dq_score is not None and dq_score < 60:
             stale_signals.append(f"Signal: Depressed data quality score ({trainee.data_quality_score}/100) due to unconfirmed outcome artifacts.")
             stale_evidence["data_quality_score"] = trainee.data_quality_score
 
